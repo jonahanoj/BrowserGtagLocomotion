@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Backrooms Bot Tag</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Rubik:wght@400;600&display=swap">
+<style>
+/*
+VOICE: liminal, a bit eerie, a bit goofy
+IDEA: a found-footage camcorder frame over a live Backrooms render
+PICTURE: the game itself, running full-screen behind the panel
+COLOUR and TYPE: wallpaper yellow, deep olive, robot-screen cyan; VT323 + Rubik
+LAYOUT: full-bleed canvas, one panel bottom-left, stacks on phones
+*/
+:root{color-scheme:dark;--y:#e2cf72;--olive:#231e0c;--ink:#fff8d8;--cy:#59f3ff}
+*{box-sizing:border-box;min-width:0}
+html,body{margin:0;height:100%;background:#1b170a;color:var(--ink);font:16px/1.5 Rubik,system-ui,sans-serif;overflow:hidden}
+canvas#c{position:fixed;inset:0;width:100%;height:100%;display:block}
+.rec{position:fixed;top:14px;left:18px;font:28px VT323,monospace;color:#fff;text-shadow:0 0 6px #000;display:flex;gap:10px;align-items:center;pointer-events:none}
+.rec i{width:12px;height:12px;border-radius:50%;background:#ff3b30;animation:b 1.2s steps(1) infinite}
+@keyframes b{50%{opacity:0}}
+.panel{position:fixed;left:clamp(12px,3vw,40px);bottom:clamp(12px,3vw,40px);width:min(440px,calc(100% - 24px));background:rgba(35,30,12,.88);border:2px solid var(--y);border-radius:14px;padding:22px 22px 18px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+h1{font:52px/1 VT323,monospace;margin:0;color:var(--y);text-wrap:balance}
+.sub{margin:4px 0 14px;color:#d9cfa0}
+button{font:600 18px Rubik,sans-serif;min-height:52px;width:100%;border:0;border-radius:10px;background:var(--cy);color:#06262b;cursor:pointer}
+button:disabled{background:#5a5532;color:#cfc79a;cursor:not-allowed}
+button:focus-visible{outline:3px solid #fff;outline-offset:2px}
+ul{margin:14px 0 8px;padding-left:20px;font-size:15px}
+li{margin:3px 0}
+.st{font-size:14px;color:#cfc79a;margin-top:10px}
+.st b{color:var(--cy);font-weight:600}
+.score{position:fixed;top:14px;right:18px;font:28px VT323,monospace;color:var(--y);text-shadow:0 0 6px #000;pointer-events:none}
+@media(max-width:600px){h1{font-size:40px}ul{font-size:14px}}
+@media(prefers-reduced-motion:reduce){.rec i{animation:none}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="rec"><i></i>REC · LEVEL 0</div>
+<div class="score" id="score">TAGGED 0</div>
+<div class="panel">
+  <h1>Backrooms Bot Tag</h1>
+  <p class="sub">Gorilla Tag movement. Endless yellow rooms. Four little chatbots who really don't want to be tagged.</p>
+  <button id="vr" disabled>Checking for VR…</button>
+  <ul>
+    <li>Push off the floor and walls with your hands to move, exactly like Gorilla Tag.</li>
+    <li>Fling your arms to jump. Climb walls hand over hand.</li>
+    <li>Tap a robot with either hand to tag it.</li>
+    <li>Right thumbstick snap-turns. Your score and time are on your left wrist.</li>
+  </ul>
+  <div class="st" id="st">Drag to look around in the preview.</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ===== <loco> =====
+// Faithful port of Another Axiom's GorillaLocomotion Player.cs (MIT License, Copyright (c) 2021 Another-Axiom)
+// https://github.com/Another-Axiom/GorillaLocomotion — values from the official "Gorilla Rig.prefab".
+function makeLoco(THREE, boxes, io){
+  const V = THREE.Vector3;
+  const P = {velocityHistorySize:8, maxArmLength:1.5, unStickDistance:1, velocityLimit:0.4, maxJumpSpeed:6.5,
+    jumpMultiplier:1.1, minimumRaycastDistance:0.05, defaultSlideFactor:0.03, defaultPrecision:0.995,
+    headRadius:0.15, bodyRadius:0.15, gravity:9.81, friction:0.6};
+  const UP = new V(0,1,0);
+
+  // ---- Unity Physics.SphereCast / Physics.Raycast against axis-aligned boxes ----
+  // Like Unity, colliders that already overlap the cast origin are ignored.
+  function sphereCast(o, r, dir, maxDist){
+    const len = dir.length();
+    if (len < 1e-9 || !(maxDist >= 0)) return null;
+    const d = [dir.x/len, dir.y/len, dir.z/len], oo = [o.x, o.y, o.z];
+    const lo = [], hi = [];
+    for (let a=0;a<3;a++){ const e = oo[a] + d[a]*maxDist; lo[a] = Math.min(oo[a],e) - r; hi[a] = Math.max(oo[a],e) + r; }
+    let bt = Infinity, bn = null;
+    for (const b of boxes){
+      if (b.max[0] < lo[0] || b.min[0] > hi[0] || b.max[1] < lo[1] || b.min[1] > hi[1] || b.max[2] < lo[2] || b.min[2] > hi[2]) continue;
+      let tmin = -Infinity, tmax = Infinity, ax = -1, sg = 0, miss = false;
+      for (let a=0;a<3;a++){
+        const bmin = b.min[a]-r, bmax = b.max[a]+r;
+        if (Math.abs(d[a]) < 1e-12){ if (oo[a] < bmin || oo[a] > bmax){ miss = true; break; } continue; }
+        let t1 = (bmin-oo[a])/d[a], t2 = (bmax-oo[a])/d[a];
+        if (t1 > t2){ const t = t1; t1 = t2; t2 = t; }
+        if (t1 > tmin){ tmin = t1; ax = a; sg = d[a] > 0 ? -1 : 1; }
+        if (t2 < tmax) tmax = t2;
+        if (tmin > tmax){ miss = true; break; }
+      }
+      if (miss || ax < 0 || tmin < 0) continue;
+      if (tmin <= maxDist && tmin < bt){ bt = tmin; bn = [0,0,0]; bn[ax] = sg; }
+    }
+    if (!bn) return null;
+    const normal = new V(bn[0], bn[1], bn[2]);
+    const point = new V(oo[0]+d[0]*bt, oo[1]+d[1]*bt, oo[2]+d[2]*bt).addScaledVector(normal, -r);
+    return {distance:bt, normal, point};
+  }
+  const raycast = (o, dir, maxDist) => sphereCast(o, 0, dir, maxDist);
+  const norm = v => { const l = v.length(); return l > 0 ? v.clone().divideScalar(l) : new V(); };
+  const projectOnPlane = (v, n) => v.clone().addScaledVector(n, -v.dot(n));
+
+  // ---- rig accessors (rig = Unity "GorillaPlayer" transform) ----
+  const rigApply = v => v.clone().applyAxisAngle(UP, io.yaw).add(io.pos);
+  const headPos = () => rigApply(io.headLocal);
+  const handPos = i => rigApply(io.handLocal[i]); // hand offsets are 0 in the prefab
+
+  const S = {
+    lastHand:[new V(), new V()], lastHeadPosition:new V(), velocity:new V(),
+    velocityHistory:[], velocityIndex:0, currentVelocity:new V(), denormalizedVelocityAverage:new V(),
+    lastPosition:new V(), wasTouching:[false,false], disableMovement:false, grounded:false
+  };
+
+  function InitializeValues(){
+    S.velocityHistory = []; for (let i=0;i<P.velocityHistorySize;i++) S.velocityHistory.push(new V());
+    S.lastHand[0] = handPos(0); S.lastHand[1] = handPos(1);
+    S.lastHeadPosition = headPos(); S.velocityIndex = 0; S.lastPosition = io.pos.clone();
+    S.denormalizedVelocityAverage.set(0,0,0); S.velocity.set(0,0,0); S.wasTouching = [false,false];
+  }
+
+  function CurrentHandPosition(i){
+    const h = headPos(), p = handPos(i), d = p.clone().sub(h);
+    if (d.length() < P.maxArmLength) return p;
+    return h.add(norm(d).multiplyScalar(P.maxArmLength));
+  }
+
+  function CollisionsSphereCast(start, r, move, precision){
+    let hit = sphereCast(start, r*precision, move, move.length() + r*(1-precision));
+    if (hit){
+      let finalPosition = hit.point.clone().addScaledVector(hit.normal, r);
+      const fs = finalPosition.clone().sub(start);
+      const inner = sphereCast(start, r*precision*precision, fs, fs.length() + r*(1-precision*precision));
+      if (inner){
+        finalPosition = start.clone().add(norm(fs).multiplyScalar(Math.max(0, hit.distance - r*(1-precision*precision))));
+        hit = inner;
+      } else {
+        const inner2 = raycast(start, fs, fs.length() + r*precision*precision*0.999);
+        if (inner2) return {hit:true, end:start.clone(), info:inner2};
+      }
+      return {hit:true, end:finalPosition, info:hit};
+    }
+    const ray = raycast(start, move, move.length() + r*precision*0.999);
+    if (ray) return {hit:true, end:start.clone(), info:ray};
+    return {hit:false, end:new V(), info:null};
+  }
+
+  function IterativeCollisionSphereCast(start, r, move, precision, singleHand){
+    const c = CollisionsSphereCast(start, r*precision, move, precision);
+    if (c.hit){
+      const firstPosition = c.end.clone();
+      const slipPercentage = !singleHand ? P.defaultSlideFactor : 0.001; // no Surface components in this level
+      const target = start.clone().add(move);
+      const proj = projectOnPlane(target.clone().sub(firstPosition), c.info.normal).multiplyScalar(slipPercentage);
+      const c2 = CollisionsSphereCast(c.end, r, proj, precision*precision);
+      if (c2.hit) return {hit:true, end:c2.end};
+      const from = proj.clone().add(firstPosition);
+      const c3 = CollisionsSphereCast(from, r, target.clone().sub(from), precision*precision*precision);
+      if (c3.hit) return {hit:true, end:c3.end};
+      return {hit:true, end:firstPosition};
+    }
+    const ml = move.length();
+    const m2 = ml > 0 ? move.clone().multiplyScalar((ml + r*precision*0.34)/ml) : new V();
+    const c4 = CollisionsSphereCast(start, r*precision*0.66, m2, precision*0.66);
+    if (c4.hit) return {hit:true, end:start.clone()};
+    return {hit:false, end:new V()};
+  }
+
+  function StoreVelocities(dt){
+    S.velocityIndex = (S.velocityIndex + 1) % P.velocityHistorySize;
+    const oldest = S.velocityHistory[S.velocityIndex];
+    S.currentVelocity = io.pos.clone().sub(S.lastPosition).divideScalar(dt);
+    S.denormalizedVelocityAverage.add(S.currentVelocity.clone().sub(oldest).divideScalar(P.velocityHistorySize));
+    S.velocityHistory[S.velocityIndex] = S.currentVelocity.clone();
+    S.lastPosition = io.pos.clone();
+  }
+
+  // Player.Update()
+  function Update(dt){
+    let lc = false, rc = false, it;
+    let fL = new V(), fR = new V();
+    const g = new V(0, -2*9.8*dt*dt, 0);
+
+    // left hand
+    let dist = CurrentHandPosition(0).sub(S.lastHand[0]).add(g);
+    it = IterativeCollisionSphereCast(S.lastHand[0], P.minimumRaycastDistance, dist, P.defaultPrecision, true);
+    if (it.hit){
+      fL = S.wasTouching[0] ? S.lastHand[0].clone().sub(CurrentHandPosition(0)) : it.end.clone().sub(CurrentHandPosition(0));
+      S.velocity.set(0,0,0); lc = true;
+    }
+    // right hand
+    dist = CurrentHandPosition(1).sub(S.lastHand[1]).add(g);
+    it = IterativeCollisionSphereCast(S.lastHand[1], P.minimumRaycastDistance, dist, P.defaultPrecision, true);
+    if (it.hit){
+      fR = S.wasTouching[1] ? S.lastHand[1].clone().sub(CurrentHandPosition(1)) : it.end.clone().sub(CurrentHandPosition(1));
+      S.velocity.set(0,0,0); rc = true;
+    }
+    // average or add
+    let rbMove = ((lc || S.wasTouching[0]) && (rc || S.wasTouching[1])) ? fL.add(fR).divideScalar(2) : fL.add(fR);
+
+    // check valid head movement
+    it = IterativeCollisionSphereCast(S.lastHeadPosition, P.headRadius, headPos().add(rbMove).sub(S.lastHeadPosition), P.defaultPrecision, false);
+    if (it.hit){
+      rbMove = it.end.clone().sub(S.lastHeadPosition);
+      const dir = headPos().sub(S.lastHeadPosition).add(rbMove);
+      if (raycast(S.lastHeadPosition, dir, dir.length() + P.headRadius*P.defaultPrecision*0.999))
+        rbMove = S.lastHeadPosition.clone().sub(headPos());
+    }
+    if (rbMove.lengthSq() > 0) io.pos.add(rbMove);
+    S.lastHeadPosition = headPos();
+
+    // final left hand position
+    dist = CurrentHandPosition(0).sub(S.lastHand[0]);
+    it = IterativeCollisionSphereCast(S.lastHand[0], P.minimumRaycastDistance, dist, P.defaultPrecision, !((lc || S.wasTouching[0]) && (rc || S.wasTouching[1])));
+    if (it.hit){ S.lastHand[0] = it.end; lc = true; } else S.lastHand[0] = CurrentHandPosition(0);
+    // final right hand position
+    dist = CurrentHandPosition(1).sub(S.lastHand[1]);
+    it = IterativeCollisionSphereCast(S.lastHand[1], P.minimumRaycastDistance, dist, P.defaultPrecision, !((lc || S.wasTouching[0]) && (rc || S.wasTouching[1])));
+    if (it.hit){ S.lastHand[1] = it.end; rc = true; } else S.lastHand[1] = CurrentHandPosition(1);
+
+    StoreVelocities(dt);
+
+    if ((rc || lc) && !S.disableMovement){
+      const m = S.denormalizedVelocityAverage.length();
+      if (m > P.velocityLimit){
+        if (m*P.jumpMultiplier > P.maxJumpSpeed) S.velocity = norm(S.denormalizedVelocityAverage).multiplyScalar(P.maxJumpSpeed);
+        else S.velocity = S.denormalizedVelocityAverage.clone().multiplyScalar(P.jumpMultiplier);
+      }
+    }
+    // unstick hands
+    for (const i of [0,1]){
+      const col = i === 0 ? lc : rc;
+      const cur = CurrentHandPosition(i), h = headPos(), toHand = cur.clone().sub(h);
+      if (col && cur.distanceTo(S.lastHand[i]) > P.unStickDistance &&
+          !sphereCast(h, P.minimumRaycastDistance*P.defaultPrecision, toHand, toHand.length() - P.minimumRaycastDistance)){
+        S.lastHand[i] = cur; if (i === 0) lc = false; else rc = false;
+      }
+    }
+    S.wasTouching[0] = lc; S.wasTouching[1] = rc;
+  }
+
+  // Player.Turn()
+  function Turn(rad){
+    const h = headPos();
+    io.pos.sub(h).applyAxisAngle(UP, rad).add(h); io.yaw += rad;
+    S.denormalizedVelocityAverage.applyAxisAngle(UP, rad);
+    for (const v of S.velocityHistory) v.applyAxisAngle(UP, rad);
+  }
+
+  // Unity Rigidbody step (mass 1, gravity on, rotation frozen) with the rig's colliders:
+  // head SphereCollider r=0.15 and body CapsuleCollider r=0.15 h=0.5 at (0,-0.24,-0.06) under the head.
+  function physicsSpheres(){
+    const h = headPos();
+    const c = new V(0,-0.24,0.06).applyAxisAngle(UP, io.yaw + io.headYaw).add(h);
+    return [h, c.clone().add(new V(0,0.1,0)), c, c.clone().add(new V(0,-0.1,0))];
+  }
+  function Physics(dt){
+    S.velocity.y -= P.gravity*dt;
+    let delta = S.velocity.clone().multiplyScalar(dt);
+    S.grounded = false;
+    for (let iter=0; iter<3 && delta.lengthSq() > 1e-12; iter++){
+      let best = null;
+      for (const s of physicsSpheres()){ const h = sphereCast(s, P.bodyRadius, delta, delta.length()); if (h && (!best || h.distance < best.distance)) best = h; }
+      if (!best){ io.pos.add(delta); break; }
+      const L = delta.length(), move = Math.max(0, best.distance - 0.002);
+      io.pos.addScaledVector(delta, move/L);
+      const n = best.normal;
+      delta.multiplyScalar(1 - move/L); delta.addScaledVector(n, -delta.dot(n));
+      const vn = S.velocity.dot(n); if (vn < 0) S.velocity.addScaledVector(n, -vn);
+      if (n.y > 0.6) S.grounded = true;
+    }
+    // depenetrate (Unity pushes rigidbodies out of geometry)
+    for (const s of physicsSpheres()){
+      for (const b of boxes){
+        const q = [Math.max(b.min[0],Math.min(s.x,b.max[0])), Math.max(b.min[1],Math.min(s.y,b.max[1])), Math.max(b.min[2],Math.min(s.z,b.max[2]))];
+        const dv = new V(s.x-q[0], s.y-q[1], s.z-q[2]), dl = dv.length();
+        if (dl < P.bodyRadius && dl > 1e-6){
+          const n = dv.divideScalar(dl); io.pos.addScaledVector(n, P.bodyRadius - dl); s.addScaledVector(n, P.bodyRadius - dl);
+          const vn = S.velocity.dot(n); if (vn < 0) S.velocity.addScaledVector(n, -vn);
+          if (n.y > 0.6) S.grounded = true;
+        }
+      }
+    }
+    if (S.grounded){
+      const hs = Math.hypot(S.velocity.x, S.velocity.z), dec = P.friction*P.gravity*dt;
+      const k = hs > dec ? (hs-dec)/hs : 0; S.velocity.x *= k; S.velocity.z *= k;
+    }
+  }
+  return {P, S, InitializeValues, Update, Physics, Turn, headPos, handPos, sphereCast};
+}
+// ===== </loco> =====
+</script>
+<script>
+{
+const T3 = THREE, V = T3.Vector3, UP = new V(0,1,0);
+const $ = id => document.getElementById(id);
+
+// ---------- world: a seeded Backrooms maze ----------
+let seed = 9137;
+const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+const N = 11, C = 4, H = 2.7, TW = 0.24, SIZE = N*C;
+const vx = [], hz = [];
+for (let y=0;y<=N;y++){ vx.push(Array(N+1).fill(true)); hz.push(Array(N).fill(true)); }
+{ // recursive backtracker, then knock out extra walls for open liminal rooms
+  const seen = Array.from({length:N}, () => Array(N).fill(false)), st = [[0,0]]; seen[0][0] = true;
+  while (st.length){
+    const [x,y] = st[st.length-1];
+    const nb = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => { const a=x+dx, b=y+dy; return a>=0&&b>=0&&a<N&&b<N&&!seen[b][a]; });
+    if (!nb.length){ st.pop(); continue; }
+    const [dx,dy] = nb[Math.floor(rnd()*nb.length)];
+    if (dx===1) vx[y][x+1]=false; if (dx===-1) vx[y][x]=false; if (dy===1) hz[y+1][x]=false; if (dy===-1) hz[y][x]=false;
+    seen[y+dy][x+dx] = true; st.push([x+dx,y+dy]);
+  }
+  for (let y=0;y<N;y++) for (let x=1;x<N;x++) if (vx[y][x] && rnd()<0.45) vx[y][x]=false;
+  for (let y=1;y<N;y++) for (let x=0;x<N;x++) if (hz[y][x] && rnd()<0.45) hz[y][x]=false;
+  const m = Math.floor(N/2); vx[m][m]=vx[m][m+1]=hz[m][m]=hz[m+1][m]=false; // open spawn room
+}
+const open = (x,y,dx,dy) => dx===1 ? !vx[y][x+1] : dx===-1 ? !vx[y][x] : dy===1 ? !hz[y+1][x] : !hz[y][x];
+const boxes = [], wallBoxes = [];
+const addBox = (a,b,list) => { const bx = {min:a, max:b}; boxes.push(bx); if (list) list.push(bx); };
+addBox([-1,-1,-1],[SIZE+1,0,SIZE+1]);            // floor
+addBox([-1,H,-1],[SIZE+1,H+1,SIZE+1]);           // ceiling
+for (let x=0;x<=N;x++){ let y=0; while (y<N){ if (!vx[y][x]){ y++; continue; } let e=y; while (e<N && vx[e][x]) e++;
+  addBox([x*C-TW/2,0,y*C-TW/2],[x*C+TW/2,H,e*C+TW/2], wallBoxes); y=e; } }
+for (let y=0;y<=N;y++){ let x=0; while (x<N){ if (!hz[y][x]){ x++; continue; } let e=x; while (e<N && hz[y][e]) e++;
+  addBox([x*C-TW/2,0,y*C-TW/2],[e*C+TW/2,H,y*C+TW/2], wallBoxes); x=e; } }
+for (let y=1;y<N;y++) for (let x=1;x<N;x++){ // pillars where four open cells meet
+  if (!vx[y-1][x] && !vx[y][x] && !hz[y][x-1] && !hz[y][x] && rnd()<0.5) addBox([x*C-0.35,0,y*C-0.35],[x*C+0.35,H,y*C+0.35], wallBoxes);
+}
+const SPAWN = new V((Math.floor(N/2)+0.5)*C, 0, (Math.floor(N/2)+0.5)*C);
+
+// ---------- renderer / scene ----------
+const canvas = $('c');
+const renderer = new T3.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = T3.sRGBEncoding;
+renderer.xr.enabled = true;
+renderer.xr.setReferenceSpaceType('local-floor');
+const scene = new T3.Scene();
+const FOG = 0x9c8c45;
+scene.background = new T3.Color(FOG);
+scene.fog = new T3.Fog(FOG, 3, 26);
+scene.add(new T3.HemisphereLight(0xfff3c4, 0x6a5822, 0.95));
+scene.add(new T3.AmbientLight(0xffeeb0, 0.35));
+const rig = new T3.Group(); scene.add(rig);
+const camera = new T3.PerspectiveCamera(75, innerWidth/innerHeight, 0.03, 80);
+rig.add(camera);
+
+function canvasTex(w, h, draw, rep){
+  const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h);
+  const t = new T3.CanvasTexture(c); t.encoding = T3.sRGBEncoding;
+  if (rep){ t.wrapS = t.wrapT = T3.RepeatWrapping; t.anisotropy = renderer.capabilities.getMaxAnisotropy(); }
+  return t;
+}
+const wallpaper = canvasTex(256, 256, (g,w,h) => {
+  g.fillStyle = '#d4c272'; g.fillRect(0,0,w,h);
+  for (let x=0;x<w;x+=32){ g.fillStyle = 'rgba(120,100,30,.10)'; g.fillRect(x,0,10,h); g.fillStyle = 'rgba(255,250,200,.10)'; g.fillRect(x+16,0,3,h); }
+  g.strokeStyle = 'rgba(110,90,25,.22)'; g.lineWidth = 2;
+  for (let y=8;y<h;y+=32) for (let x=0;x<w;x+=32){ g.beginPath(); g.moveTo(x+22,y); g.lineTo(x+27,y+6); g.lineTo(x+22,y+12); g.lineTo(x+17,y+6); g.closePath(); g.stroke(); }
+  for (let i=0;i<900;i++){ g.fillStyle = `rgba(90,70,20,${Math.random()*0.06})`; g.fillRect(Math.random()*w, Math.random()*h, 2, 2); }
+}, true);
+const carpet = canvasTex(256, 256, (g,w,h) => {
+  g.fillStyle = '#9a8740'; g.fillRect(0,0,w,h);
+  for (let i=0;i<9000;i++){ const v = Math.random(); g.fillStyle = v<.5 ? `rgba(70,55,15,${v*0.35})` : `rgba(200,180,100,${(v-.5)*0.25})`; g.fillRect(Math.random()*w, Math.random()*h, 1.5, 1.5); }
+  for (let i=0;i<3;i++){ const x=Math.random()*w, y=Math.random()*h, r=20+Math.random()*30, gr=g.createRadialGradient(x,y,0,x,y,r);
+    gr.addColorStop(0,'rgba(60,48,12,.28)'); gr.addColorStop(1,'rgba(60,48,12,0)'); g.fillStyle=gr; g.fillRect(x-r,y-r,r*2,r*2); }
+}, true);
+const tiles = canvasTex(128, 128, (g,w,h) => {
+  g.fillStyle = '#d8d0a4'; g.fillRect(0,0,w,h);
+  for (let i=0;i<1500;i++){ g.fillStyle = 'rgba(120,110,70,.25)'; g.fillRect(Math.random()*w, Math.random()*h, 1.2, 1.2); }
+  g.strokeStyle = '#a89f72'; g.lineWidth = 4; g.strokeRect(0,0,w,h);
+}, true);
+
+{ // merged wall geometry, world-space UVs, vertex-colour grime toward the floor
+  const pos=[], nor=[], uv=[], col=[], idx=[];
+  for (const b of wallBoxes){
+    const [x0,y0,z0] = b.min, [x1,y1,z1] = b.max;
+    const faces = [
+      [[x1,y0,z0],[x1,y0,z1],[x1,y1,z1],[x1,y1,z0],[1,0,0],'z'], [[x0,y0,z1],[x0,y0,z0],[x0,y1,z0],[x0,y1,z1],[-1,0,0],'z'],
+      [[x1,y0,z1],[x0,y0,z1],[x0,y1,z1],[x1,y1,z1],[0,0,1],'x'], [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[0,0,-1],'x']];
+    for (const [a,bb,c,d,n,ax] of faces){
+      const base = pos.length/3;
+      for (const p of [a,bb,c,d]){
+        pos.push(...p); nor.push(...n);
+        uv.push((ax==='x' ? p[0] : p[2]) / 1.6, p[1] / 1.6);
+        const s = p[1] < 0.01 ? 0.55 : 1.0; col.push(s, s*0.98, s*0.92);
+      }
+      idx.push(base,base+1,base+2, base,base+2,base+3);
+    }
+  }
+  const g = new T3.BufferGeometry();
+  g.setAttribute('position', new T3.Float32BufferAttribute(pos,3)); g.setAttribute('normal', new T3.Float32BufferAttribute(nor,3));
+  g.setAttribute('uv', new T3.Float32BufferAttribute(uv,2)); g.setAttribute('color', new T3.Float32BufferAttribute(col,3)); g.setIndex(idx);
+  scene.add(new T3.Mesh(g, new T3.MeshLambertMaterial({map:wallpaper, vertexColors:true})));
+}
+{
+  const fg = new T3.PlaneGeometry(SIZE, SIZE); fg.rotateX(-Math.PI/2);
+  const uvs = fg.attributes.uv; for (let i=0;i<uvs.count;i++) uvs.setXY(i, uvs.getX(i)*SIZE/1.5, uvs.getY(i)*SIZE/1.5);
+  const floor = new T3.Mesh(fg, new T3.MeshLambertMaterial({map:carpet})); floor.position.set(SIZE/2,0,SIZE/2); scene.add(floor);
+  const cg = new T3.PlaneGeometry(SIZE, SIZE); cg.rotateX(Math.PI/2);
+  const cu = cg.attributes.uv; for (let i=0;i<cu.count;i++) cu.setXY(i, cu.getX(i)*SIZE/1.2, cu.getY(i)*SIZE/1.2);
+  const ceil = new T3.Mesh(cg, new T3.MeshLambertMaterial({map:tiles})); ceil.position.set(SIZE/2,H,SIZE/2); scene.add(ceil);
+}
+// fluorescent panels; a few dead, a few flickering
+const lightMat = new T3.MeshBasicMaterial({color:0xfffbe2}), deadMat = new T3.MeshBasicMaterial({color:0x8a8466});
+const panelGeo = new T3.PlaneGeometry(1.2, 0.6); panelGeo.rotateX(Math.PI/2);
+const flickers = [];
+for (let y=0;y<N;y++) for (let x=0;x<N;x++){
+  const r = rnd(), m = new T3.Mesh(panelGeo, r < 0.08 ? deadMat : r < 0.16 ? lightMat.clone() : lightMat);
+  m.position.set((x+0.5)*C, H-0.004, (y+0.5)*C); scene.add(m);
+  if (r >= 0.08 && r < 0.16) flickers.push(m);
+}
+
+// ---------- the silly chatbot robot ----------
+const FACES = {};
+function drawFace(kind){
+  return canvasTex(256, 180, (g,w,h) => {
+    g.fillStyle = '#0b1518'; g.fillRect(0,0,w,h);
+    g.fillStyle = 'rgba(89,243,255,.06)'; for (let y=0;y<h;y+=6) g.fillRect(0,y,w,2);
+    g.strokeStyle = g.fillStyle = '#59f3ff'; g.lineWidth = 12; g.lineCap = 'round'; g.shadowColor = '#59f3ff'; g.shadowBlur = 14;
+    const ex = [78, 178], ey = 76;
+    if (kind === 'idle'){ for (const x of ex){ g.beginPath(); g.ellipse(x, ey, 16, 26, 0, 0, Math.PI*2); g.fill(); } }
+    if (kind === 'blink'){ for (const x of ex){ g.beginPath(); g.moveTo(x-18, ey); g.lineTo(x+18, ey); g.stroke(); } }
+    if (kind === 'happy'){ for (const x of ex){ g.beginPath(); g.moveTo(x-20, ey+10); g.lineTo(x, ey-12); g.lineTo(x+20, ey+10); g.stroke(); } }
+    if (kind === 'dizzy'){ for (const x of ex){ g.beginPath(); g.moveTo(x-16,ey-16); g.lineTo(x+16,ey+16); g.moveTo(x+16,ey-16); g.lineTo(x-16,ey+16); g.stroke(); } }
+    g.beginPath();
+    if (kind === 'dizzy'){ g.moveTo(90,138); for (let i=0;i<=8;i++) g.lineTo(90+i*10, 138 + (i%2 ? -8 : 8)); }
+    else if (kind === 'happy') g.arc(128, 118, 30, 0.1, Math.PI-0.1);
+    else g.arc(128, 122, 20, 0.2, Math.PI-0.2);
+    g.stroke();
+  });
+}
+for (const k of ['idle','blink','happy','dizzy']) FACES[k] = new T3.MeshBasicMaterial({map:drawFace(k)});
+const white = new T3.MeshLambertMaterial({color:0xf3f0e6}), grey = new T3.MeshLambertMaterial({color:0x8d939a});
+const starShape = (() => { const s = new T3.Shape(); for (let i=0;i<8;i++){ const a = i*Math.PI/4 + Math.PI/2, r = i%2 ? 0.022 : 0.07; i ? s.lineTo(Math.cos(a)*r, Math.sin(a)*r) : s.moveTo(Math.cos(a)*r, Math.sin(a)*r); } return s; })();
+const starGeo = new T3.ShapeGeometry(starShape);
+
+function makeRobot(color){
+  const accent = new T3.MeshBasicMaterial({color}), g = new T3.Group(), b = new T3.Group(); g.add(b);
+  const add = (geo, mat, x, y, z, parent=b) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); parent.add(m); return m; };
+  add(new T3.BoxGeometry(0.42,0.36,0.32), white, 0, 0.42, 0);
+  add(starGeo, accent, 0, 0.44, 0.161);
+  const head = new T3.Group(); head.position.set(0, 0.8, 0); b.add(head);
+  add(new T3.BoxGeometry(0.52,0.38,0.38), white, 0, 0, 0, head);
+  const face = add(new T3.PlaneGeometry(0.44,0.3), FACES.idle, 0, 0, 0.191, head);
+  for (const s of [-1,1]){ const e = add(new T3.CylinderGeometry(0.05,0.05,0.05,12), grey, s*0.28, 0, 0, head); e.rotation.z = Math.PI/2; }
+  add(new T3.CylinderGeometry(0.01,0.01,0.16,6), grey, 0, 0.27, 0, head);
+  const bulb = add(new T3.SphereGeometry(0.045,12,8), accent, 0, 0.36, 0, head);
+  const arms = [-1,1].map(s => { const p = new T3.Group(); p.position.set(s*0.23, 0.55, 0); b.add(p);
+    add(new T3.CylinderGeometry(0.022,0.022,0.26,6), grey, 0, -0.13, 0, p); add(new T3.SphereGeometry(0.05,10,8), white, 0, -0.28, 0, p); return p; });
+  const legs = [-1,1].map(s => { const p = new T3.Group(); p.position.set(s*0.1, 0.24, 0); b.add(p);
+    add(new T3.CylinderGeometry(0.03,0.03,0.2,6), grey, 0, -0.1, 0, p); add(new T3.BoxGeometry(0.1,0.05,0.15), white, 0, -0.215, 0.02, p); return p; });
+  return {g, b, head, face, bulb, arms, legs};
+}
+
+const LINES = ['beep boop','as a language model, I cannot be tagged','I am just a little guy','404: exit not found',
+  'hallucinating an exit...','please rate this chase','that is a great question!','my training data never mentioned you',
+  'context window exceeded','regenerating response...'];
+const HIT_LINES = ['you got me!','error: tagged','ow. my weights.','rebooting...','I will remember this (I will not)'];
+function bubble(text){
+  const t = canvasTex(512, 160, (g,w,h) => {
+    g.font = '600 34px Rubik, sans-serif';
+    const lines = [''];
+    for (const word of text.split(' ')){ const tryL = (lines[lines.length-1] + ' ' + word).trim(); if (g.measureText(tryL).width > 460 && lines[lines.length-1]) lines.push(word); else lines[lines.length-1] = tryL; }
+    const bh = lines.length > 1 ? 128 : 84, top = 132 - bh;
+    g.fillStyle = '#fffbe6'; g.beginPath(); g.moveTo(28,top); g.arcTo(504,top,504,132,20); g.arcTo(504,132,8,132,20); g.arcTo(8,132,8,top,20); g.arcTo(8,top,504,top,20); g.fill();
+    g.beginPath(); g.moveTo(230,131); g.lineTo(256,158); g.lineTo(282,131); g.fill();
+    g.fillStyle = '#1d1a0c'; g.textAlign = 'center'; g.textBaseline = 'middle';
+    lines.slice(0,2).forEach((l,i) => g.fillText(l, 256, top + bh/2 + (lines.length > 1 ? (i ? 22 : -22) : 0)));
+  });
+  const sp = new T3.Sprite(new T3.SpriteMaterial({map:t, depthTest:false, transparent:true})); sp.scale.set(0.9, 0.28, 1); sp.renderOrder = 10; return sp;
+}
+
+const cellOf = p => [Math.min(N-1,Math.max(0,Math.floor(p.x/C))), Math.min(N-1,Math.max(0,Math.floor(p.z/C)))];
+const cellPos = (x,y) => new V((x+0.5)*C, 0, (y+0.5)*C);
+function farCell(from){ for (let i=0;i<200;i++){ const x = Math.floor(rnd()*N), y = Math.floor(rnd()*N); if (cellPos(x,y).distanceTo(new V(from.x,0,from.z)) > 14) return [x,y]; } return [0,0]; }
+
+const bots = [0xff7a66, 0x7dffb0, 0xc6a3ff, 0xffd23d].map((col, i) => {
+  const r = makeRobot(col), [x,y] = farCell(SPAWN);
+  r.g.position.copy(cellPos(x,y)); scene.add(r.g);
+  return Object.assign(r, {cell:[x,y], prev:null, target:cellPos(x,y), state:'run', t:rnd()*10, sayT:3+rnd()*6, blinkT:rnd()*3, sp:null, spT:0, speed:2.3+i*0.15, bulbY:0, bulbV:0});
+});
+function say(bot, text){ if (bot.sp) bot.head.remove(bot.sp); bot.sp = bubble(text); bot.sp.position.set(0, 0.66, 0); bot.head.add(bot.sp); bot.spT = 2.6; }
+
+// ---------- player: robot hands + wrist display ----------
+const io = {pos:rig.position, yaw:0, headYaw:0, headLocal:new V(0,1.6,0), headQuat:new T3.Quaternion(),
+  handLocal:[new V(-0.2,0.9,-0.25), new V(0.2,0.9,-0.25)], handQuat:[new T3.Quaternion(), new T3.Quaternion()], pads:[null,null]};
+const loco = makeLoco(T3, boxes, io);
+const hands = [0,1].map(i => {
+  const g = new T3.Group();
+  const fist = new T3.Mesh(new T3.SphereGeometry(0.05,16,12), white); g.add(fist);
+  const ring = new T3.Mesh(new T3.TorusGeometry(0.045,0.008,8,20), new T3.MeshBasicMaterial({color:0x59f3ff})); ring.position.z = 0.04; g.add(ring);
+  const arm = new T3.Mesh(new T3.CylinderGeometry(0.02,0.026,0.2,8), grey); arm.rotation.x = Math.PI/2; arm.position.z = 0.13; g.add(arm);
+  g.visible = false; scene.add(g); return g;
+});
+const wristCanvas = document.createElement('canvas'); wristCanvas.width = 256; wristCanvas.height = 128;
+const wristTex = new T3.CanvasTexture(wristCanvas); wristTex.encoding = T3.sRGBEncoding;
+const wrist = new T3.Mesh(new T3.PlaneGeometry(0.12, 0.06), new T3.MeshBasicMaterial({map:wristTex}));
+wrist.position.set(0, 0.035, 0.12); wrist.rotation.x = -Math.PI/2 + 0.5; hands[0].add(wrist);
+let score = 0, startT = performance.now(), lastWrist = '';
+function drawWrist(){
+  const s = Math.floor((performance.now()-startT)/1000), txt = `TAGGED ${score}|${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  if (txt === lastWrist) return; lastWrist = txt;
+  const g = wristCanvas.getContext('2d'), [a,b] = txt.split('|');
+  g.fillStyle = '#0b1518'; g.fillRect(0,0,256,128); g.fillStyle = '#59f3ff'; g.textAlign = 'center';
+  g.font = 'bold 44px monospace'; g.fillText(a, 128, 56); g.fillStyle = '#e2cf72'; g.font = '36px monospace'; g.fillText(b, 128, 104);
+  wristTex.needsUpdate = true; $('score').textContent = a;
+}
+
+// ---------- audio ----------
+let AC = null;
+function audio(){
+  if (AC) return; try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ return; }
+  const hum = AC.createGain(); hum.gain.value = 0.05; hum.connect(AC.destination);
+  const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500; lp.connect(hum);
+  for (const [f,type,gain] of [[60,'sine',0.6],[120,'sawtooth',0.25],[180,'triangle',0.1]]){
+    const o = AC.createOscillator(), gg = AC.createGain(); o.type = type; o.frequency.value = f; gg.gain.value = gain; o.connect(gg); gg.connect(lp); o.start(); }
+}
+function tap(vol){
+  if (!AC) return; const n = AC.sampleRate*0.04, buf = AC.createBuffer(1, n, AC.sampleRate), d = buf.getChannelData(0);
+  for (let i=0;i<n;i++) d[i] = (Math.random()*2-1) * (1-i/n)**3;
+  const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(); f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = vol;
+  s.buffer = buf; s.connect(f); f.connect(g); g.connect(AC.destination); s.start();
+}
+function boop(){
+  if (!AC) return; const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime; o.type = 'square';
+  o.frequency.setValueAtTime(660,t); o.frequency.exponentialRampToValueAtTime(1500,t+0.12); o.frequency.setValueAtTime(990,t+0.16);
+  g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.35); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+0.36);
+}
+const pulse = (i, s, ms) => { const p = io.pads[i]; try { p && p.hapticActuators && p.hapticActuators[0] && p.hapticActuators[0].pulse(s, ms); } catch(e){} };
+
+// ---------- VR session ----------
+const btn = $('vr'), st = $('st');
+let inited = false, turnLatch = false;
+function setStatus(html){ st.innerHTML = html; }
+if (!navigator.xr){ btn.textContent = 'No WebXR in this browser'; setStatus('Open this page in the <b>Meta Quest browser</b> to play. Drag to look around the preview.'); }
+else navigator.xr.isSessionSupported('immersive-vr').then(ok => {
+  if (ok){ btn.disabled = false; btn.textContent = 'Enter VR'; setStatus('Headset found. Put it on and press <b>Enter VR</b>.'); }
+  else { btn.textContent = 'VR not available here'; setStatus('No headset detected. Open this page in the <b>Meta Quest browser</b>.' + (self !== top ? ' If it still says this on the Quest, open the page in its own tab.' : '')); }
+}).catch(e => { btn.textContent = 'VR blocked'; setStatus('This frame blocked VR (' + e.name + '). Open the page in its own tab.'); });
+btn.addEventListener('click', async () => {
+  audio();
+  try {
+    const session = await navigator.xr.requestSession('immersive-vr', {optionalFeatures:['local-floor','bounded-floor']});
+    await renderer.xr.setSession(session);
+    if (renderer.xr.setFoveation) renderer.xr.setFoveation(1);
+    camera.position.set(0,0,0); camera.rotation.set(0,0,0); inited = false;
+    hands.forEach(h => h.visible = true);
+    session.addEventListener('end', () => { hands.forEach(h => h.visible = false); inited = false; resetPreview(); });
+  } catch(e){ setStatus('Could not start VR: ' + e.message); }
+});
+
+function readXR(frame){
+  const ref = renderer.xr.getReferenceSpace(), vp = frame.getViewerPose(ref);
+  if (vp){ const p = vp.transform.position, o = vp.transform.orientation; io.headLocal.set(p.x,p.y,p.z); io.headQuat.set(o.x,o.y,o.z,o.w); }
+  io.headYaw = new T3.Euler().setFromQuaternion(io.headQuat, 'YXZ').y;
+  for (const src of frame.session.inputSources){
+    const i = src.handedness === 'left' ? 0 : src.handedness === 'right' ? 1 : -1; if (i < 0) continue;
+    const pose = frame.getPose(src.gripSpace || src.targetRaySpace, ref);
+    if (pose){ const p = pose.transform.position, o = pose.transform.orientation; io.handLocal[i].set(p.x,p.y,p.z); io.handQuat[i].set(o.x,o.y,o.z,o.w); }
+    io.pads[i] = src.gamepad || null;
+  }
+}
+function spawn(){
+  io.yaw = rig.rotation.y = 0;
+  const hl = io.headLocal.clone().applyAxisAngle(UP, io.yaw);
+  rig.position.set(SPAWN.x - hl.x, 0.02, SPAWN.z - hl.z);
+  loco.InitializeValues(); inited = true; score = 0; startT = performance.now(); lastWrist = '';
+}
+
+// ---------- desktop preview ----------
+let pYaw = 0.6, pPitch = 0, drag = null, auto = true;
+function resetPreview(){ rig.position.set(SPAWN.x, 0, SPAWN.z); io.yaw = rig.rotation.y = 0; camera.position.set(0, 0.95, 0); }
+resetPreview();
+canvas.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY]; auto = false; audio(); });
+addEventListener('pointerup', () => drag = null);
+addEventListener('pointermove', e => { if (!drag) return; pYaw -= (e.clientX-drag[0])*0.005; pPitch = Math.max(-1.2, Math.min(1.2, pPitch - (e.clientY-drag[1])*0.005)); drag = [e.clientX, e.clientY]; });
+function resize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false); }
+addEventListener('resize', resize); resize();
+
+// ---------- robots ----------
+function updateBot(bot, dt, playerPos, handsW){
+  bot.t += dt;
+  if (bot.state === 'tagged'){
+    bot.tt += dt; bot.g.rotation.y += dt*14; bot.b.position.y = Math.min(0.6, bot.tt*0.8);
+    const s = bot.tt > 1.2 ? Math.max(0.01, 1-(bot.tt-1.2)*3) : 1; bot.g.scale.setScalar(s);
+    if (bot.tt > 1.55){ const [x,y] = farCell(playerPos); bot.cell = [x,y]; bot.prev = null; bot.g.position.copy(cellPos(x,y)); bot.target = cellPos(x,y);
+      bot.g.scale.setScalar(1); bot.b.position.y = 0; bot.state = 'run'; bot.face.material = FACES.idle; }
+  } else {
+    const to = bot.target.clone().sub(bot.g.position); to.y = 0;
+    const flat = new V(playerPos.x, 0, playerPos.z), near = flat.distanceTo(bot.g.position) < 10;
+    if (to.length() < 0.08){
+      const [x,y] = bot.cell = cellOf(bot.target);
+      let nb = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => x+dx>=0 && y+dy>=0 && x+dx<N && y+dy<N && open(x,y,dx,dy)).map(([dx,dy]) => [x+dx,y+dy]);
+      if (nb.length > 1 && bot.prev) nb = nb.filter(c => c[0] !== bot.prev[0] || c[1] !== bot.prev[1]);
+      nb.sort((a,b) => near ? cellPos(...b).distanceTo(flat) - cellPos(...a).distanceTo(flat) + (rnd()-0.5)*3 : rnd()-0.5);
+      bot.prev = [x,y]; bot.target = cellPos(...nb[0]);
+    } else {
+      const step = Math.min(to.length(), bot.speed*(near ? 1 : 0.5)*dt);
+      bot.g.position.addScaledVector(to.normalize(), step);
+      const want = Math.atan2(to.x, to.z); let d = want - bot.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); bot.g.rotation.y += d*Math.min(1, dt*10);
+    }
+    const run = near ? 1 : 0.5, ph = bot.t*(near ? 11 : 7);
+    bot.b.position.y = Math.abs(Math.sin(ph))*0.09*run;
+    bot.legs[0].rotation.x = Math.sin(ph)*0.7; bot.legs[1].rotation.x = -Math.sin(ph)*0.7;
+    bot.arms[0].rotation.z = -(near ? 2.4 + Math.sin(ph*1.3)*0.6 : 0.2 + Math.sin(ph)*0.2);
+    bot.arms[1].rotation.z =  (near ? 2.4 + Math.cos(ph*1.3)*0.6 : 0.2 + Math.sin(ph)*0.2);
+    bot.head.rotation.z = Math.sin(ph*0.5)*0.12;
+    bot.blinkT -= dt; if (bot.blinkT < 0){ bot.blinkT = 2+rnd()*3; }
+    bot.face.material = bot.blinkT < 0.12 ? FACES.blink : near ? FACES.happy : FACES.idle;
+    bot.sayT -= dt; if (bot.sayT < 0 && near){ bot.sayT = 6+rnd()*7; say(bot, LINES[Math.floor(rnd()*LINES.length)]); }
+    if (handsW){
+      const c = bot.g.position.clone().add(new V(0, 0.6, 0));
+      for (const i of [0,1]) if (handsW[i].distanceTo(c) < 0.42){
+        bot.state = 'tagged'; bot.tt = 0; bot.face.material = FACES.dizzy; score++; boop(); pulse(i, 0.8, 120);
+        say(bot, HIT_LINES[Math.floor(rnd()*HIT_LINES.length)]); break;
+      }
+    }
+  }
+  // springy antenna bulb
+  bot.bulbV += (-bot.bulbY*180 - bot.bulbV*8 - (bot.b.position.y - (bot.lastBY||0))/Math.max(dt,1e-3)*6)*dt; bot.bulbY += bot.bulbV*dt; bot.lastBY = bot.b.position.y;
+  bot.bulb.position.y = 0.36 + Math.max(-0.08, Math.min(0.08, bot.bulbY));
+  if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0){ bot.head.remove(bot.sp); bot.sp = null; } }
+}
+
+// ---------- main loop ----------
+let last = performance.now(), flickT = 0;
+renderer.setAnimationLoop((t, frame) => {
+  const now = performance.now(), dt = Math.min(1/30, Math.max(1/500, (now-last)/1000)); last = now;
+  let playerPos, handsW = null;
+  if (frame && renderer.xr.isPresenting){
+    readXR(frame);
+    if (!inited) spawn();
+    else {
+      // Unity order: physics (FixedUpdate) then Player.Update
+      const was = loco.S.wasTouching.slice();
+      loco.Physics(dt); loco.Update(dt);
+      for (const i of [0,1]) if (loco.S.wasTouching[i] && !was[i]){ pulse(i, 0.25, 25); tap(0.18); }
+      const rx = io.pads[1] && io.pads[1].axes.length > 2 ? io.pads[1].axes[2] : 0;
+      if (Math.abs(rx) > 0.7 && !turnLatch){ loco.Turn(rx > 0 ? -Math.PI/4 : Math.PI/4); turnLatch = true; } else if (Math.abs(rx) < 0.3) turnLatch = false;
+      rig.rotation.y = io.yaw;
+      if (rig.position.y < -5 || rig.position.y > H+2) spawn();
+    }
+    const rq = new T3.Quaternion().setFromAxisAngle(UP, io.yaw);
+    for (const i of [0,1]){ hands[i].position.copy(loco.S.lastHand[i]); hands[i].quaternion.copy(rq).multiply(io.handQuat[i]); }
+    playerPos = loco.headPos(); handsW = loco.S.lastHand;
+    drawWrist();
+  } else {
+    if (auto) pYaw += dt*0.12;
+    camera.rotation.set(pPitch, pYaw, 0, 'YXZ');
+    playerPos = rig.position.clone().add(camera.position);
+  }
+  for (const b of bots) updateBot(b, dt, playerPos, handsW);
+  flickT -= dt; if (flickT < 0){ flickT = 0.05 + rnd()*0.4; for (const f of flickers) f.material.color.setHex(rnd() < 0.3 ? 0x6e6a52 : 0xfffbe2); }
+  renderer.render(scene, camera);
+});
+}
+</script>
+</body>
+</html>
