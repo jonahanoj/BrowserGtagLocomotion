@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Backrooms Bot Tag</title>
+<title>Backrooms Bot Scrap</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Rubik:wght@400;600&display=swap">
 <style>
@@ -39,16 +39,17 @@ li{margin:3px 0}
 <body>
 <canvas id="c"></canvas>
 <div class="rec"><i></i>REC · LEVEL 0</div>
-<div class="score" id="score">TAGGED 0</div>
+<div class="score" id="score">SCRAPPED 0</div>
 <div class="panel">
-  <h1>Backrooms Bot Tag</h1>
-  <p class="sub">Gorilla Tag movement. Endless yellow rooms. Four little chatbots who really don't want to be tagged.</p>
+  <h1>Backrooms Bot Scrap</h1>
+  <p class="sub">Gorilla Tag movement. Endless yellow rooms. You are the scary robot. The cute chatbots are made of parts, and parts come off.</p>
   <button id="vr" disabled>Checking for VR…</button>
   <ul>
-    <li>Push off the floor and walls with your hands to move, exactly like Gorilla Tag.</li>
-    <li>Fling your arms to jump. Climb walls hand over hand.</li>
-    <li>Tap a robot with either hand to tag it.</li>
-    <li>Right thumbstick snap-turns. Your score and time are on your left wrist.</li>
+    <li>Push off floors and walls with your hands to move, exactly like Gorilla Tag. Fling your arms to jump.</li>
+    <li>You start in the lobby: check yourself out in the mirror, then smack the red PLAY button.</li>
+    <li>Hold grip to grab a bot. Grab another part with your other hand and pull to rip it off.</li>
+    <li>Swing fast to punch parts off. Throw bots and parts at walls to smash them.</li>
+    <li>Right thumbstick snap-turns. Y goes back to the lobby.</li>
   </ul>
   <div class="st" id="st">Drag to look around in the preview.</div>
 </div>
@@ -288,16 +289,17 @@ function makeLoco(THREE, boxes, io){
 </script>
 <script>
 {
-const T3 = THREE, V = T3.Vector3, UP = new V(0,1,0);
+const T3 = THREE, V = T3.Vector3, Q = T3.Quaternion, M4 = T3.Matrix4, UP = new V(0,1,0);
 const $ = id => document.getElementById(id);
+const R = Math.random;
 
-// ---------- world: a seeded Backrooms maze ----------
+// ================= world: seeded Backrooms maze =================
 let seed = 9137;
 const rnd = () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const N = 11, C = 4, H = 2.7, TW = 0.24, SIZE = N*C;
 const vx = [], hz = [];
 for (let y=0;y<=N;y++){ vx.push(Array(N+1).fill(true)); hz.push(Array(N).fill(true)); }
-{ // recursive backtracker, then knock out extra walls for open liminal rooms
+{
   const seen = Array.from({length:N}, () => Array(N).fill(false)), st = [[0,0]]; seen[0][0] = true;
   while (st.length){
     const [x,y] = st[st.length-1];
@@ -309,23 +311,35 @@ for (let y=0;y<=N;y++){ vx.push(Array(N+1).fill(true)); hz.push(Array(N).fill(tr
   }
   for (let y=0;y<N;y++) for (let x=1;x<N;x++) if (vx[y][x] && rnd()<0.45) vx[y][x]=false;
   for (let y=1;y<N;y++) for (let x=0;x<N;x++) if (hz[y][x] && rnd()<0.45) hz[y][x]=false;
-  const m = Math.floor(N/2); vx[m][m]=vx[m][m+1]=hz[m][m]=hz[m+1][m]=false; // open spawn room
+  const m = Math.floor(N/2); vx[m][m]=vx[m][m+1]=hz[m][m]=hz[m+1][m]=false;
 }
 const open = (x,y,dx,dy) => dx===1 ? !vx[y][x+1] : dx===-1 ? !vx[y][x] : dy===1 ? !hz[y+1][x] : !hz[y][x];
-const boxes = [], wallBoxes = [];
-const addBox = (a,b,list) => { const bx = {min:a, max:b}; boxes.push(bx); if (list) list.push(bx); };
-addBox([-1,-1,-1],[SIZE+1,0,SIZE+1]);            // floor
-addBox([-1,H,-1],[SIZE+1,H+1,SIZE+1]);           // ceiling
+const boxes = [], mazeWalls = [];
+const addBox = (a,b,list) => { const bx = {min:a, max:b}; boxes.push(bx); if (list) list.push(bx); return bx; };
+addBox([-1,-1,-1],[SIZE+1,0,SIZE+1]); addBox([-1,H,-1],[SIZE+1,H+1,SIZE+1]);
 for (let x=0;x<=N;x++){ let y=0; while (y<N){ if (!vx[y][x]){ y++; continue; } let e=y; while (e<N && vx[e][x]) e++;
-  addBox([x*C-TW/2,0,y*C-TW/2],[x*C+TW/2,H,e*C+TW/2], wallBoxes); y=e; } }
+  addBox([x*C-TW/2,0,y*C-TW/2],[x*C+TW/2,H,e*C+TW/2], mazeWalls); y=e; } }
 for (let y=0;y<=N;y++){ let x=0; while (x<N){ if (!hz[y][x]){ x++; continue; } let e=x; while (e<N && hz[y][e]) e++;
-  addBox([x*C-TW/2,0,y*C-TW/2],[e*C+TW/2,H,y*C+TW/2], wallBoxes); x=e; } }
-for (let y=1;y<N;y++) for (let x=1;x<N;x++){ // pillars where four open cells meet
-  if (!vx[y-1][x] && !vx[y][x] && !hz[y][x-1] && !hz[y][x] && rnd()<0.5) addBox([x*C-0.35,0,y*C-0.35],[x*C+0.35,H,y*C+0.35], wallBoxes);
-}
+  addBox([x*C-TW/2,0,y*C-TW/2],[e*C+TW/2,H,y*C+TW/2], mazeWalls); x=e; } }
+for (let y=1;y<N;y++) for (let x=1;x<N;x++)
+  if (!vx[y-1][x] && !vx[y][x] && !hz[y][x-1] && !hz[y][x] && rnd()<0.5) addBox([x*C-0.35,0,y*C-0.35],[x*C+0.35,H,y*C+0.35], mazeWalls);
 const SPAWN = new V((Math.floor(N/2)+0.5)*C, 0, (Math.floor(N/2)+0.5)*C);
 
-// ---------- renderer / scene ----------
+// ================= lobby (separate room, west of the maze) =================
+const LB = {x0:-20, x1:-12, z0:0, z1:7};
+const MIR = LB.x0 + TW/2;                          // mirror plane = inner face of west wall
+const WIN = {z0:1.1, z1:5.9, y1:2.5};              // mirror opening
+const PED = {x:-18.9, z:2.3, top:0.55, cap:0.2};    // PLAY button pedestal (front-right of spawn)
+const LOBBY_SPAWN = new V(-17.9, 0, 3.6), LOBBY_YAW = Math.PI/2;
+addBox([LB.x0-1,-1,LB.z0-1],[LB.x1+1,0,LB.z1+1]); addBox([LB.x0-1,H,LB.z0-1],[LB.x1+1,H+1,LB.z1+1]);
+addBox([LB.x0-TW/2,0,LB.z0-TW/2],[LB.x0+TW/2,H,LB.z1+TW/2]);
+addBox([LB.x1-TW/2,0,LB.z0-TW/2],[LB.x1+TW/2,H,LB.z1+TW/2]);
+addBox([LB.x0,0,LB.z0-TW/2],[LB.x1,H,LB.z0+TW/2]);
+addBox([LB.x0,0,LB.z1-TW/2],[LB.x1,H,LB.z1+TW/2]);
+addBox([PED.x-0.25,0,PED.z-0.25],[PED.x+0.25,PED.top,PED.z+0.25]);
+addBox([PED.x-PED.cap,PED.top,PED.z-PED.cap],[PED.x+PED.cap,PED.top+0.08,PED.z+PED.cap]);
+
+// ================= renderer / scene =================
 const canvas = $('c');
 const renderer = new T3.WebGLRenderer({canvas, antialias:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -353,51 +367,59 @@ const wallpaper = canvasTex(256, 256, (g,w,h) => {
   for (let x=0;x<w;x+=32){ g.fillStyle = 'rgba(120,100,30,.10)'; g.fillRect(x,0,10,h); g.fillStyle = 'rgba(255,250,200,.10)'; g.fillRect(x+16,0,3,h); }
   g.strokeStyle = 'rgba(110,90,25,.22)'; g.lineWidth = 2;
   for (let y=8;y<h;y+=32) for (let x=0;x<w;x+=32){ g.beginPath(); g.moveTo(x+22,y); g.lineTo(x+27,y+6); g.lineTo(x+22,y+12); g.lineTo(x+17,y+6); g.closePath(); g.stroke(); }
-  for (let i=0;i<900;i++){ g.fillStyle = `rgba(90,70,20,${Math.random()*0.06})`; g.fillRect(Math.random()*w, Math.random()*h, 2, 2); }
+  for (let i=0;i<900;i++){ g.fillStyle = `rgba(90,70,20,${R()*0.06})`; g.fillRect(R()*w, R()*h, 2, 2); }
 }, true);
 const carpet = canvasTex(256, 256, (g,w,h) => {
   g.fillStyle = '#9a8740'; g.fillRect(0,0,w,h);
-  for (let i=0;i<9000;i++){ const v = Math.random(); g.fillStyle = v<.5 ? `rgba(70,55,15,${v*0.35})` : `rgba(200,180,100,${(v-.5)*0.25})`; g.fillRect(Math.random()*w, Math.random()*h, 1.5, 1.5); }
-  for (let i=0;i<3;i++){ const x=Math.random()*w, y=Math.random()*h, r=20+Math.random()*30, gr=g.createRadialGradient(x,y,0,x,y,r);
+  for (let i=0;i<9000;i++){ const v = R(); g.fillStyle = v<.5 ? `rgba(70,55,15,${v*0.35})` : `rgba(200,180,100,${(v-.5)*0.25})`; g.fillRect(R()*w, R()*h, 1.5, 1.5); }
+  for (let i=0;i<3;i++){ const x=R()*w, y=R()*h, r=20+R()*30, gr=g.createRadialGradient(x,y,0,x,y,r);
     gr.addColorStop(0,'rgba(60,48,12,.28)'); gr.addColorStop(1,'rgba(60,48,12,0)'); g.fillStyle=gr; g.fillRect(x-r,y-r,r*2,r*2); }
 }, true);
 const tiles = canvasTex(128, 128, (g,w,h) => {
   g.fillStyle = '#d8d0a4'; g.fillRect(0,0,w,h);
-  for (let i=0;i<1500;i++){ g.fillStyle = 'rgba(120,110,70,.25)'; g.fillRect(Math.random()*w, Math.random()*h, 1.2, 1.2); }
+  for (let i=0;i<1500;i++){ g.fillStyle = 'rgba(120,110,70,.25)'; g.fillRect(R()*w, R()*h, 1.2, 1.2); }
   g.strokeStyle = '#a89f72'; g.lineWidth = 4; g.strokeRect(0,0,w,h);
 }, true);
+const wallMat = new T3.MeshLambertMaterial({map:wallpaper, vertexColors:true});
+const floorMat = new T3.MeshLambertMaterial({map:carpet}), ceilMat = new T3.MeshLambertMaterial({map:tiles});
 
-{ // merged wall geometry, world-space UVs, vertex-colour grime toward the floor
+// Merged wall mesh. Each face's winding is checked against its outward normal so the
+// wallpaper is on the outside of every wall (the old build had it reversed).
+function wallMesh(list){
   const pos=[], nor=[], uv=[], col=[], idx=[];
-  for (const b of wallBoxes){
+  for (const b of list){
     const [x0,y0,z0] = b.min, [x1,y1,z1] = b.max;
     const faces = [
-      [[x1,y0,z0],[x1,y0,z1],[x1,y1,z1],[x1,y1,z0],[1,0,0],'z'], [[x0,y0,z1],[x0,y0,z0],[x0,y1,z0],[x0,y1,z1],[-1,0,0],'z'],
-      [[x1,y0,z1],[x0,y0,z1],[x0,y1,z1],[x1,y1,z1],[0,0,1],'x'], [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[0,0,-1],'x']];
-    for (const [a,bb,c,d,n,ax] of faces){
+      [[x1,y0,z0],[x1,y0,z1],[x1,y1,z1],[x1,y1,z0],[1,0,0]], [[x0,y0,z1],[x0,y0,z0],[x0,y1,z0],[x0,y1,z1],[-1,0,0]],
+      [[x1,y0,z1],[x0,y0,z1],[x0,y1,z1],[x1,y1,z1],[0,0,1]], [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[0,0,-1]]];
+    for (const [a,bb,c,d,n] of faces){
       const base = pos.length/3;
       for (const p of [a,bb,c,d]){
         pos.push(...p); nor.push(...n);
-        uv.push((ax==='x' ? p[0] : p[2]) / 1.6, p[1] / 1.6);
+        uv.push((n[0] ? p[2] : p[0]) / 1.6, p[1] / 1.6);
         const s = p[1] < 0.01 ? 0.55 : 1.0; col.push(s, s*0.98, s*0.92);
       }
-      idx.push(base,base+1,base+2, base,base+2,base+3);
+      const e1 = [bb[0]-a[0], bb[1]-a[1], bb[2]-a[2]], e2 = [c[0]-a[0], c[1]-a[1], c[2]-a[2]];
+      const cr = [e1[1]*e2[2]-e1[2]*e2[1], e1[2]*e2[0]-e1[0]*e2[2], e1[0]*e2[1]-e1[1]*e2[0]];
+      if (cr[0]*n[0] + cr[1]*n[1] + cr[2]*n[2] > 0) idx.push(base,base+1,base+2, base,base+2,base+3);
+      else idx.push(base,base+2,base+1, base,base+3,base+2);
     }
   }
   const g = new T3.BufferGeometry();
   g.setAttribute('position', new T3.Float32BufferAttribute(pos,3)); g.setAttribute('normal', new T3.Float32BufferAttribute(nor,3));
   g.setAttribute('uv', new T3.Float32BufferAttribute(uv,2)); g.setAttribute('color', new T3.Float32BufferAttribute(col,3)); g.setIndex(idx);
-  scene.add(new T3.Mesh(g, new T3.MeshLambertMaterial({map:wallpaper, vertexColors:true})));
+  return new T3.Mesh(g, wallMat);
 }
-{
-  const fg = new T3.PlaneGeometry(SIZE, SIZE); fg.rotateX(-Math.PI/2);
-  const uvs = fg.attributes.uv; for (let i=0;i<uvs.count;i++) uvs.setXY(i, uvs.getX(i)*SIZE/1.5, uvs.getY(i)*SIZE/1.5);
-  const floor = new T3.Mesh(fg, new T3.MeshLambertMaterial({map:carpet})); floor.position.set(SIZE/2,0,SIZE/2); scene.add(floor);
-  const cg = new T3.PlaneGeometry(SIZE, SIZE); cg.rotateX(Math.PI/2);
-  const cu = cg.attributes.uv; for (let i=0;i<cu.count;i++) cu.setXY(i, cu.getX(i)*SIZE/1.2, cu.getY(i)*SIZE/1.2);
-  const ceil = new T3.Mesh(cg, new T3.MeshLambertMaterial({map:tiles})); ceil.position.set(SIZE/2,H,SIZE/2); scene.add(ceil);
+function floorCeil(parent, x0, z0, w, d){
+  const fg = new T3.PlaneGeometry(w, d); fg.rotateX(-Math.PI/2);
+  const u = fg.attributes.uv; for (let i=0;i<u.count;i++) u.setXY(i, u.getX(i)*w/1.5, u.getY(i)*d/1.5);
+  const f = new T3.Mesh(fg, floorMat); f.position.set(x0+w/2, 0, z0+d/2); parent.add(f);
+  const cg = new T3.PlaneGeometry(w, d); cg.rotateX(Math.PI/2);
+  const cu = cg.attributes.uv; for (let i=0;i<cu.count;i++) cu.setXY(i, cu.getX(i)*w/1.2, cu.getY(i)*d/1.2);
+  const c = new T3.Mesh(cg, ceilMat); c.position.set(x0+w/2, H, z0+d/2); parent.add(c);
 }
-// fluorescent panels; a few dead, a few flickering
+scene.add(wallMesh(mazeWalls));
+floorCeil(scene, 0, 0, SIZE, SIZE);
 const lightMat = new T3.MeshBasicMaterial({color:0xfffbe2}), deadMat = new T3.MeshBasicMaterial({color:0x8a8466});
 const panelGeo = new T3.PlaneGeometry(1.2, 0.6); panelGeo.rotateX(Math.PI/2);
 const flickers = [];
@@ -407,57 +429,263 @@ for (let y=0;y<N;y++) for (let x=0;x<N;x++){
   if (r >= 0.08 && r < 0.16) flickers.push(m);
 }
 
-// ---------- the silly chatbot robot ----------
+// ----- lobby visuals (built twice: once for real, once mirrored behind the glass) -----
+function signTex(w, h, draw){ return canvasTex(w, h, (g,W,Hh) => { g.fillStyle = '#1b1709'; g.fillRect(0,0,W,Hh); g.strokeStyle = '#e2cf72'; g.lineWidth = 10; g.strokeRect(5,5,W-10,Hh-10); draw(g,W,Hh); }); }
+const playTex = signTex(512, 200, (g,W,Hh) => { g.fillStyle = '#ff3b2f'; g.font = 'bold 130px VT323, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('PLAY', W/2, Hh/2+6); });
+const titleTex = signTex(768, 220, (g,W,Hh) => { g.fillStyle = '#e2cf72'; g.font = 'bold 88px VT323, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('BACKROOMS BOT SCRAP', W/2, Hh/2+4); });
+const helpTex = signTex(640, 400, (g,W,Hh) => {
+  g.fillStyle = '#fff8d8'; g.font = '34px Rubik, sans-serif'; g.textBaseline = 'top';
+  ['HOLD GRIP  grab a bot or any part','GRAB WITH BOTH HANDS  pull to rip it apart','SWING FAST  punch parts off','THROW  smash parts on the walls','PRESS Y  come back to this lobby','PUSH THE RED BUTTON  play']
+    .forEach((s,i) => g.fillText(s, 34, 36 + i*58));
+});
+function plane(parent, tex, w, h, x, y, z, ry){ const m = new T3.Mesh(new T3.PlaneGeometry(w,h), new T3.MeshBasicMaterial({map:tex})); m.position.set(x,y,z); m.rotation.y = ry; parent.add(m); return m; }
+function buildLobby(parent, real){
+  const walls = [
+    {min:[LB.x1-TW/2,0,LB.z0-TW/2], max:[LB.x1+TW/2,H,LB.z1+TW/2]},
+    {min:[MIR,0,LB.z0-TW/2], max:[LB.x1,H,LB.z0+TW/2]},
+    {min:[MIR,0,LB.z1-TW/2], max:[LB.x1,H,LB.z1+TW/2]},
+    {min:[PED.x-0.25,0,PED.z-0.25], max:[PED.x+0.25,PED.top,PED.z+0.25]}];
+  if (real) walls.push(
+    {min:[LB.x0-TW/2,0,LB.z0], max:[MIR,H,WIN.z0]}, {min:[LB.x0-TW/2,0,WIN.z1], max:[MIR,H,LB.z1]},
+    {min:[LB.x0-TW/2,WIN.y1,WIN.z0], max:[MIR,H,WIN.z1]});
+  parent.add(wallMesh(walls));
+  floorCeil(parent, MIR, LB.z0, LB.x1-MIR, LB.z1-LB.z0);
+  for (const [x,z] of [[-17.8,1.9],[-17.8,5.1],[-14.2,1.9],[-14.2,5.1]]){ const m = new T3.Mesh(panelGeo, lightMat); m.position.set(x,H-0.004,z); parent.add(m); }
+  const cap = new T3.Mesh(new T3.CylinderGeometry(PED.cap, PED.cap, 0.08, 32), new T3.MeshLambertMaterial({color:0xe8261b, emissive:0x5a0500}));
+  cap.position.set(PED.x, PED.top+0.04, PED.z); parent.add(cap);
+  plane(parent, playTex, 1.3, 0.51, PED.x, 1.25, LB.z0+TW/2+0.006, 0);
+  const arrow = new T3.Mesh(new T3.ConeGeometry(0.12,0.25,4), new T3.MeshBasicMaterial({color:0xff3b2f})); arrow.rotation.x = Math.PI; arrow.position.set(PED.x, 1.05, PED.z); arrow.userData.bob = true; parent.add(arrow);
+  plane(parent, helpTex, 1.9, 1.19, -14.6, 1.25, LB.z1-TW/2-0.006, Math.PI);
+  plane(parent, titleTex, 2.6, 0.75, LB.x1-TW/2-0.006, 1.7, 3.5, -Math.PI/2);
+  if (real){
+    const frameMat = new T3.MeshLambertMaterial({color:0x3a3426});
+    for (const [a,b] of [[[MIR,0,WIN.z0-0.06],[MIR+0.05,WIN.y1,WIN.z0]],[[MIR,0,WIN.z1],[MIR+0.05,WIN.y1,WIN.z1+0.06]],[[MIR,WIN.y1,WIN.z0-0.06],[MIR+0.05,WIN.y1+0.06,WIN.z1+0.06]]]){
+      const m = new T3.Mesh(new T3.BoxGeometry(b[0]-a[0], b[1]-a[1], b[2]-a[2]), frameMat); m.position.set((a[0]+b[0])/2,(a[1]+b[1])/2,(a[2]+b[2])/2); parent.add(m); }
+    const glass = new T3.Mesh(new T3.PlaneGeometry(WIN.z1-WIN.z0, WIN.y1), new T3.MeshBasicMaterial({color:0xbfe4ff, transparent:true, opacity:0.07, depthWrite:false}));
+    glass.position.set(MIR+0.003, WIN.y1/2, (WIN.z0+WIN.z1)/2); glass.rotation.y = Math.PI/2; parent.add(glass);
+  }
+  return cap;
+}
+const mirrorWorld = new T3.Group(); mirrorWorld.scale.x = -1; mirrorWorld.position.x = 2*MIR; scene.add(mirrorWorld);
+const caps = [buildLobby(scene, true), buildLobby(mirrorWorld, false)];
+
+// ================= FX: sparks, flashes, wires =================
+const IDENT = new Q(), tmpM = new M4(), tmpQ = new Q(), tmpV = new V(), tmpV2 = new V(), ONE = new V(1,1,1);
+const SPK = 900;
+const sparkMesh = new T3.InstancedMesh(new T3.BoxGeometry(1,1,1), new T3.MeshBasicMaterial({blending:T3.AdditiveBlending, depthWrite:false, transparent:true, fog:false}), SPK);
+sparkMesh.frustumCulled = false; sparkMesh.setColorAt(0, new T3.Color(0)); scene.add(sparkMesh);
+const sparks = []; for (let i=0;i<SPK;i++) sparks.push({p:new V(), v:new V(), life:0, max:1});
+let sparkI = 0;
+function spawnSparks(pos, n, spd=3){
+  for (let k=0;k<n;k++){
+    const s = sparks[sparkI = (sparkI+1) % SPK];
+    s.p.copy(pos); s.v.set(R()-0.5, R()*0.9-0.2, R()-0.5).normalize().multiplyScalar(spd*(0.4+R()));
+    s.max = s.life = 0.25 + R()*0.6;
+  }
+}
+const sparkCol = new T3.Color();
+function updateSparks(dt){
+  let n = 0;
+  for (const s of sparks){
+    if (s.life <= 0) continue;
+    s.life -= dt; s.v.y -= 9.8*dt; s.p.addScaledVector(s.v, dt);
+    if (s.p.y < 0.004){ s.p.y = 0.004; s.v.y *= -0.35; s.v.x *= 0.5; s.v.z *= 0.5; }
+    const sp = s.v.length(), f = s.life/s.max, len = Math.min(0.09, 0.008 + sp*0.012);
+    tmpQ.setFromUnitVectors(UP, tmpV.copy(s.v).divideScalar(sp || 1));
+    tmpM.compose(s.p, tmpQ, tmpV2.set(0.0035, len, 0.0035)); sparkMesh.setMatrixAt(n, tmpM);
+    sparkCol.setRGB(1, 0.42 + 0.45*f, 0.08 + 0.45*f*f).multiplyScalar(Math.min(1, f*2.2)); sparkMesh.setColorAt(n, sparkCol); n++;
+  }
+  sparkMesh.count = n; sparkMesh.instanceMatrix.needsUpdate = true; if (sparkMesh.instanceColor) sparkMesh.instanceColor.needsUpdate = true;
+}
+const flashTex = canvasTex(64, 64, (g) => { const gr = g.createRadialGradient(32,32,0,32,32,32); gr.addColorStop(0,'rgba(255,255,230,1)'); gr.addColorStop(0.3,'rgba(255,200,90,.7)'); gr.addColorStop(1,'rgba(255,120,0,0)'); g.fillStyle = gr; g.fillRect(0,0,64,64); });
+const flashes = [0,1,2,3,4,5].map(() => { const s = new T3.Sprite(new T3.SpriteMaterial({map:flashTex, blending:T3.AdditiveBlending, depthWrite:false, transparent:true, fog:false})); s.visible = false; s.life = 0; scene.add(s); return s; });
+let flashI = 0;
+function flash(pos, size){ const f = flashes[flashI = (flashI+1) % flashes.length]; f.position.copy(pos); f.visible = true; f.life = f.max = 0.14; f.size = size; }
+function updateFlashes(dt){ for (const f of flashes){ if (!f.visible) continue; f.life -= dt; if (f.life <= 0){ f.visible = false; continue; } const k = f.life/f.max; f.scale.setScalar(f.size*(0.6+k)); f.material.opacity = k; } }
+
+const WMAX = 3000, WCOL = [0xe23b2e,0xf2c230,0x2f6fe0,0x3fbf5a,0x1c1c1c,0xff8a1f].map(c => new T3.Color(c));
+const wireMesh = new T3.InstancedMesh(new T3.BoxGeometry(1,1,1), new T3.MeshLambertMaterial(), WMAX);
+wireMesh.frustumCulled = false; wireMesh.setColorAt(0, WCOL[0]); scene.add(wireMesh);
+const wires = [];
+let segN = 0;
+function seg(a, b, col, th){
+  if (segN >= WMAX) return;
+  const d = tmpV.copy(b).sub(a), len = d.length(); if (len < 1e-5) return;
+  tmpQ.setFromUnitVectors(UP, d.divideScalar(len));
+  tmpM.compose(tmpV2.copy(a).add(b).multiplyScalar(0.5), tmpQ, new V(th, len, th));
+  wireMesh.setMatrixAt(segN, tmpM); wireMesh.setColorAt(segN, col); segN++;
+}
+function addWires(obj, local, count, outDir){
+  const a = obj.localToWorld(local.clone());
+  for (let k=0;k<count;k++){
+    const dir = (outDir ? outDir.clone() : new V()).add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(1.2)).normalize();
+    const segL = 0.035 + R()*0.03, pts = [], prev = [];
+    for (let i=0;i<6;i++){ const p = a.clone().addScaledVector(dir, i*segL); pts.push(p); prev.push(p.clone()); }
+    wires.push({obj, local:local.clone().add(new V(R()-0.5,R()-0.5,R()-0.5).multiplyScalar(0.03)), pts, prev, segL, col:WCOL[Math.floor(R()*WCOL.length)]});
+  }
+  if (wires.length > 600) wires.splice(0, wires.length - 600);
+}
+// tethers: wires still joining two ripped pieces; they stretch, then snap one by one
+function addTethers(objA, localA, objB, localB, count){
+  const a = objA.localToWorld(localA.clone()), b = objB.localToWorld(localB.clone());
+  for (let k=0;k<count;k++){
+    const pts = [], prev = [], n = 9, jit = () => new V(R()-0.5,R()-0.5,R()-0.5).multiplyScalar(0.03);
+    for (let i=0;i<n;i++){ const p = a.clone().lerp(b, i/(n-1)); pts.push(p); prev.push(p.clone()); }
+    wires.push({obj:objA, local:localA.clone().add(jit()), obj2:objB, local2:localB.clone().add(jit()), pts, prev, segL:0.03, maxLen:0.35 + R()*0.7, col:WCOL[Math.floor(R()*WCOL.length)]});
+  }
+}
+const taut = [];
+function updateWires(dt){
+  segN = 0;
+  for (let i = wires.length-1; i >= 0; i--){
+    const w = wires[i];
+    if (w.obj.userData.dead || (w.obj2 && w.obj2.userData.dead)){ wires.splice(i,1); continue; }
+    w.obj.localToWorld(w.pts[0].copy(w.local));
+    const last = w.pts.length-1;
+    if (w.obj2){
+      w.obj2.localToWorld(w.pts[last].copy(w.local2));
+      if (w.pts[0].distanceTo(w.pts[last]) > w.maxLen){
+        wires.splice(i,1); const mid = w.pts[last >> 1];
+        spawnSparks(mid, 18, 2.5); flash(mid, 0.18); if (AC){ noiseHit(0.06, 5000, 3, 0.18); tone('sawtooth', 1800, 300, 0.07, 0.04); }
+        addWires(w.obj, w.local, 1); addWires(w.obj2, w.local2, 1);
+        continue;
+      }
+    }
+    for (let j=1;j<(w.obj2 ? last : w.pts.length);j++){
+      const p = w.pts[j], pv = w.prev[j], vx_ = (p.x-pv.x)*0.97, vy_ = (p.y-pv.y)*0.97, vz_ = (p.z-pv.z)*0.97;
+      pv.copy(p); p.x += vx_; p.y += vy_ - 9.8*dt*dt; p.z += vz_;
+      if (p.y < 0.004) p.y = 0.004;
+    }
+    for (let it=0; it<3; it++) for (let j=1;j<w.pts.length;j++){
+      const a = w.pts[j-1], b = w.pts[j], d = tmpV.copy(b).sub(a), L = d.length() || 1e-6, corr = (L - w.segL)/L;
+      if (corr < 0 && w.obj2) continue;
+      const pinA = j === 1, pinB = w.obj2 && j === last;
+      if (pinA && pinB) continue;
+      if (pinA) b.addScaledVector(d, -corr); else if (pinB) a.addScaledVector(d, corr); else { a.addScaledVector(d, corr*0.5); b.addScaledVector(d, -corr*0.5); }
+    }
+    for (let j=1;j<w.pts.length;j++) seg(w.pts[j-1], w.pts[j], w.col, 0.009);
+  }
+  for (const t of taut) for (let k=0;k<4;k++){
+    const o = new V(((k&1)-0.5)*0.03, ((k>>1)-0.5)*0.03, 0);
+    seg(tmpV2.copy(t.a).add(o).clone(), t.b.clone().add(o), WCOL[k], 0.009);
+  }
+  taut.length = 0;
+  wireMesh.count = segN; wireMesh.instanceMatrix.needsUpdate = true; if (wireMesh.instanceColor) wireMesh.instanceColor.needsUpdate = true;
+}
+
+// ================= audio =================
+let AC = null, strainGain = null, noiseBuf = null;
+function audio(){
+  if (AC) return; try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ return; }
+  const hum = AC.createGain(); hum.gain.value = 0.05; hum.connect(AC.destination);
+  const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500; lp.connect(hum);
+  for (const [f,type,gain] of [[60,'sine',0.6],[120,'sawtooth',0.25],[180,'triangle',0.1]]){
+    const o = AC.createOscillator(), gg = AC.createGain(); o.type = type; o.frequency.value = f; gg.gain.value = gain; o.connect(gg); gg.connect(lp); o.start(); }
+  noiseBuf = AC.createBuffer(1, AC.sampleRate*2, AC.sampleRate); const d = noiseBuf.getChannelData(0); for (let i=0;i<d.length;i++) d[i] = R()*2-1;
+  strainGain = AC.createGain(); strainGain.gain.value = 0; strainGain.connect(AC.destination);
+  const ns = AC.createBufferSource(); ns.buffer = noiseBuf; ns.loop = true; const bp = AC.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1300; bp.Q.value = 4; ns.connect(bp); bp.connect(strainGain); ns.start();
+  const gr = AC.createOscillator(), gg = AC.createGain(); gr.type = 'sawtooth'; gr.frequency.value = 48; gg.gain.value = 0.5; gr.connect(gg); gg.connect(strainGain); gr.start();
+}
+function noiseHit(dur, freq, q, vol, t0){
+  const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(), t = t0 || AC.currentTime;
+  s.buffer = noiseBuf; f.type = 'bandpass'; f.frequency.value = freq; f.Q.value = q;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur);
+  s.connect(f); f.connect(g); g.connect(AC.destination); s.start(t, R()); s.stop(t+dur+0.02);
+}
+function tone(type, f0, f1, dur, vol){
+  const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime; o.type = type;
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t+dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+dur+0.02);
+}
+function sndSnap(){ if (!AC) return; noiseHit(0.32, 1700, 1.2, 0.55); noiseHit(0.12, 4200, 6, 0.25); tone('sine', 120, 38, 0.25, 0.5); tone('sawtooth', 2600, 180, 0.18, 0.09);
+  for (let i=0;i<5;i++) noiseHit(0.03, 6000, 2, 0.12, AC.currentTime + 0.05 + R()*0.3); }
+function sndClank(k){ if (!AC) return; const v = Math.min(0.5, 0.06*k); noiseHit(0.09, 2600+R()*1500, 9, v); tone('sine', 500+R()*500, 300, 0.18, v*0.5); }
+function sndTap(v){ if (!AC) return; noiseHit(0.05, 700, 0.8, v); }
+function sndBoop(){ if (!AC) return; tone('square', 660, 1500, 0.14, 0.08); }
+function sndSqueak(){ if (!AC) return; tone('square', 900, 1800, 0.08, 0.05); setTimeout(() => AC && tone('square', 1500, 700, 0.1, 0.05), 90); }
+function setStrain(x){ if (strainGain) strainGain.gain.setTargetAtTime(Math.min(0.35, x*0.35), AC.currentTime, 0.03); }
+
+// ================= cute bots made of breakable parts =================
 const FACES = {};
 function drawFace(kind){
   return canvasTex(256, 180, (g,w,h) => {
     g.fillStyle = '#0b1518'; g.fillRect(0,0,w,h);
+    if (kind === 'off'){ g.strokeStyle = '#2b3a3e'; g.lineWidth = 3; g.beginPath(); g.moveTo(40,20); g.lineTo(120,90); g.lineTo(90,170); g.moveTo(120,90); g.lineTo(230,60); g.stroke(); return; }
     g.fillStyle = 'rgba(89,243,255,.06)'; for (let y=0;y<h;y+=6) g.fillRect(0,y,w,2);
     g.strokeStyle = g.fillStyle = '#59f3ff'; g.lineWidth = 12; g.lineCap = 'round'; g.shadowColor = '#59f3ff'; g.shadowBlur = 14;
     const ex = [78, 178], ey = 76;
     if (kind === 'idle'){ for (const x of ex){ g.beginPath(); g.ellipse(x, ey, 16, 26, 0, 0, Math.PI*2); g.fill(); } }
     if (kind === 'blink'){ for (const x of ex){ g.beginPath(); g.moveTo(x-18, ey); g.lineTo(x+18, ey); g.stroke(); } }
     if (kind === 'happy'){ for (const x of ex){ g.beginPath(); g.moveTo(x-20, ey+10); g.lineTo(x, ey-12); g.lineTo(x+20, ey+10); g.stroke(); } }
-    if (kind === 'dizzy'){ for (const x of ex){ g.beginPath(); g.moveTo(x-16,ey-16); g.lineTo(x+16,ey+16); g.moveTo(x+16,ey-16); g.lineTo(x-16,ey+16); g.stroke(); } }
+    if (kind === 'scared'){ g.lineWidth = 8; for (const x of ex){ g.beginPath(); g.arc(x, ey, 30, 0, Math.PI*2); g.stroke(); g.beginPath(); g.arc(x, ey+4, 8, 0, Math.PI*2); g.fill(); } }
+    if (kind === 'dizzy' || kind === 'dead'){ for (const x of ex){ g.beginPath(); g.moveTo(x-16,ey-16); g.lineTo(x+16,ey+16); g.moveTo(x+16,ey-16); g.lineTo(x-16,ey+16); g.stroke(); } }
     g.beginPath();
-    if (kind === 'dizzy'){ g.moveTo(90,138); for (let i=0;i<=8;i++) g.lineTo(90+i*10, 138 + (i%2 ? -8 : 8)); }
+    if (kind === 'scared'){ g.lineWidth = 8; g.ellipse(128, 140, 14, 18, 0, 0, Math.PI*2); }
+    else if (kind === 'dizzy'){ g.moveTo(90,138); for (let i=0;i<=8;i++) g.lineTo(90+i*10, 138 + (i%2 ? -8 : 8)); }
+    else if (kind === 'dead'){ g.moveTo(92,138); g.lineTo(164,138); }
     else if (kind === 'happy') g.arc(128, 118, 30, 0.1, Math.PI-0.1);
     else g.arc(128, 122, 20, 0.2, Math.PI-0.2);
     g.stroke();
   });
 }
-for (const k of ['idle','blink','happy','dizzy']) FACES[k] = new T3.MeshBasicMaterial({map:drawFace(k)});
-const white = new T3.MeshLambertMaterial({color:0xf3f0e6}), grey = new T3.MeshLambertMaterial({color:0x8d939a});
+for (const k of ['idle','blink','happy','scared','dizzy','dead','off']) FACES[k] = new T3.MeshBasicMaterial({map:drawFace(k)});
+const white = new T3.MeshLambertMaterial({color:0xf3f0e6}), grey = new T3.MeshLambertMaterial({color:0x8d939a}), bezel = new T3.MeshLambertMaterial({color:0x1d2326});
+const gutsTex = canvasTex(128, 96, (g,w,h) => { g.fillStyle = '#121619'; g.fillRect(0,0,w,h); g.strokeStyle = '#2fd17a'; g.lineWidth = 2;
+  for (let i=0;i<14;i++){ g.beginPath(); let x = R()*w, y = R()*h; g.moveTo(x,y); for (let j=0;j<3;j++){ R()<.5 ? x += (R()-.5)*60 : y += (R()-.5)*40; g.lineTo(x,y); } g.stroke(); }
+  g.fillStyle = '#ffb02e'; for (let i=0;i<8;i++) g.fillRect(R()*w, R()*h, 8, 5); });
+const gutsMat = new T3.MeshBasicMaterial({map:gutsTex});
 const starShape = (() => { const s = new T3.Shape(); for (let i=0;i<8;i++){ const a = i*Math.PI/4 + Math.PI/2, r = i%2 ? 0.022 : 0.07; i ? s.lineTo(Math.cos(a)*r, Math.sin(a)*r) : s.moveTo(Math.cos(a)*r, Math.sin(a)*r); } return s; })();
 const starGeo = new T3.ShapeGeometry(starShape);
+const G = {
+  body: new T3.BoxGeometry(0.42,0.36,0.32), plate: new T3.BoxGeometry(0.28,0.22,0.025), head: new T3.BoxGeometry(0.52,0.38,0.38),
+  bez: new T3.BoxGeometry(0.46,0.32,0.02), scr: new T3.PlaneGeometry(0.42,0.28), stalk: new T3.CylinderGeometry(0.01,0.01,0.16,6),
+  bulb: new T3.SphereGeometry(0.045,12,8), ear: new T3.CylinderGeometry(0.05,0.05,0.05,12), up: new T3.CylinderGeometry(0.022,0.022,0.14,6),
+  fore: new T3.CylinderGeometry(0.02,0.02,0.12,6), hand: new T3.SphereGeometry(0.05,10,8), leg: new T3.CylinderGeometry(0.03,0.03,0.12,6),
+  foot: new T3.BoxGeometry(0.1,0.05,0.15), guts: new T3.PlaneGeometry(0.3,0.24) };
+const STAND = 0.36;
 
-function makeRobot(color){
-  const accent = new T3.MeshBasicMaterial({color}), g = new T3.Group(), b = new T3.Group(); g.add(b);
-  const add = (geo, mat, x, y, z, parent=b) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); parent.add(m); return m; };
-  add(new T3.BoxGeometry(0.42,0.36,0.32), white, 0, 0.42, 0);
-  add(starGeo, accent, 0, 0.44, 0.161);
-  const head = new T3.Group(); head.position.set(0, 0.8, 0); b.add(head);
-  add(new T3.BoxGeometry(0.52,0.38,0.38), white, 0, 0, 0, head);
-  const face = add(new T3.PlaneGeometry(0.44,0.3), FACES.idle, 0, 0, 0.191, head);
-  for (const s of [-1,1]){ const e = add(new T3.CylinderGeometry(0.05,0.05,0.05,12), grey, s*0.28, 0, 0, head); e.rotation.z = Math.PI/2; }
-  add(new T3.CylinderGeometry(0.01,0.01,0.16,6), grey, 0, 0.27, 0, head);
-  const bulb = add(new T3.SphereGeometry(0.045,12,8), accent, 0, 0.36, 0, head);
-  const arms = [-1,1].map(s => { const p = new T3.Group(); p.position.set(s*0.23, 0.55, 0); b.add(p);
-    add(new T3.CylinderGeometry(0.022,0.022,0.26,6), grey, 0, -0.13, 0, p); add(new T3.SphereGeometry(0.05,10,8), white, 0, -0.28, 0, p); return p; });
-  const legs = [-1,1].map(s => { const p = new T3.Group(); p.position.set(s*0.1, 0.24, 0); b.add(p);
-    add(new T3.CylinderGeometry(0.03,0.03,0.2,6), grey, 0, -0.1, 0, p); add(new T3.BoxGeometry(0.1,0.05,0.15), white, 0, -0.215, 0.02, p); return p; });
-  return {g, b, head, face, bulb, arms, legs};
+const parts = [];
+let clock = 0;
+function mkPart(name, r, c){ const obj = new T3.Group(); const p = {obj, name, r, c:c || new V(), parent:null, kids:[], rest:new V(), restQ:new Q(), mode:'free', v:new V(), w:new V(), holdHand:-1, bot:null, still:0, born:clock}; obj.userData.part = p; parts.push(p); return p; }
+function mesh(p, geo, mat, x, y, z){ const m = new T3.Mesh(geo, mat); m.position.set(x||0, y||0, z||0); p.obj.add(m); return m; }
+function attach(parent, child, x, y, z){ parent.obj.add(child.obj); child.obj.position.set(x,y,z); child.rest.set(x,y,z); child.restQ.copy(child.obj.quaternion); child.parent = parent; parent.kids.push(child); }
+const centerW = p => p.obj.localToWorld(p.c.clone());
+const rootOf = p => { while (p.parent) p = p.parent; return p; };
+const isAnc = (a, b) => { for (let q=b; q; q=q.parent) if (q === a) return true; return false; };
+const subtree = (p, out=[]) => { out.push(p); for (const k of p.kids) subtree(k, out); return out; };
+
+const bots = [];
+function makeBot(color, pos){
+  const accent = new T3.MeshBasicMaterial({color});
+  const bot = {color, dead:false, t:R()*10, sayT:3+R()*6, blinkT:R()*3, sp:null, spT:0, speed:2.3+R()*0.5, prev:null, face:'idle', deadT:0};
+  const body = mkPart('body', 0.22); mesh(body, G.body, white); mesh(body, G.guts, gutsMat, 0, 0.01, 0.1605);
+  const chest = mkPart('chest', 0.13, new V(0,0,0.01)); mesh(chest, G.plate, white, 0, 0, 0.0125); const st = mesh(chest, starGeo, accent, 0, 0, 0.026); attach(body, chest, 0, 0.01, 0.16);
+  const head = mkPart('head', 0.24, new V(0,0.2,0)); mesh(head, G.head, white, 0, 0.2, 0); attach(body, head, 0, 0.18, 0);
+  const face = mkPart('face', 0.17); mesh(face, G.bez, bezel); bot.screen = mesh(face, G.scr, FACES.idle, 0, 0, 0.011); attach(head, face, 0, 0.2, 0.19);
+  const ant = mkPart('antenna', 0.07, new V(0,0.12,0)); mesh(ant, G.stalk, grey, 0, 0.08, 0); mesh(ant, G.bulb, accent, 0, 0.17, 0); attach(head, ant, 0, 0.39, 0);
+  for (const s of [-1,1]){ const e = mkPart('ear', 0.05); mesh(e, G.ear, grey).rotation.z = Math.PI/2; attach(head, e, s*0.27, 0.2, 0); }
+  bot.ups = []; bot.legs = [];
+  for (const s of [-1,1]){
+    const up = mkPart('arm', 0.07, new V(0,-0.07,0)); mesh(up, G.up, grey, 0, -0.07, 0); attach(body, up, s*0.23, 0.12, 0);
+    const fo = mkPart('forearm', 0.08, new V(0,-0.1,0)); mesh(fo, G.fore, grey, 0, -0.06, 0); mesh(fo, G.hand, white, 0, -0.15, 0); attach(up, fo, 0, -0.14, 0);
+    const lg = mkPart('leg', 0.06, new V(0,-0.06,0)); mesh(lg, G.leg, grey, 0, -0.06, 0); attach(body, lg, s*0.1, -0.18, 0);
+    const ft = mkPart('foot', 0.06, new V(0,-0.025,0.02)); mesh(ft, G.foot, white, 0, -0.025, 0.02); attach(lg, ft, 0, -0.12, 0);
+    bot.ups.push(up); bot.legs.push(lg);
+  }
+  Object.assign(bot, {root:body, head, faceP:face});
+  for (const p of subtree(body)) p.bot = bot;
+  body.mode = 'bot'; body.obj.position.set(pos.x, STAND, pos.z); scene.add(body.obj);
+  const c = cellOf(pos); bot.cell = c; bot.target = cellPos(c[0], c[1]);
+  bots.push(bot); return bot;
 }
-
-const LINES = ['beep boop','as a language model, I cannot be tagged','I am just a little guy','404: exit not found',
-  'hallucinating an exit...','please rate this chase','that is a great question!','my training data never mentioned you',
-  'context window exceeded','regenerating response...'];
-const HIT_LINES = ['you got me!','error: tagged','ow. my weights.','rebooting...','I will remember this (I will not)'];
+function setFace(bot, k){ if (bot.face === k) return; bot.face = k; if (!bot.faceP.obj.userData.dead) bot.screen.material = FACES[k]; }
+const LINES = ['beep boop','as a language model, I cannot be caught','I am just a little guy','404: exit not found','hallucinating an exit...','please rate this chase','that is a great question!','my training data never mentioned you','regenerating response...'];
+const CAUGHT = ['wait wait wait','I am a helpful assistant!!','this violates my terms of service','put me down please','I will write you a poem!','ERROR ERROR ERROR'];
+const OW = ['my arm!!','that was load-bearing','error: limb not found','ow ow ow','I felt that in my weights','not the face!','critical failure'];
 function bubble(text){
-  const t = canvasTex(512, 160, (g,w,h) => {
-    g.font = '600 34px Rubik, sans-serif';
-    const lines = [''];
-    for (const word of text.split(' ')){ const tryL = (lines[lines.length-1] + ' ' + word).trim(); if (g.measureText(tryL).width > 460 && lines[lines.length-1]) lines.push(word); else lines[lines.length-1] = tryL; }
+  const t = canvasTex(512, 160, (g) => {
+    g.font = '600 34px Rubik, sans-serif'; const lines = [''];
+    for (const word of text.split(' ')){ const tl = (lines[lines.length-1] + ' ' + word).trim(); if (g.measureText(tl).width > 460 && lines[lines.length-1]) lines.push(word); else lines[lines.length-1] = tl; }
     const bh = lines.length > 1 ? 128 : 84, top = 132 - bh;
     g.fillStyle = '#fffbe6'; g.beginPath(); g.moveTo(28,top); g.arcTo(504,top,504,132,20); g.arcTo(504,132,8,132,20); g.arcTo(8,132,8,top,20); g.arcTo(8,top,504,top,20); g.fill();
     g.beginPath(); g.moveTo(230,131); g.lineTo(256,158); g.lineTo(282,131); g.fill();
@@ -466,73 +694,374 @@ function bubble(text){
   });
   const sp = new T3.Sprite(new T3.SpriteMaterial({map:t, depthTest:false, transparent:true})); sp.scale.set(0.9, 0.28, 1); sp.renderOrder = 10; return sp;
 }
-
+function say(bot, text){
+  if (bot.dead && text) return; if (bot.sp){ bot.sp.parent && bot.sp.parent.remove(bot.sp); bot.sp = null; }
+  if (!text) return; bot.sp = bubble(text); bot.sp.position.set(0, 0.66, 0); bot.head.obj.add(bot.sp); bot.spT = 2.4;
+}
+const pick = a => a[Math.floor(R()*a.length)];
 const cellOf = p => [Math.min(N-1,Math.max(0,Math.floor(p.x/C))), Math.min(N-1,Math.max(0,Math.floor(p.z/C)))];
-const cellPos = (x,y) => new V((x+0.5)*C, 0, (y+0.5)*C);
-function farCell(from){ for (let i=0;i<200;i++){ const x = Math.floor(rnd()*N), y = Math.floor(rnd()*N); if (cellPos(x,y).distanceTo(new V(from.x,0,from.z)) > 14) return [x,y]; } return [0,0]; }
+const cellPos = (x,y) => new V((x+0.5)*C, STAND, (y+0.5)*C);
+function farCell(from){ for (let i=0;i<200;i++){ const x = Math.floor(R()*N), y = Math.floor(R()*N); if (cellPos(x,y).distanceTo(new V(from.x,STAND,from.z)) > 13) return cellPos(x,y); } return cellPos(0,0); }
+const BOT_COLORS = [0xff7a66, 0x7dffb0, 0xc6a3ff, 0xffd23d, 0x6fd3ff, 0xff8fd6];
+for (let i=0;i<4;i++) makeBot(BOT_COLORS[i], farCell(SPAWN));
+let score = 0, respawnTimers = [];
 
-const bots = [0xff7a66, 0x7dffb0, 0xc6a3ff, 0xffd23d].map((col, i) => {
-  const r = makeRobot(col), [x,y] = farCell(SPAWN);
-  r.g.position.copy(cellPos(x,y)); scene.add(r.g);
-  return Object.assign(r, {cell:[x,y], prev:null, target:cellPos(x,y), state:'run', t:rnd()*10, sayT:3+rnd()*6, blinkT:rnd()*3, sp:null, spT:0, speed:2.3+i*0.15, bulbY:0, bulbV:0});
-});
-function say(bot, text){ if (bot.sp) bot.head.remove(bot.sp); bot.sp = bubble(text); bot.sp.position.set(0, 0.66, 0); bot.head.add(bot.sp); bot.spT = 2.6; }
+function killBot(bot){
+  if (bot.dead) return; bot.dead = true; say(bot, null); setFace(bot, 'dead'); bot.deadT = 0; score++;
+  if (bot.root.mode === 'bot'){ bot.root.mode = 'free'; bot.root.v.set(0,0,0); }
+  respawnTimers.push(3);
+}
+function detach(p, vel){
+  const parent = p.parent; if (!parent) return;
+  const S = parent.obj.localToWorld(p.rest.clone());
+  parent.kids.splice(parent.kids.indexOf(p), 1); p.parent = null;
+  scene.attach(p.obj); p.mode = 'free'; p.holdHand = -1;
+  p.v.copy(vel || new V()); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(8);
+  const out = S.clone().sub(centerW(parent)).normalize();
+  addWires(parent.obj, p.rest.clone(), 3 + Math.floor(R()*3), out);
+  addWires(p.obj, new V(), 2 + Math.floor(R()*3), out.clone().negate());
+  addTethers(parent.obj, p.rest.clone(), p.obj, new V(), 2 + Math.floor(R()*2));
+  spawnSparks(S, 70, 3.5); flash(S, 0.5); sndSnap();
+  const bot = p.bot;
+  if (bot && !bot.dead){
+    if (p.name === 'head' || (p.name === 'face' && R() < 0.5)) killBot(bot);
+    else { setFace(bot, 'dizzy'); bot.faceT = 0.8; say(bot, pick(OW)); }
+  }
+  return S;
+}
+function removePart(root){
+  for (const p of subtree(root)){ p.obj.userData.dead = true; const i = parts.indexOf(p); if (i >= 0) parts.splice(i,1); }
+  root.obj.parent && root.obj.parent.remove(root.obj);
+  for (const i of [0,1]) if (hs[i].root === root) hs[i] = {mode:'none'};
+}
+const chunkGeo = new T3.BoxGeometry(1,1,1);
+function shatter(p){
+  const c = centerW(p), mat = (p.obj.children.find(o => o.isMesh) || {}).material || grey;
+  const n = 4 + Math.floor(R()*3);
+  for (let k=0;k<n;k++){
+    const s = 0.025 + R()*0.03, ch = mkPart('chunk', s*0.75); ch.obj.add(new T3.Mesh(chunkGeo, mat)); ch.obj.children[0].scale.setScalar(s);
+    ch.obj.position.copy(c).add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(p.r)); ch.obj.rotation.set(R()*6, R()*6, R()*6);
+    ch.v.copy(p.v).multiplyScalar(0.3).add(new V(R()-0.5, R()*0.8, R()-0.5).multiplyScalar(4)); ch.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(20);
+    scene.add(ch.obj);
+  }
+  spawnSparks(c, 90, 4.5); flash(c, 0.7); sndSnap(); removePart(p);
+}
 
-// ---------- player: robot hands + wrist display ----------
-const io = {pos:rig.position, yaw:0, headYaw:0, headLocal:new V(0,1.6,0), headQuat:new T3.Quaternion(),
-  handLocal:[new V(-0.2,0.9,-0.25), new V(0.2,0.9,-0.25)], handQuat:[new T3.Quaternion(), new T3.Quaternion()], pads:[null,null]};
-const loco = makeLoco(T3, boxes, io);
-const hands = [0,1].map(i => {
-  const g = new T3.Group();
-  const fist = new T3.Mesh(new T3.SphereGeometry(0.05,16,12), white); g.add(fist);
-  const ring = new T3.Mesh(new T3.TorusGeometry(0.045,0.008,8,20), new T3.MeshBasicMaterial({color:0x59f3ff})); ring.position.z = 0.04; g.add(ring);
-  const arm = new T3.Mesh(new T3.CylinderGeometry(0.02,0.026,0.2,8), grey); arm.rotation.x = Math.PI/2; arm.position.z = 0.13; g.add(arm);
-  g.visible = false; scene.add(g); return g;
-});
+// ================= player: scary robot avatar =================
+const dk = new T3.MeshLambertMaterial({color:0x26292e}), dk2 = new T3.MeshLambertMaterial({color:0x3c4048}), redGlow = new T3.MeshBasicMaterial({color:0xff2a1a, fog:false}), fang = new T3.MeshLambertMaterial({color:0xd8d2bf});
+function makeScary(parent, full){
+  const av = {};
+  const head = new T3.Group();
+  if (full){
+    const hm = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); head.add(m); return m; };
+    hm(new T3.BoxGeometry(0.3,0.25,0.28), dk, 0, 0, 0.02);
+    hm(new T3.BoxGeometry(0.34,0.06,0.08), dk2, 0, 0.09, -0.12).rotation.x = 0.35;
+    for (const s of [-1,1]){
+      const e = hm(new T3.BoxGeometry(0.085,0.028,0.01), redGlow, s*0.07, 0.035, -0.125); e.rotation.z = s*0.35;
+      hm(new T3.ConeGeometry(0.025,0.12,6), dk2, s*0.12, 0.16, 0.04).rotation.z = -s*0.5;
+    }
+    hm(new T3.BoxGeometry(0.24,0.07,0.04), new T3.MeshLambertMaterial({color:0x120f0d}), 0, -0.07, -0.115);
+    for (let i=0;i<7;i++){ const t = hm(new T3.ConeGeometry(0.014,0.045,4), fang, -0.105+i*0.035, -0.055, -0.13); t.rotation.x = Math.PI; }
+    for (let i=0;i<6;i++) hm(new T3.ConeGeometry(0.012,0.035,4), fang, -0.087+i*0.035, -0.095, -0.13);
+  }
+  parent.add(head); av.head = head;
+  const torso = new T3.Group();
+  const tm = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); torso.add(m); return m; };
+  tm(new T3.BoxGeometry(0.5,0.42,0.34), dk, 0, 0, 0);
+  const core = tm(new T3.CylinderGeometry(0.065,0.065,0.02,16), redGlow, 0, 0.02, -0.172); core.rotation.x = Math.PI/2;
+  for (const s of [-1,1]) for (let k=0;k<3;k++){ const sp = tm(new T3.ConeGeometry(0.03,0.13,5), dk2, s*(0.17+k*0.04), 0.24-k*0.03, 0.02+k*0.06); sp.rotation.z = -s*0.4; }
+  for (let i=0;i<4;i++) tm(new T3.BoxGeometry(0.36,0.015,0.01), dk2, 0, -0.08-i*0.035, -0.172);
+  parent.add(torso); av.torso = torso;
+  av.arms = [0,1].map(() => { const m = new T3.Mesh(new T3.CylinderGeometry(0.04,0.05,1,8), dk2); parent.add(m); return m; });
+  av.claws = [0,1].map(i => {
+    const g = new T3.Group(), cm = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
+    cm(new T3.BoxGeometry(0.085,0.035,0.095), dk, 0, 0, 0.005);
+    cm(new T3.BoxGeometry(0.06,0.04,0.06), dk2, 0, 0.005, 0.07);
+    g.fingers = [];
+    for (let f=0; f<4; f++){
+      const piv = new T3.Group(); piv.position.set(f === 3 ? (i ? -0.05 : 0.05) : -0.03+f*0.03, 0, f === 3 ? -0.0 : -0.045);
+      if (f === 3) piv.rotation.y = i ? 0.9 : -0.9;
+      const cone = new T3.Mesh(new T3.ConeGeometry(0.013,0.1,6), dk2); cone.rotation.x = -Math.PI/2; cone.position.z = -0.05; piv.add(cone);
+      const tip = new T3.Mesh(new T3.ConeGeometry(0.007,0.03,5), redGlow); tip.rotation.x = -Math.PI/2; tip.position.z = -0.1; piv.add(tip);
+      g.add(piv); g.fingers.push(piv);
+    }
+    parent.add(g); return g;
+  });
+  return av;
+}
+const me = makeScary(scene, false), meMirror = makeScary(mirrorWorld, true);
+const allAv = [me, meMirror];
+for (const av of allAv) for (const k of ['head','torso','claws','arms']) [].concat(av[k]).forEach(o => o.visible = false);
+function poseAvatar(av, P){
+  av.head.position.copy(P.head); av.head.quaternion.copy(P.headQ);
+  av.torso.position.copy(P.head).add(new V(0,-0.34,0.1).applyQuaternion(P.yawQ)); av.torso.quaternion.copy(P.yawQ);
+  for (const i of [0,1]){
+    const sh = av.torso.position.clone().add(new V(i ? 0.27 : -0.27, 0.12, 0).applyQuaternion(P.yawQ));
+    const wr = P.hands[i].clone().add(new V(0,0,0.08).applyQuaternion(P.handQ[i]));
+    const d = wr.clone().sub(sh), L = Math.max(0.01, d.length());
+    av.arms[i].position.copy(sh).add(wr).multiplyScalar(0.5); av.arms[i].quaternion.setFromUnitVectors(UP, d.divideScalar(L)); av.arms[i].scale.set(1, L, 1);
+    const cl = av.claws[i]; cl.position.copy(P.hands[i]); cl.quaternion.copy(P.handQ[i]);
+    const curl = P.grip[i] ? -1.0 : -0.25; cl.fingers.forEach((f,k) => f.rotation.x = k === 3 ? curl*0.6 : curl);
+  }
+}
+
+// wrist display
 const wristCanvas = document.createElement('canvas'); wristCanvas.width = 256; wristCanvas.height = 128;
 const wristTex = new T3.CanvasTexture(wristCanvas); wristTex.encoding = T3.sRGBEncoding;
-const wrist = new T3.Mesh(new T3.PlaneGeometry(0.12, 0.06), new T3.MeshBasicMaterial({map:wristTex}));
-wrist.position.set(0, 0.035, 0.12); wrist.rotation.x = -Math.PI/2 + 0.5; hands[0].add(wrist);
-let score = 0, startT = performance.now(), lastWrist = '';
+const wrist = new T3.Mesh(new T3.PlaneGeometry(0.11, 0.055), new T3.MeshBasicMaterial({map:wristTex}));
+wrist.position.set(0, 0.03, 0.1); wrist.rotation.x = -Math.PI/2 + 0.5; me.claws[0].add(wrist);
+let startT = performance.now(), lastWrist = '';
 function drawWrist(){
-  const s = Math.floor((performance.now()-startT)/1000), txt = `TAGGED ${score}|${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const s = Math.floor((performance.now()-startT)/1000), txt = `SCRAPPED ${score}|${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   if (txt === lastWrist) return; lastWrist = txt;
   const g = wristCanvas.getContext('2d'), [a,b] = txt.split('|');
-  g.fillStyle = '#0b1518'; g.fillRect(0,0,256,128); g.fillStyle = '#59f3ff'; g.textAlign = 'center';
-  g.font = 'bold 44px monospace'; g.fillText(a, 128, 56); g.fillStyle = '#e2cf72'; g.font = '36px monospace'; g.fillText(b, 128, 104);
+  g.fillStyle = '#16090a'; g.fillRect(0,0,256,128); g.fillStyle = '#ff3b2f'; g.textAlign = 'center';
+  g.font = 'bold 40px monospace'; g.fillText(a, 128, 54); g.fillStyle = '#e2cf72'; g.font = '36px monospace'; g.fillText(b, 128, 104);
   wristTex.needsUpdate = true; $('score').textContent = a;
 }
 
-// ---------- audio ----------
-let AC = null;
-function audio(){
-  if (AC) return; try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){ return; }
-  const hum = AC.createGain(); hum.gain.value = 0.05; hum.connect(AC.destination);
-  const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 500; lp.connect(hum);
-  for (const [f,type,gain] of [[60,'sine',0.6],[120,'sawtooth',0.25],[180,'triangle',0.1]]){
-    const o = AC.createOscillator(), gg = AC.createGain(); o.type = type; o.frequency.value = f; gg.gain.value = gain; o.connect(gg); gg.connect(lp); o.start(); }
-}
-function tap(vol){
-  if (!AC) return; const n = AC.sampleRate*0.04, buf = AC.createBuffer(1, n, AC.sampleRate), d = buf.getChannelData(0);
-  for (let i=0;i<n;i++) d[i] = (Math.random()*2-1) * (1-i/n)**3;
-  const s = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain(); f.type = 'lowpass'; f.frequency.value = 900; g.gain.value = vol;
-  s.buffer = buf; s.connect(f); f.connect(g); g.connect(AC.destination); s.start();
-}
-function boop(){
-  if (!AC) return; const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime; o.type = 'square';
-  o.frequency.setValueAtTime(660,t); o.frequency.exponentialRampToValueAtTime(1500,t+0.12); o.frequency.setValueAtTime(990,t+0.16);
-  g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.35); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+0.36);
-}
-const pulse = (i, s, ms) => { const p = io.pads[i]; try { p && p.hapticActuators && p.hapticActuators[0] && p.hapticActuators[0].pulse(s, ms); } catch(e){} };
+// fade sphere for lobby <-> game
+const fadeMesh = new T3.Mesh(new T3.SphereGeometry(0.4, 16, 12), new T3.MeshBasicMaterial({color:0, side:T3.BackSide, transparent:true, opacity:0, depthTest:false, fog:false}));
+fadeMesh.renderOrder = 999; scene.add(fadeMesh);
 
-// ---------- VR session ----------
+// ================= player state =================
+const io = {pos:rig.position, yaw:0, headYaw:0, headLocal:new V(0,1.6,0), headQuat:new Q(),
+  handLocal:[new V(-0.2,0.9,-0.25), new V(0.2,0.9,-0.25)], handQuat:[new Q(), new Q()], pads:[null,null],
+  grip:[false,false], yBtn:false, stickX:0};
+const loco = makeLoco(T3, boxes, io);
+let hs = [{mode:'none'},{mode:'none'}];
+const handW = [new V(), new V()], handQW = [new Q(), new Q()], handPrev = [new V(), new V()], hv = [new V(), new V()];
+let gripPrev = [false,false], yPrev = false, punchCD = [0,0];
+let mode = 'lobby', fade = 0, fadeDir = 0, fadeAction = null, inited = false, turnLatch = false;
+const pulse = (i, s, ms) => { const p = io.pads[i]; try { p && p.hapticActuators && p.hapticActuators[0] && p.hapticActuators[0].pulse(Math.min(1,s), ms); } catch(e){} };
+
+function teleport(target, yaw){
+  for (const i of [0,1]) release(i, true);
+  io.yaw = rig.rotation.y = yaw;
+  const hl = io.headLocal.clone().applyAxisAngle(UP, io.yaw);
+  rig.position.set(target.x - hl.x, 0.02, target.z - hl.z);
+  loco.InitializeValues();
+  for (const i of [0,1]) handPrev[i].copy(loco.S.lastHand[i]);
+}
+function goto(m){
+  if (fadeDir) return; fadeDir = 1;
+  fadeAction = () => {
+    mode = m;
+    if (m === 'game'){ teleport(SPAWN, io.yaw); startT = performance.now(); score = 0; lastWrist = ''; }
+    else teleport(LOBBY_SPAWN, LOBBY_YAW);
+    meMirror.head.visible = meMirror.torso.visible = m === 'lobby';
+    meMirror.arms.forEach(a => a.visible = m === 'lobby'); meMirror.claws.forEach(a => a.visible = m === 'lobby');
+  };
+}
+
+// ================= grabbing / ripping =================
+function handMat(i){ return new M4().compose(handW[i], handQW[i], ONE); }
+function nearestPart(i){
+  let best = null, bd = Infinity;
+  for (const p of parts){ if (p.obj.userData.dead) continue; const d = centerW(p).distanceTo(handW[i]) - p.r; if (d < 0.06 && d < bd){ bd = d; best = p; } }
+  return best;
+}
+function startHold(i, root, part){
+  root.mode = 'held'; root.holdHand = i;
+  hs[i] = {mode:'hold', part, root, mat:handMat(i).invert().multiply(root.obj.matrixWorld)};
+}
+function grab(i){
+  const p = nearestPart(i); if (!p) return;
+  const root = rootOf(p), o = hs[1-i];
+  if (root.mode === 'held'){
+    if (!(o.mode === 'hold' && o.root === root) || p === o.part) return;
+    let k = p, side = 'mine';
+    if (isAnc(p, o.part)){ k = o.part; while (k.parent !== p) k = k.parent; side = 'other'; }
+    hs[i] = {mode:'stretch', part:p, root, k, side, gLocal:p.obj.worldToLocal(handW[i].clone())};
+    if (p.bot && !p.bot.dead){ setFace(p.bot, 'scared'); if (R() < 0.6) say(p.bot, pick(['no no no','please not the '+(k.name === 'face' ? 'face' : k.name),'I have a family (of weights)','that is attached to me!'])); }
+  } else {
+    root.obj.updateMatrixWorld(true);
+    startHold(i, root, p);
+    const b = root.bot;
+    if (b && !b.dead && root === b.root){ setFace(b, 'scared'); say(b, pick(CAUGHT)); sndSqueak(); }
+  }
+  pulse(i, 0.4, 40); sndTap(0.15);
+}
+function release(i, quiet){
+  const s = hs[i];
+  if (s.mode === 'stretch'){ s.k.obj.position.copy(s.k.rest); s.k.obj.quaternion.copy(s.k.restQ); }
+  if (s.mode === 'hold'){
+    const o = hs[1-i];
+    if (o.mode === 'stretch' && o.root === s.root){
+      o.k.obj.position.copy(o.k.rest); o.k.obj.quaternion.copy(o.k.restQ); s.root.obj.updateMatrixWorld(true);
+      hs[i] = {mode:'none'}; startHold(1-i, s.root, o.part); return;
+    }
+    s.root.mode = 'free'; s.root.holdHand = -1;
+    if (!quiet){ s.root.v.copy(hv[i]).multiplyScalar(1.15); s.root.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(2 + hv[i].length()*3); }
+    else s.root.v.set(0,0,0);
+  }
+  hs[i] = {mode:'none'};
+}
+function updateHolds(dt){
+  for (const i of [0,1]){
+    const s = hs[i]; if (s.mode !== 'hold') continue;
+    if (s.root.obj.userData.dead || rootOf(s.part) !== s.root){ hs[i] = {mode:'none'}; continue; }
+    const before = centerW(s.root);
+    handMat(i).multiply(s.mat).decompose(s.root.obj.position, s.root.obj.quaternion, tmpV);
+    s.root.obj.updateMatrixWorld(true);
+    s.root.v.copy(centerW(s.root)).sub(before).divideScalar(dt);
+  }
+  let strain = 0;
+  for (const i of [0,1]){
+    const s = hs[i]; if (s.mode !== 'stretch') continue;
+    const o = hs[1-i];
+    if (!(o.mode === 'hold' && o.root === s.root) || s.k.parent === null){ hs[i] = {mode:'none'}; continue; }
+    const k = s.k;
+    k.obj.position.copy(k.rest); k.obj.quaternion.copy(k.restQ); s.root.obj.updateMatrixWorld(true);
+    const cur = s.part.obj.localToWorld(s.gLocal.clone()), pull = handW[i].clone().sub(cur), L = pull.length();
+    const disp = pull.multiplyScalar(s.side === 'mine' ? 0.5 : -0.5); if (disp.length() > 0.22) disp.setLength(0.22);
+    const pq = k.parent.obj.getWorldQuaternion(new Q()).invert();
+    k.obj.position.add(disp.applyQuaternion(pq));
+    const sh = Math.min(0.3, L*0.6); k.obj.rotation.x += (R()-0.5)*sh; k.obj.rotation.z += (R()-0.5)*sh;
+    s.root.obj.updateMatrixWorld(true);
+    const S = k.parent.obj.localToWorld(k.rest.clone()), E = k.obj.getWorldPosition(new V());
+    if (E.distanceTo(S) > 0.015) taut.push({a:S, b:E});
+    const st = Math.max(0, (L - 0.06) / 0.34); strain = Math.max(strain, st);
+    pulse(i, 0.15 + st*0.7, 20); pulse(1-i, 0.1 + st*0.6, 20);
+    if (st > 0.3 && R() < st*0.6) spawnSparks(S, 3, 2);
+    if (k.bot && !k.bot.dead && R() < 0.02) say(k.bot, pick(['AAAA','stop stop stop','my '+k.name+'!!']));
+    if (L > 0.4){
+      const A = 1-i, mine = s.side === 'mine';
+      const kHand = mine ? i : A, kPart = mine ? s.part : hs[A].part, restHand = mine ? A : i, restPart = mine ? hs[A].part : s.part;
+      detach(k, hv[kHand].clone());
+      k.obj.updateMatrixWorld(true); s.root.obj.updateMatrixWorld(true);
+      startHold(kHand, k, kPart);
+      startHold(restHand, s.root, restPart);
+      pulse(0, 1, 160); pulse(1, 1, 160);
+    }
+  }
+  setStrain(strain);
+}
+function punches(dt){
+  for (const i of [0,1]){
+    punchCD[i] -= dt; const sp = hv[i].length();
+    if (hs[i].mode !== 'none' || punchCD[i] > 0 || sp < 2.8) continue;
+    let best = null, bd = Infinity;
+    for (const p of parts){ if (p.obj.userData.dead) continue; const d = centerW(p).distanceTo(handW[i]) - p.r; if (d < 0.04 && d < bd){ bd = d; best = p; } }
+    if (!best) continue;
+    punchCD[i] = 0.25; const hit = centerW(best), imp = hv[i].clone().multiplyScalar(0.9).add(new V(0, 1, 0));
+    pulse(i, 1, 90); sndClank(sp*2); spawnSparks(hit, 25, 3);
+    if (best.parent){ detach(best, imp); }
+    else if (best.mode !== 'held'){
+      best.mode = 'free'; best.v.copy(imp).multiplyScalar(1.2); best.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(14);
+      if (best.bot && !best.bot.dead && best === best.bot.root){ setFace(best.bot, 'dizzy'); say(best.bot, pick(['OW','why would you do that','I was being helpful!'])); }
+    }
+  }
+}
+
+// ================= bot AI & free-body physics =================
+function updateBot(bot, dt, player){
+  bot.t += dt;
+  const root = bot.root;
+  if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); }
+  if (bot.dead){
+    bot.deadT += dt;
+    if (bot.deadT > 4 && bot.face !== 'off'){ bot.face = 'off'; if (!bot.faceP.obj.userData.dead) bot.screen.material = FACES.off; }
+    else if (bot.deadT < 4 && R() < 0.04 && !bot.faceP.obj.userData.dead) bot.screen.material = R() < 0.5 ? FACES.off : FACES.dead;
+    return;
+  }
+  if (bot.faceT > 0){ bot.faceT -= dt; }
+  const ph = bot.t * 11;
+  if (root.mode === 'held'){
+    for (const [j,u] of bot.ups.entries()) if (u.parent === root && !isStretched(u)) u.obj.rotation.z = (j ? 1 : -1)*(2.2 + Math.sin(ph*2.3 + j)*0.9);
+    for (const [j,l] of bot.legs.entries()) if (l.parent === root && !isStretched(l)) l.obj.rotation.x = Math.sin(ph*2 + j*3)*0.9;
+    if (R() < 0.006) say(bot, pick(CAUGHT));
+    return;
+  }
+  if (root.mode === 'free'){
+    // gets back up after landing, if it still has its head
+    if (root.v.length() < 0.35 && root.grounded) root.still += dt; else root.still = 0;
+    if (root.still > 1.0 && bot.head.parent === root){
+      const e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ');
+      root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y, 0)); root.obj.position.y = STAND;
+      for (const k of subtree(root)) if (k !== root){ k.obj.position.copy(k.rest); k.obj.quaternion.copy(k.restQ); }
+      const c = cellOf(root.obj.position); bot.cell = c; bot.target = cellPos(c[0], c[1]); bot.prev = null;
+      root.mode = 'bot'; setFace(bot, 'idle'); say(bot, pick(['I am fine. everything is fine','rebooting...','nope nope nope']));
+    }
+    return;
+  }
+  // running around
+  const pos = root.obj.position, flat = new V(player.x, STAND, player.z);
+  const legs = bot.legs.filter(l => l.parent === root).length, spd = bot.speed * (legs === 2 ? 1 : legs === 1 ? 0.55 : 0.3);
+  const to = bot.target.clone().sub(pos); to.y = 0;
+  const near = flat.distanceTo(pos) < 10;
+  if (to.length() < 0.08){
+    const [x,y] = bot.cell = cellOf(bot.target);
+    let nb = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => x+dx>=0 && y+dy>=0 && x+dx<N && y+dy<N && open(x,y,dx,dy)).map(([dx,dy]) => [x+dx,y+dy]);
+    if (nb.length > 1 && bot.prev) nb = nb.filter(c => c[0] !== bot.prev[0] || c[1] !== bot.prev[1]);
+    nb.sort((a,b) => near ? cellPos(...b).distanceTo(flat) - cellPos(...a).distanceTo(flat) + (R()-0.5)*3 : R()-0.5);
+    bot.prev = [x,y]; bot.target = cellPos(...nb[0]);
+  } else {
+    pos.addScaledVector(to.normalize(), Math.min(to.length(), spd*(near ? 1 : 0.5)*dt));
+    const want = Math.atan2(to.x, to.z), e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ');
+    let d = want - e.y; d = Math.atan2(Math.sin(d), Math.cos(d)); root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y + d*Math.min(1, dt*10), 0));
+  }
+  const run = near ? 1 : 0.5;
+  pos.y = (legs ? STAND : 0.18) + Math.abs(Math.sin(ph*run))*0.08*run;
+  bot.legs.forEach((l,j) => { if (l.parent === root) l.obj.rotation.x = (j ? -1 : 1)*Math.sin(ph*run)*0.7; });
+  bot.ups.forEach((u,j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(near ? 2.4 + Math.sin(ph*1.3+j)*0.6 : 0.2 + Math.sin(ph)*0.2); });
+  if (bot.head.parent === root) bot.head.obj.rotation.z = Math.sin(ph*0.5)*0.12;
+  bot.blinkT -= dt; if (bot.blinkT < 0) bot.blinkT = 2 + R()*3;
+  if (!(bot.faceT > 0)) setFace(bot, bot.blinkT < 0.12 ? 'blink' : near ? 'happy' : 'idle');
+  bot.sayT -= dt; if (bot.sayT < 0 && near){ bot.sayT = 6 + R()*7; say(bot, pick(LINES)); }
+}
+const isStretched = p => hs.some(s => s.mode === 'stretch' && s.k === p);
+
+function physics(root, dt){
+  const sub = subtree(root);
+  root.v.y -= 9.81*dt;
+  const c0 = centerW(root);
+  root.obj.position.addScaledVector(root.v, dt);
+  const wl = root.w.length();
+  if (wl > 1e-4){
+    tmpQ.setFromAxisAngle(tmpV.copy(root.w).divideScalar(wl), wl*dt);
+    const c = c0.clone().addScaledVector(root.v, dt);
+    root.obj.position.sub(c).applyQuaternion(tmpQ).add(c); root.obj.quaternion.premultiply(tmpQ);
+  }
+  root.obj.updateMatrixWorld(true);
+  root.grounded = false;
+  let bestImpact = 0, bestPt = null;
+  for (const p of sub){
+    const c = centerW(p), r = p.r;
+    for (const b of boxes){
+      if (c.x+r < b.min[0] || c.x-r > b.max[0] || c.y+r < b.min[1] || c.y-r > b.max[1] || c.z+r < b.min[2] || c.z-r > b.max[2]) continue;
+      const q = new V(Math.max(b.min[0],Math.min(c.x,b.max[0])), Math.max(b.min[1],Math.min(c.y,b.max[1])), Math.max(b.min[2],Math.min(c.z,b.max[2])));
+      const d = c.clone().sub(q); let L = d.length(), n;
+      if (L >= r) continue;
+      if (L < 1e-6){ n = new V(0,1,0); L = 0; } else n = d.divideScalar(L);
+      root.obj.position.addScaledVector(n, r - L); c.addScaledVector(n, r - L);
+      const vn = root.v.dot(n);
+      if (vn < 0){
+        const imp = -vn; root.v.addScaledVector(n, -vn*1.3);
+        const vt = root.v.clone().addScaledVector(n, -root.v.dot(n)); root.v.sub(vt.multiplyScalar(0.25));
+        const arm = c.clone().sub(centerW(root)); root.w.add(arm.cross(n).multiplyScalar(imp*4)); root.w.multiplyScalar(0.85);
+        if (imp > bestImpact){ bestImpact = imp; bestPt = q.clone(); }
+      }
+      if (n.y > 0.6) root.grounded = true;
+      root.obj.updateMatrixWorld(true);
+    }
+  }
+  if (root.grounded){ root.w.multiplyScalar(Math.pow(0.05, dt)); if (root.v.length() < 0.06) root.v.set(0,0,0); }
+  if (bestImpact > 2.5){ spawnSparks(bestPt, Math.min(60, bestImpact*6), bestImpact*0.5); sndClank(bestImpact); }
+  if (bestImpact > 5.5){
+    if (root.kids.length){ const k = pick(root.kids); detach(k, root.v.clone().add(new V(R()-0.5, 1, R()-0.5).multiplyScalar(2))); }
+    else if (root.r > 0.04 && R() < 0.7) shatter(root);
+  }
+  if (root.obj.position.y < -5) removePart(root);
+}
+
+// ================= VR session =================
 const btn = $('vr'), st = $('st');
-let inited = false, turnLatch = false;
 function setStatus(html){ st.innerHTML = html; }
 if (!navigator.xr){ btn.textContent = 'No WebXR in this browser'; setStatus('Open this page in the <b>Meta Quest browser</b> to play. Drag to look around the preview.'); }
 else navigator.xr.isSessionSupported('immersive-vr').then(ok => {
   if (ok){ btn.disabled = false; btn.textContent = 'Enter VR'; setStatus('Headset found. Put it on and press <b>Enter VR</b>.'); }
-  else { btn.textContent = 'VR not available here'; setStatus('No headset detected. Open this page in the <b>Meta Quest browser</b>.' + (self !== top ? ' If it still says this on the Quest, open the page in its own tab.' : '')); }
+  else { btn.textContent = 'VR not available here'; setStatus('No headset detected. Open this page in the <b>Meta Quest browser</b>.'); }
 }).catch(e => { btn.textContent = 'VR blocked'; setStatus('This frame blocked VR (' + e.name + '). Open the page in its own tab.'); });
 btn.addEventListener('click', async () => {
   audio();
@@ -541,30 +1070,86 @@ btn.addEventListener('click', async () => {
     await renderer.xr.setSession(session);
     if (renderer.xr.setFoveation) renderer.xr.setFoveation(1);
     camera.position.set(0,0,0); camera.rotation.set(0,0,0); inited = false;
-    hands.forEach(h => h.visible = true);
-    session.addEventListener('end', () => { hands.forEach(h => h.visible = false); inited = false; resetPreview(); });
+    session.addEventListener('end', () => { inited = false; showAvatar(false); resetPreview(); });
   } catch(e){ setStatus('Could not start VR: ' + e.message); }
 });
-
+function showAvatar(on){
+  me.torso.visible = on; me.arms.forEach(a => a.visible = on); me.claws.forEach(a => a.visible = on);
+  const m = on && mode === 'lobby'; meMirror.head.visible = meMirror.torso.visible = m; meMirror.arms.forEach(a => a.visible = m); meMirror.claws.forEach(a => a.visible = m);
+}
 function readXR(frame){
   const ref = renderer.xr.getReferenceSpace(), vp = frame.getViewerPose(ref);
   if (vp){ const p = vp.transform.position, o = vp.transform.orientation; io.headLocal.set(p.x,p.y,p.z); io.headQuat.set(o.x,o.y,o.z,o.w); }
-  io.headYaw = new T3.Euler().setFromQuaternion(io.headQuat, 'YXZ').y;
   for (const src of frame.session.inputSources){
     const i = src.handedness === 'left' ? 0 : src.handedness === 'right' ? 1 : -1; if (i < 0) continue;
     const pose = frame.getPose(src.gripSpace || src.targetRaySpace, ref);
     if (pose){ const p = pose.transform.position, o = pose.transform.orientation; io.handLocal[i].set(p.x,p.y,p.z); io.handQuat[i].set(o.x,o.y,o.z,o.w); }
-    io.pads[i] = src.gamepad || null;
+    const gp = io.pads[i] = src.gamepad || null;
+    if (gp){
+      io.grip[i] = !!((gp.buttons[1] && gp.buttons[1].value > 0.5) || (gp.buttons[0] && gp.buttons[0].value > 0.5));
+      if (i === 0) io.yBtn = !!(gp.buttons[5] && gp.buttons[5].pressed);
+      if (i === 1) io.stickX = gp.axes.length > 2 ? gp.axes[2] : 0;
+    }
   }
 }
-function spawn(){
-  io.yaw = rig.rotation.y = 0;
-  const hl = io.headLocal.clone().applyAxisAngle(UP, io.yaw);
-  rig.position.set(SPAWN.x - hl.x, 0.02, SPAWN.z - hl.z);
-  loco.InitializeValues(); inited = true; score = 0; startT = performance.now(); lastWrist = '';
+
+// one VR frame of player logic (also driven directly by tests)
+function vrStep(dt){
+  io.headYaw = new T3.Euler().setFromQuaternion(io.headQuat, 'YXZ').y;
+  if (!inited){ inited = true; mode = 'lobby'; teleport(LOBBY_SPAWN, LOBBY_YAW); showAvatar(true); }
+  const was = loco.S.wasTouching.slice();
+  loco.Physics(dt); loco.Update(dt);
+  for (const i of [0,1]) if (loco.S.wasTouching[i] && !was[i]){ pulse(i, 0.25, 25); sndTap(0.18); }
+  if (Math.abs(io.stickX) > 0.7 && !turnLatch){ loco.Turn(io.stickX > 0 ? -Math.PI/4 : Math.PI/4); turnLatch = true; } else if (Math.abs(io.stickX) < 0.3) turnLatch = false;
+  rig.rotation.y = io.yaw;
+  if (rig.position.y < -5 || rig.position.y > H+2) teleport(mode === 'game' ? SPAWN : LOBBY_SPAWN, io.yaw);
+  const rq = new Q().setFromAxisAngle(UP, io.yaw);
+  for (const i of [0,1]){
+    handW[i].copy(loco.S.lastHand[i]); handQW[i].copy(rq).multiply(io.handQuat[i]);
+    const inst = handW[i].clone().sub(handPrev[i]).divideScalar(dt); hv[i].lerp(inst, 0.5); handPrev[i].copy(handW[i]);
+  }
+  const head = loco.headPos(), headQ = rq.clone().multiply(io.headQuat), yawQ = new Q().setFromAxisAngle(UP, io.yaw + io.headYaw);
+  const P = {head, headQ, yawQ, hands:handW, handQ:handQW, grip:io.grip};
+  poseAvatar(me, P); if (mode === 'lobby') poseAvatar(meMirror, P);
+  // lobby button
+  if (mode === 'lobby' && !fadeDir){
+    let pressed = false;
+    for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-PED.x, h.z-PED.z) < PED.cap+0.04 && h.y < PED.top+0.08+0.05+0.02) pressed = true; }
+    caps.forEach(c => c.position.y = PED.top + (pressed ? 0.015 : 0.04));
+    if (pressed){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); goto('game'); }
+  }
+  if (mode === 'game' && io.yBtn && !yPrev) goto('lobby');
+  yPrev = io.yBtn;
+  // grab / release
+  for (const i of [0,1]){
+    if (io.grip[i] && !gripPrev[i] && mode === 'game') grab(i);
+    if (!io.grip[i] && gripPrev[i]) release(i);
+    gripPrev[i] = io.grip[i];
+  }
+  updateHolds(dt);
+  if (mode === 'game') punches(dt);
+  // fade
+  if (fadeDir){ fade += fadeDir*dt*4; if (fade >= 1){ fade = 1; fadeAction && fadeAction(); fadeAction = null; fadeDir = -1; } if (fade <= 0){ fade = 0; fadeDir = 0; } }
+  fadeMesh.material.opacity = fade; fadeMesh.position.copy(head);
+  drawWrist();
+  return head;
 }
 
-// ---------- desktop preview ----------
+// shared world update: bots, free bodies, effects
+function worldStep(dt, player){
+  clock += dt;
+  scene.updateMatrixWorld();
+  for (const b of bots) updateBot(b, dt, player);
+  for (const p of parts.slice()) if (!p.parent && p.mode === 'free' && !p.obj.userData.dead) physics(p, dt);
+  for (let i = respawnTimers.length-1; i >= 0; i--){ respawnTimers[i] -= dt; if (respawnTimers[i] <= 0){ respawnTimers.splice(i,1); makeBot(pick(BOT_COLORS), farCell(player)); } }
+  for (let i = bots.length-1; i >= 0; i--) if (bots[i].dead && bots[i].deadT > 6) bots.splice(i,1);
+  const loose = parts.filter(p => !p.parent && p.mode === 'free' && !(p.bot && !p.bot.dead && p === p.bot.root));
+  if (parts.length > 260 && loose.length) removePart(loose.sort((a,b) => a.born - b.born)[0]);
+  scene.updateMatrixWorld();
+  updateWires(dt); updateSparks(dt); updateFlashes(dt);
+}
+
+// ================= desktop preview =================
 let pYaw = 0.6, pPitch = 0, drag = null, auto = true;
 function resetPreview(){ rig.position.set(SPAWN.x, 0, SPAWN.z); io.yaw = rig.rotation.y = 0; camera.position.set(0, 0.95, 0); }
 resetPreview();
@@ -574,80 +1159,15 @@ addEventListener('pointermove', e => { if (!drag) return; pYaw -= (e.clientX-dra
 function resize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight, false); }
 addEventListener('resize', resize); resize();
 
-// ---------- robots ----------
-function updateBot(bot, dt, playerPos, handsW){
-  bot.t += dt;
-  if (bot.state === 'tagged'){
-    bot.tt += dt; bot.g.rotation.y += dt*14; bot.b.position.y = Math.min(0.6, bot.tt*0.8);
-    const s = bot.tt > 1.2 ? Math.max(0.01, 1-(bot.tt-1.2)*3) : 1; bot.g.scale.setScalar(s);
-    if (bot.tt > 1.55){ const [x,y] = farCell(playerPos); bot.cell = [x,y]; bot.prev = null; bot.g.position.copy(cellPos(x,y)); bot.target = cellPos(x,y);
-      bot.g.scale.setScalar(1); bot.b.position.y = 0; bot.state = 'run'; bot.face.material = FACES.idle; }
-  } else {
-    const to = bot.target.clone().sub(bot.g.position); to.y = 0;
-    const flat = new V(playerPos.x, 0, playerPos.z), near = flat.distanceTo(bot.g.position) < 10;
-    if (to.length() < 0.08){
-      const [x,y] = bot.cell = cellOf(bot.target);
-      let nb = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => x+dx>=0 && y+dy>=0 && x+dx<N && y+dy<N && open(x,y,dx,dy)).map(([dx,dy]) => [x+dx,y+dy]);
-      if (nb.length > 1 && bot.prev) nb = nb.filter(c => c[0] !== bot.prev[0] || c[1] !== bot.prev[1]);
-      nb.sort((a,b) => near ? cellPos(...b).distanceTo(flat) - cellPos(...a).distanceTo(flat) + (rnd()-0.5)*3 : rnd()-0.5);
-      bot.prev = [x,y]; bot.target = cellPos(...nb[0]);
-    } else {
-      const step = Math.min(to.length(), bot.speed*(near ? 1 : 0.5)*dt);
-      bot.g.position.addScaledVector(to.normalize(), step);
-      const want = Math.atan2(to.x, to.z); let d = want - bot.g.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); bot.g.rotation.y += d*Math.min(1, dt*10);
-    }
-    const run = near ? 1 : 0.5, ph = bot.t*(near ? 11 : 7);
-    bot.b.position.y = Math.abs(Math.sin(ph))*0.09*run;
-    bot.legs[0].rotation.x = Math.sin(ph)*0.7; bot.legs[1].rotation.x = -Math.sin(ph)*0.7;
-    bot.arms[0].rotation.z = -(near ? 2.4 + Math.sin(ph*1.3)*0.6 : 0.2 + Math.sin(ph)*0.2);
-    bot.arms[1].rotation.z =  (near ? 2.4 + Math.cos(ph*1.3)*0.6 : 0.2 + Math.sin(ph)*0.2);
-    bot.head.rotation.z = Math.sin(ph*0.5)*0.12;
-    bot.blinkT -= dt; if (bot.blinkT < 0){ bot.blinkT = 2+rnd()*3; }
-    bot.face.material = bot.blinkT < 0.12 ? FACES.blink : near ? FACES.happy : FACES.idle;
-    bot.sayT -= dt; if (bot.sayT < 0 && near){ bot.sayT = 6+rnd()*7; say(bot, LINES[Math.floor(rnd()*LINES.length)]); }
-    if (handsW){
-      const c = bot.g.position.clone().add(new V(0, 0.6, 0));
-      for (const i of [0,1]) if (handsW[i].distanceTo(c) < 0.42){
-        bot.state = 'tagged'; bot.tt = 0; bot.face.material = FACES.dizzy; score++; boop(); pulse(i, 0.8, 120);
-        say(bot, HIT_LINES[Math.floor(rnd()*HIT_LINES.length)]); break;
-      }
-    }
-  }
-  // springy antenna bulb
-  bot.bulbV += (-bot.bulbY*180 - bot.bulbV*8 - (bot.b.position.y - (bot.lastBY||0))/Math.max(dt,1e-3)*6)*dt; bot.bulbY += bot.bulbV*dt; bot.lastBY = bot.b.position.y;
-  bot.bulb.position.y = 0.36 + Math.max(-0.08, Math.min(0.08, bot.bulbY));
-  if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0){ bot.head.remove(bot.sp); bot.sp = null; } }
-}
-
-// ---------- main loop ----------
+/*DBG*/
 let last = performance.now(), flickT = 0;
 renderer.setAnimationLoop((t, frame) => {
   const now = performance.now(), dt = Math.min(1/30, Math.max(1/500, (now-last)/1000)); last = now;
-  let playerPos, handsW = null;
-  if (frame && renderer.xr.isPresenting){
-    readXR(frame);
-    if (!inited) spawn();
-    else {
-      // Unity order: physics (FixedUpdate) then Player.Update
-      const was = loco.S.wasTouching.slice();
-      loco.Physics(dt); loco.Update(dt);
-      for (const i of [0,1]) if (loco.S.wasTouching[i] && !was[i]){ pulse(i, 0.25, 25); tap(0.18); }
-      const rx = io.pads[1] && io.pads[1].axes.length > 2 ? io.pads[1].axes[2] : 0;
-      if (Math.abs(rx) > 0.7 && !turnLatch){ loco.Turn(rx > 0 ? -Math.PI/4 : Math.PI/4); turnLatch = true; } else if (Math.abs(rx) < 0.3) turnLatch = false;
-      rig.rotation.y = io.yaw;
-      if (rig.position.y < -5 || rig.position.y > H+2) spawn();
-    }
-    const rq = new T3.Quaternion().setFromAxisAngle(UP, io.yaw);
-    for (const i of [0,1]){ hands[i].position.copy(loco.S.lastHand[i]); hands[i].quaternion.copy(rq).multiply(io.handQuat[i]); }
-    playerPos = loco.headPos(); handsW = loco.S.lastHand;
-    drawWrist();
-  } else {
-    if (auto) pYaw += dt*0.12;
-    camera.rotation.set(pPitch, pYaw, 0, 'YXZ');
-    playerPos = rig.position.clone().add(camera.position);
-  }
-  for (const b of bots) updateBot(b, dt, playerPos, handsW);
-  flickT -= dt; if (flickT < 0){ flickT = 0.05 + rnd()*0.4; for (const f of flickers) f.material.color.setHex(rnd() < 0.3 ? 0x6e6a52 : 0xfffbe2); }
+  let player;
+  if (frame && renderer.xr.isPresenting){ readXR(frame); player = vrStep(dt); }
+  else { if (auto) pYaw += dt*0.12; camera.rotation.set(pPitch, pYaw, 0, 'YXZ'); player = rig.position.clone().add(camera.position); }
+  worldStep(dt, player);
+  flickT -= dt; if (flickT < 0){ flickT = 0.05 + R()*0.4; for (const f of flickers) f.material.color.setHex(R() < 0.3 ? 0x6e6a52 : 0xfffbe2); }
   renderer.render(scene, camera);
 });
 }
