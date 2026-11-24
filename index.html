@@ -2047,7 +2047,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
    .mat('pot', lam(0x6a5040, {vertexColors:true})).mat('bunk', lam(0x5a6a8a, {vertexColors:true})).mat('crate', lam(0xc8a060, {vertexColors:true})).mat('pipe', lam(0xa9b0b8, {vertexColors:true}))
    .mat('tank', new T3.MeshLambertMaterial({color:0x7fffa0, emissive:0x1a6a30, transparent:true, opacity:0.6})).mat('red', new T3.MeshBasicMaterial({color:0x661010}));
   const HT = 7, T = 0.3;
-  B.box('floor', [-1, -1, -1], [50, 0, 45], {us:2});
+  B.box('floor', [-1, -1, -1], [44, 0, 45], {us:2}); B.box('floor', [44, -1, -1], [50, -0.05, 19.2], {us:2}); B.box('floor', [44, -1, 24.8], [50, -0.05, 45], {us:2});
   B.box('wall', [-1, HT, -1], [50, HT + 0.6, 45], {us:2});
   for (let x=3;x<44;x+=5) for (let z=3;z<44;z+=5) B.box('panel', [x - 0.8, HT - 0.02, z - 0.3], [x + 0.8, HT, z + 0.3], {solid:false});
   // hull with long windows onto space; the east side has the airlock door
@@ -4244,48 +4244,61 @@ function updateStuck(){
   }
 }
 function shoulderW(i){ return me.torso.position.clone().add(new V(i ? 0.27 : -0.27, 0.12, 0).applyQuaternion(me.torso.quaternion)); }
+// glue: the trigger puts a blob of glue on whatever the nozzle touches. For 10 seconds, that glue spot
+// sticks to the first thing it touches: another piece or robot, a friend, or your own empty shoulder
+// (that arm is back). Not used in time, it dries up and disappears. Used, it stays there.
+const glueSpots = [];
+function addGlueSpot(p, local, remote){
+  const m = new T3.Mesh(new T3.SphereGeometry(0.03, 8, 6), glueMat); m.position.copy(local); m.scale.set(1, 0.7, 1); m.userData.ember = true; p.obj.add(m);
+  glueSpots.push({p, local:local.clone(), m, t:10, age:0});
+  if (!remote && netGame && p.id) netSend('ev', {t:'gspot', r:p.id, l:r3(local.toArray())});
+}
 function updateGlue(i, dt){
   const trig = io.trig[i] > 0.5, press = trig && !gluePrev[i]; gluePrev[i] = trig;
   const gg = myW[i].glue; gg.drip.visible = trig;
   if (!press || !armed()) return;
   sndGlue(); pulse(i, 0.4, 40);
-  const j = hs[i].mode === 'hold' ? i : hs[1-i].mode === 'hold' ? 1-i : -1;
-  if (j < 0) return;
-  const piece = hs[j].root; if (piece.name === 'mine' || piece.obj.userData.dead) return;
-  const mineQ = subtree(piece);
-  if (!piece.id && netGame){ piece.id = NET.id.slice(0,6) + '-p' + (botCounter++); partsById.set(piece.id, piece); }
-  // 1) my own empty shoulder: that arm is back
-  for (const s of [0,1]) if (me.lost[s]){
-    const sh = shoulderW(s);
-    if (mineQ.some(q => centerW(q).distanceTo(sh) < q.r + 0.28)){
-      release(j, true); hs[j] = {mode:'none'}; removePart(piece);
-      me.lost[s] = false; myChar['arm' + s] = 0; glueSplat(sh); showMsg('Arm glued back on!'); pulse(s, 1, 120); return;
-    }
-  }
-  // 2) a friend
-  let best = null, bd = 0.07;
-  for (const t of playerTargets()) for (const q of mineQ){ const d = t.dist(centerW(q)) - q.r*0.8; if (d < bd){ bd = d; best = {t, q}; } }
-  if (best){
-    const A = bodyAnchor(best.t.id, best.t.k); if (!A) return;
-    release(j, true); hs[j] = {mode:'none'}; piece.obj.updateMatrixWorld(true);
-    const Ai = A.clone().invert(), l = piece.obj.getWorldPosition(new V()).applyMatrix4(Ai), lq = new Q().setFromRotationMatrix(A).invert().multiply(piece.obj.getWorldQuaternion(new Q()));
-    const ev = {t:'glue', r:piece.id, at:{k:'player', v:best.t.id, b:best.t.k, l:r3(l.toArray()), q:r3(lq.toArray())}};
-    glueApply(ev, piece); if (netGame) netSend('ev', ev); lastCombat = clock; return;
-  }
-  // 3) another piece or robot
-  best = null; bd = 0.06;
-  for (const p of parts){
-    if (p.obj.userData.dead || p.name === 'mine' || mineQ.includes(p) || rootOf(p).stuck) continue;
-    const cp = centerW(p);
-    for (const q of mineQ){ const d = centerW(q).distanceTo(cp) - q.r - p.r; if (d < bd){ bd = d; best = {p, q}; } }
-  }
-  if (!best) return;
-  const tp = best.p; if (!tp.id && netGame){ tp.id = NET.id.slice(0,6) + '-p' + (botCounter++); partsById.set(tp.id, tp); }
-  release(j, true); hs[j] = {mode:'none'}; tp.obj.updateMatrixWorld(true); piece.obj.updateMatrixWorld(true);
+  const [tip0, dir] = weaponRay(gg, -0.2), tip = tip0.clone().addScaledVector(dir, -0.15), held = [0,1].map(k => hs[k].mode === 'hold' && k === i ? hs[k].root : null)[i];
+  const hit = rayPart(tip, dir, 0.6, held);
+  if (!hit || hit.p.name === 'mine'){ frostPuff(tip.clone().addScaledVector(dir, 0.1)); return; }
+  const p = hit.p; if (!p.id && netGame){ p.id = NET.id.slice(0,6) + '-p' + (botCounter++); partsById.set(p.id, p); }
+  p.obj.updateMatrixWorld(true);
+  addGlueSpot(p, p.obj.worldToLocal(tip.clone().addScaledVector(dir, hit.t)));
+}
+function glueAttach(piece, spotW){
+  // my own empty shoulder
+  for (const s of [0,1]) if (mode === 'game' && me.lost[s] && spotW.distanceTo(shoulderW(s)) < 0.2){
+    for (const i of [0,1]) if (hs[i].root === piece){ release(i, true); hs[i] = {mode:'none'}; }
+    removePart(piece); me.lost[s] = false; myChar['arm' + s] = 0; glueSplat(spotW); showMsg('Arm glued back on!'); pulse(s, 1, 120); return true; }
+  // a friend
+  for (const t of playerTargets()) if (t.dist(spotW) < 0.07){
+    const A = bodyAnchor(t.id, t.k); if (!A) continue;
+    for (const i of [0,1]) if (hs[i].root === piece){ release(i, true); hs[i] = {mode:'none'}; }
+    piece.obj.updateMatrixWorld(true);
+    const l = piece.obj.getWorldPosition(new V()).applyMatrix4(A.clone().invert()), lq = new Q().setFromRotationMatrix(A).invert().multiply(piece.obj.getWorldQuaternion(new Q()));
+    const ev = {t:'glue', r:piece.id, at:{k:'player', v:t.id, b:t.k, l:r3(l.toArray()), q:r3(lq.toArray())}};
+    glueApply(ev, piece); if (netGame) netSend('ev', ev); glueSplat(spotW); lastCombat = clock; return true; }
+  // another piece or robot
+  const mineQ = subtree(piece); let best = null, bd = 0.035;
+  for (const q of parts){ if (q.obj.userData.dead || q.name === 'mine' || mineQ.includes(q) || rootOf(q).stuck) continue; const d = centerW(q).distanceTo(spotW) - q.r; if (d < bd){ bd = d; best = q; } }
+  if (!best) return false;
+  const tp = best; if (!tp.id && netGame){ tp.id = NET.id.slice(0,6) + '-p' + (botCounter++); partsById.set(tp.id, tp); }
+  for (const i of [0,1]) if (hs[i].root === piece){ release(i, true); hs[i] = {mode:'none'}; }
+  tp.obj.updateMatrixWorld(true); piece.obj.updateMatrixWorld(true);
   const l = tp.obj.worldToLocal(piece.obj.getWorldPosition(new V())), lq = tp.obj.getWorldQuaternion(new Q()).invert().multiply(piece.obj.getWorldQuaternion(new Q()));
-  const mid = tp.obj.worldToLocal(centerW(best.q).lerp(centerW(tp), 0.5));
-  const ev = {t:'glue', r:piece.id, at:{k:'part', pid:tp.id, l:r3(l.toArray()), q:r3(lq.toArray()), b:r3(mid.toArray())}};
-  glueApply(ev, piece, tp); if (netGame) netSend('ev', ev);
+  const ev = {t:'glue', r:piece.id, at:{k:'part', pid:tp.id, l:r3(l.toArray()), q:r3(lq.toArray()), nb:1}};
+  glueApply(ev, piece, tp); if (netGame) netSend('ev', ev); glueSplat(spotW); return true;
+}
+function updateGlueSpots(dt){
+  for (let k = glueSpots.length - 1; k >= 0; k--){
+    const g = glueSpots[k]; g.t -= dt; g.age += dt;
+    if (g.p.obj.userData.dead || g.t <= 0){ if (g.m.parent) g.m.parent.remove(g.m); glueSpots.splice(k, 1); continue; }
+    if (g.t < 1.5) g.m.scale.setScalar(Math.max(0.05, g.t/1.5)).setY(0.7*Math.max(0.05, g.t/1.5));
+    const piece = rootOf(g.p);
+    if (g.age < 0.3 || !mine(piece) || piece.stuck || mode !== 'game' && !inRange()) continue;
+    const W = g.p.obj.localToWorld(g.local.clone());
+    if (glueAttach(piece, W)) glueSpots.splice(k, 1);      // it stuck: the blob stays where it is
+  }
 }
 function glueSplat(pos){ flash(pos, 0.25); sndGlue(); }
 function glueApply(ev, lp, ltp){
@@ -4298,7 +4311,7 @@ function glueApply(ev, lp, ltp){
   else {
     const tp = ltp || partsById.get(at.pid); if (!tp || tp.obj.userData.dead) return;
     attach(tp, piece, at.l[0], at.l[1], at.l[2]); piece.obj.quaternion.fromArray(at.q); piece.restQ.copy(piece.obj.quaternion); piece.mode = 'free';
-    glueBlob(tp, new V().fromArray(at.b)); const r = rootOf(tp); r.asleep = false;
+    if (at.b) glueBlob(tp, new V().fromArray(at.b)); const r = rootOf(tp); r.asleep = false;
     if (r.frz > 0) tintTree(r);
     reviveCheck(r);
   }
@@ -4915,7 +4928,7 @@ function worldStep(dt, player){
   for (let i = bots.length-1; i >= 0; i--){ const b = bots[i]; if (b.dead && b.deadT > 6 && (b.chkT = (b.chkT || 0) - dt) <= 0){ b.chkT = 2; if (!parts.some(p => p.bot === b && !p.obj.userData.dead)) bots.splice(i,1); } }
 
   scene.updateMatrixWorld();
-  updateClips(); updateKerfs(); updateMines(dt); updateBooms(dt); updateWindows(dt); updateIce(dt); updateStuck(); updateMist(dt); updateHearts(dt); buttonPokes(); updateRange(dt);
+  updateClips(); updateKerfs(); updateMines(dt); updateBooms(dt); updateWindows(dt); updateIce(dt); updateStuck(); updateMist(dt); updateGlueSpots(dt); updateHearts(dt); buttonPokes(); updateRange(dt);
   ropes(dt);
   netTick(dt);
   updateBurning(dt); updateFire(dt);
@@ -5112,6 +5125,7 @@ function onEvent(ev, from){
   else if (ev.t === 'pmelt'){ if (mode === 'game' && myIce) myIceT -= ev.a*2.5; }
   else if (ev.t === 'pism'){ if (mode === 'game' && myIce){ iceBurst(loco.headPos().add(new V(0, -0.5, 0)), 1.0, 1.8, null); myIce = false; myFrz = 0; die((ev.n || 'someone') + "'s hammer (on ice)"); } }
   else if (ev.t === 'glue'){ glueApply(ev); }
+  else if (ev.t === 'gspot'){ const r = partsById.get(ev.r); if (r) addGlueSpot(r, new V().fromArray(ev.l), true); }
   else if (ev.t === 'unglue'){ const r = partsById.get(ev.r); if (r && r.stuck){ r.stuck = null; r.mode = 'free'; r.asleep = false; } }
   else if (ev.t === 'win'){ const w = WINS.find(x => x.map === ev.m && x.i === ev.i); if (w && ev.m === curMap) breakWindow(w, null, true); }
   else if (ev.t === 'snap'){ loadSnapshot(ev, from); }
@@ -5257,7 +5271,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124082352';
+const BUILD = '20261124162443';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
