@@ -2954,6 +2954,7 @@ function detach(p, vel, remote){
   if (!remote && room() && p.id) netSend('ev', {t:'det', p:p.id, v:vel ? r3(vel.toArray()) : [0,0,0]});
   p.owner = remote || NET.id;
   const S = parent.obj.localToWorld(p.rest.clone());
+  { const rt = rootOf(parent); if (rt.szK){ p.szK = rt.szK; p.szl = rt.szl; } }
   parent.kids.splice(parent.kids.indexOf(p), 1); p.parent = null;
   scene.attach(p.obj); p.mode = 'free'; p.holdHand = -1; p.born = clock; p.asleep = false;
   p.v.copy(vel || new V()); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(8);
@@ -4587,7 +4588,7 @@ function cannonFire(i){
   cannonHide(root, false); root.mode = 'free'; root.asleep = false;
   root.obj.position.add(tip.clone().addScaledVector(dir, 0.12 + root.r).sub(centerW(root)));
   root.v.copy(dir).multiplyScalar(CANNON_V).add(loco.S.velocity); root.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(14);
-  root.calmT = clock + 0.3; root.noLoad = clock + 1.2; root.cball = clock + 2.5; root.obj.updateMatrixWorld(true);
+  root.calmT = clock + 0.3; root.noLoad = clock + 1.2; root.cball = clock + 2.5; root.obj.updateMatrixWorld(true); root.cprev = centerW(root);
   if (root.bot && !root.bot.dead){ root.bot.stunT = 3; say(root.bot, pick(['AAAAAAA','WHEEEE','I CAN FLY','tell my family'])); }
   cannonFx(tip, dir); pulse(i, 1, 160);
   loco.S.velocity.addScaledVector(dir, -(gravK < 0.6 ? 7 : 2.5));                 // the kick
@@ -4609,16 +4610,31 @@ function updateCannon(i, dt){
     }
   }
 }
-// cannonballs (anything fired) knock robots over and rip a bit off, and shove players
+// cannonballs (anything fired) smash robots and players. Checked along the whole path it flew this
+// frame (it moves ~40 cm a frame, so a plain distance check would fly straight past things).
+const segDist_ = (pt, a, b) => { const ab = b.clone().sub(a), t = Math.max(0, Math.min(1, pt.clone().sub(a).dot(ab)/(ab.lengthSq() || 1))); return pt.distanceTo(a.clone().addScaledVector(ab, t)); };
 function updateCannonballs(){
   for (const p of parts){
-    if (!(p.cball > clock) || p.parent || p.obj.userData.dead || !mine(p) || p.v.length() < 6) continue;
-    const c = centerW(p);
-    for (const b of bots){ const r = b.root; if (b.dead || r === p || r.mode !== 'bot' || r.obj.userData.dead) continue;
-      if (centerW(r).distanceTo(c) < p.r + r.r + 0.15){ claim(r); r.mode = 'free'; r.asleep = false; r.v.add(p.v.clone().multiplyScalar(0.6)); b.stunT = 2;
-        if (r.kids.length) detach(pick(r.kids), p.v.clone().multiplyScalar(0.4)); spawnSparks(c, 30, 3); sndClank(6); p.cball = 0; break; } }
-    if (!p.cball) continue;
-    for (const t of playerTargets()) if (t.pos.distanceTo(c) < p.r + 0.35){ netSend('ev', {t:'blow', v:r3(p.v.clone().multiplyScalar(0.5).toArray())}, [t.id]); lastCombat = clock; sndClank(6); p.cball = 0; break; }
+    if (!(p.cball > clock) || p.parent || p.obj.userData.dead || !mine(p)) continue;
+    const c = centerW(p), a = p.cprev || c.clone(), sp = p.v.length(); p.cprev = c.clone();
+    if (sp < 4){ p.cball = 0; continue; }
+    let hit = false;
+    for (const b of bots){ const r = b.root; if (b.dead || r === p || r.obj.userData.dead || r.inCannon || hs.some(h => h.root === r)) continue;
+      if (centerW(r).distanceTo(c) > 3 + sp*0.05) continue;
+      const q = subtree(r).find(q => segDist_(centerW(q), a, c) < q.r + p.r + 0.08); if (!q) continue;
+      claim(r); r.mode = 'free'; r.asleep = false; r.v.add(p.v.clone().multiplyScalar(0.55)).add(new V(0, 2, 0)); r.w.add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(10)); b.stunT = 2.5;
+      const off = q !== r && q.parent ? q : r.kids.length ? pick(r.kids) : null; if (off) detach(off, p.v.clone().multiplyScalar(0.5));
+      if (sp > 14 && r.kids.length) detach(pick(r.kids), p.v.clone().multiplyScalar(0.4));
+      if (!b.dead && !b.mon) say(b, pick(['OOF','direct hit!','my parts!','ow']));
+      spawnSparks(centerW(q), 50, 4); flash(centerW(q), 0.6); sndClank(9); p.v.multiplyScalar(0.4); hit = true; break; }
+    if (!hit && netGame && mode === 'game') for (const t of playerTargets()){
+      if (segDist_(t.pos, a, c) > p.r + (t.k === 'torso' ? 0.3 : 0.2)) continue;
+      const peer = NET.peers[t.id]; if (!peer) continue; lastCombat = clock; peer.hitT = clock;
+      const imp = p.v.clone().multiplyScalar(0.35).add(new V(0, 2, 0)); if (imp.length() > 9) imp.setLength(9);
+      netSend('ev', {t:'hit', v:r3(imp.toArray())}, [t.id]);
+      if (sp > 10){ const arms = [0,1].filter(i => !peer.lost[i]); const k = t.k[0] === 'a' && !peer.lost[+t.k[3]] ? t.k : arms.length ? 'arm' + pick(arms) : null; if (k) ripPlayer(t.id, k, -1, p.v.clone().multiplyScalar(0.5)); }
+      spawnSparks(t.pos, 50, 4); flash(t.pos, 0.6); sndClank(9); p.v.multiplyScalar(0.4); hit = true; break; }
+    if (hit) p.cball = 0;
   }
 }
 
@@ -4636,24 +4652,25 @@ function makeSizer(){
   const pt = new T3.Mesh(new T3.BoxGeometry(0.008, 0.006, 0.05), new T3.MeshBasicMaterial({color:0xffffff})); pt.position.set(0, 0.04, 0.0); g.knob.add(pt);
   return g;
 }
-const SIZE_LEN = 14, SZ_UP = 1.7, SZ_DN = 0.55, sizeMode = [1, 1], sizeKnob = [0.9, 0.9], sizeTw = [null, null], sizePrev = [false, false], sizeCD = [0, 0];
+const SIZE_LEN = 14, SZ_UP = Math.sqrt(1.5), SZ_DN = 0.55, sizeMode = [1, 1], sizeKnob = [0.9, 0.9], sizeTw = [null, null], sizePrev = [false, false], sizeCD = [0, 0];
 const sizeF = l => l > 0 ? Math.pow(SZ_UP, l) : Math.pow(SZ_DN, -l);
 const sizeBeams = [0, 1].map(() => { const m = new T3.Mesh(new T3.CylinderGeometry(1, 1, 1, 8, 1, true).translate(0, 0.5, 0), new T3.MeshBasicMaterial({color:0x50ff70, transparent:true, opacity:0.7, fog:false})); m.visible = false; m.frustumCulled = false; scene.add(m); return m; });
 const sizing = new Set();
 function sizeStep(root, d, remote){
   const lv = root.szl || 0, nl = remote != null ? remote : Math.max(-2, Math.min(2, lv + d));
   if (nl === lv) return false;
-  root.szl = nl; root.szAnim = {k:sizeF(nl)/sizeF(lv), t:0}; sizing.add(root); root.asleep = false;
+  root.szl = nl; root.szT = sizeF(nl); sizing.add(root); root.asleep = false;
   if (root.mode === 'bot' && root.bot) root.bot.stunT = Math.max(root.bot.stunT || 0, 0.4);
   if (remote == null && room() && root.id) netSend('ev', {t:'size', r:root.id, l:nl});
   return true;
 }
 function updateSizing(dt){
+  // always heads for the exact size of its level (never stacks up, however fast people zap it)
   for (const root of sizing){
-    const a = root.szAnim; if (!a || root.obj.userData.dead){ sizing.delete(root); continue; }
-    const e = Math.min(dt, 0.35 - a.t)/0.35; a.t += dt; const f = Math.pow(a.k, e);
-    root.obj.scale.multiplyScalar(f); for (const q of subtree(root)) q.r *= f; root.szK = (root.szK || 1)*f;
-    if (a.t >= 0.35){ root.szAnim = null; sizing.delete(root); }
+    if (root.obj.userData.dead || root.szT == null){ sizing.delete(root); continue; }
+    const cur = root.szK || 1; let nk = cur*Math.pow(root.szT/cur, Math.min(1, dt*9));
+    if (Math.abs(Math.log(nk/root.szT)) < 0.003){ nk = root.szT; sizing.delete(root); }
+    const f = nk/cur; root.obj.scale.multiplyScalar(f); for (const q of subtree(root)) q.r *= f; root.szK = nk;
   }
 }
 function sizeKnobPos(i){ return myW[i].size.knob.localToWorld(new V(0, 0.03, 0)); }
@@ -6009,7 +6026,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124212746';
+const BUILD = '20261124214528';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
