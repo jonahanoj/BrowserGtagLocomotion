@@ -71,7 +71,7 @@ function makeLoco(THREE, boxes, io){
   const UP = new V(0,1,0);
 
   // ---- broad phase: a 2 m grid so each query only tests nearby boxes ----
-  const GS = 2, GX0 = -30, GZ0 = -10, GW = 45, GD = 35, qOut = []; let grid = null, gridN = -1, stamp = 0;
+  const GS = 2, GX0 = -30, GZ0 = -10, GW = 45, GD = 245, qOut = []; let grid = null, gridN = -1, stamp = 0;
   function buildGrid(){
     grid = Array.from({length:GW*GD}, () => []); gridN = boxes.length;
     for (const b of boxes){
@@ -377,6 +377,8 @@ const railBoxes = [
   addBox([RAMP.x1, BAL.y1, RAMP.z1-0.05], [HW.x1-TW/2, BAL.y1+0.75, RAMP.z1+0.05])];
 { const n = 30; for (let i=0;i<n;i++) addBox([RAMP.x0 + i*(RAMP.x1-RAMP.x0)/n, 0, RAMP.z0], [RAMP.x1, (i+0.5)*BAL.y1/n, RAMP.z1]); }
 const SPAWN = new V((Math.floor(N/2)+0.5)*C, 0, (Math.floor(N/2)+0.5)*C);
+const navBR = {x0:0, z0:0, nx:N, nz:N, c:C, lv:[0], open:(x,y,l,dx,dy) => open(x,y,dx,dy), ok:() => true};
+let NAV = navBR;
 const halfWalls = mazeWalls.filter(b => b.max[1] < H - 0.01 && b.max[1] <= HALF + 0.01);
 
 // ================= lobby (separate room, west of the maze) =================
@@ -396,7 +398,9 @@ addBox([LB.x0,0,LB.z1-TW/2],[LB.x1,H,LB.z1+TW/2]);
 addBox([PED.x-0.25,0,PED.z-0.25],[PED.x+0.25,PED.top,PED.z+0.25]);
 addBox([PED.x-PED.cap,PED.top,PED.z-PED.cap],[PED.x+PED.cap,PED.top+0.08,PED.z+PED.cap]);
 addBox([PED2.x-0.25,0,PED2.z-0.25],[PED2.x+0.25,PED2.top,PED2.z+0.25]);
-for (const w of WPN){ addBox([w.x-0.2,0,w.z-0.2],[w.x+0.2,w.top,w.z+0.2]); addBox([w.x-w.cap,w.top,w.z-w.cap],[w.x+w.cap,w.top+0.06,w.z+w.cap]); }
+// map buttons along the south wall: pick where PLAY / PLAY TOGETHER takes you
+const MAPBTN = [{k:'backrooms', x:-19.25, col:0xe2cf72}, {k:'forest', x:-18.6, col:0x4caf50}, {k:'city', x:-17.95, col:0x9aa7b8}, {k:'cave', x:-17.3, col:0xb0703c}, {k:'house', x:-16.65, col:0xe08a5a}].map(w => Object.assign(w, {z:6.35, top:0.55, cap:0.15}));
+for (const w of WPN.concat(MAPBTN)){ addBox([w.x-0.2,0,w.z-0.2],[w.x+0.2,w.top,w.z+0.2]); addBox([w.x-w.cap,w.top,w.z-w.cap],[w.x+w.cap,w.top+0.06,w.z+w.cap]); }
 addBox([PED2.x-PED2.cap,PED2.top,PED2.z-PED2.cap],[PED2.x+PED2.cap,PED2.top+0.08,PED2.z+PED2.cap]);
 
 // ================= renderer / scene =================
@@ -411,8 +415,8 @@ const scene = new T3.Scene();
 const FOG = 0x9c8c45;
 scene.background = new T3.Color(FOG);
 scene.fog = new T3.Fog(FOG, 3, 26);
-scene.add(new T3.HemisphereLight(0xfff3c4, 0x6a5822, 0.95));
-scene.add(new T3.AmbientLight(0xffeeb0, 0.35));
+const hemi = new T3.HemisphereLight(0xfff3c4, 0x6a5822, 0.95), amb = new T3.AmbientLight(0xffeeb0, 0.35);
+scene.add(hemi, amb);
 const rig = new T3.Group(); scene.add(rig);
 const camera = new T3.PerspectiveCamera(75, innerWidth/innerHeight, 0.03, 80);
 rig.add(camera);
@@ -485,6 +489,7 @@ function floorCeil(parent, x0, z0, w, d){
   const cu = cg.attributes.uv; for (let i=0;i<cu.count;i++) cu.setXY(i, cu.getX(i)*w/1.2, cu.getY(i)*d/1.2);
   const c = new T3.Mesh(cg, ceilMat); c.position.set(x0+w/2, H, z0+d/2); parent.add(c);
 }
+const _sc0 = scene.children.length;
 scene.add(wallMesh(mazeWalls));
 { // floor: subdivided so a slow colour drift breaks up the carpet repeat
   const seg = 88, fg = new T3.PlaneGeometry(SIZE, SIZE, seg, seg); fg.rotateX(-Math.PI/2);
@@ -612,6 +617,24 @@ function mergeGeos(list){
   for (const k in bins) if (bins[k].length) scene.add(new T3.Mesh(mergeGeos(bins[k]), mats[k]));
 }
 
+const brGroup = new T3.Group(); for (const o of scene.children.slice(_sc0)) brGroup.add(o); scene.add(brGroup);
+
+// ================= maps =================
+const SPAWN0 = SPAWN.clone();
+const MAPS = {backrooms:{name:'BACKROOMS', group:brGroup, spawn:SPAWN0, yaw:0, nav:navBR, yMin:-5, yMax:H+2,
+  sky:{bg:FOG, fog:FOG, near:3, far:26, hs:0xfff3c4, hg:0x6a5822, hi:0.95, ac:0xffeeb0, ai:0.35}}};
+let curMap = 'backrooms', selMap = 'backrooms';
+function applySky(k){ const s = k.bg != null ? k : MAPS[k].sky; scene.background.setHex(s.bg); scene.fog.color.setHex(s.fog); scene.fog.near = s.near; scene.fog.far = s.far;
+  hemi.color.setHex(s.hs); hemi.groundColor.setHex(s.hg); hemi.intensity = s.hi; amb.color.setHex(s.ac); amb.intensity = s.ai; }
+function setMap(k){
+  if (!MAPS[k]) k = 'backrooms';
+  if (MAPS[curMap].leave) MAPS[curMap].leave();
+  curMap = k; const M = MAPS[k];
+  for (const [n, m] of Object.entries(MAPS)) if (m.group) m.group.visible = n === k;
+  NAV = M.nav; SPAWN.copy(M.spawn); applySky(k);
+  if (M.enter) M.enter();
+}
+
 // ----- lobby visuals (built twice: once for real, once mirrored behind the glass) -----
 function signTex(w, h, draw){ return canvasTex(w, h, (g,W,Hh) => { g.fillStyle = '#1b1709'; g.fillRect(0,0,W,Hh); g.strokeStyle = '#e2cf72'; g.lineWidth = 10; g.strokeRect(5,5,W-10,Hh-10); draw(g,W,Hh); }); }
 const playTex = signTex(512, 200, (g,W,Hh) => { g.fillStyle = '#ff3b2f'; g.font = 'bold 130px VT323, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('PLAY', W/2, Hh/2+6); });
@@ -632,11 +655,25 @@ function drawBoard(lines){
   boardTex.needsUpdate = true;
 }
 drawBoard(['Looking for players on the network...']);
+const mapTex = signTex(1060, 200, (g,W,Hh) => {
+  g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK A MAP', W/2, 62);
+  g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('then RED = play solo,  BLUE = play online', W/2, 108);
+  g.font = 'bold 36px VT323, monospace'; [['HOUSE','#ffb08a'],['CAVE','#e0a070'],['CITY','#c9d3e0'],['FOREST','#7fe07a'],['BACKROOMS','#e2cf72']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.1 + i*0.2), 168); });
+});
 const weaponTex = signTex(1060, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK YOUR WEAPON', W/2, 62);
   g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('one per claw: press with the claw you want it on', W/2, 108);
   g.font = 'bold 36px VT323, monospace'; [['MINE','#7fe07a'],['FLAMER','#5ab4ff'],['CHAINSAW','#ff6a5e'],['HAMMER','#ffb04a'],['NONE','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.1 + i*0.2), 168); });
 });
+function mapIcon(k){
+  const g = new T3.Group(), L = c => new T3.MeshLambertMaterial({color:c}), add = (geo, c, x, y, z) => { const m = new T3.Mesh(geo, L(c)); m.position.set(x,y,z); g.add(m); return m; };
+  if (k === 'backrooms'){ add(new T3.BoxGeometry(0.2,0.14,0.2), 0xd9c56a, 0, 0, 0); add(new T3.BoxGeometry(0.06,0.142,0.21), 0xb8a650, 0.03, 0, 0); }
+  if (k === 'forest'){ add(new T3.CylinderGeometry(0.02,0.025,0.1,6), 0x6b4a2b, 0, -0.03, 0); add(new T3.ConeGeometry(0.09,0.18,7), 0x2f7d32, 0, 0.09, 0); add(new T3.SphereGeometry(0.05,8,6), 0xd8342c, 0.1, -0.05, 0.03); }
+  if (k === 'city'){ add(new T3.BoxGeometry(0.08,0.24,0.08), 0x8d9bb0, -0.05, 0.04, 0); add(new T3.BoxGeometry(0.08,0.15,0.08), 0xb7c2d0, 0.05, 0, 0.02); add(new T3.BoxGeometry(0.12,0.05,0.06), 0xe8402a, 0.02, -0.05, 0.09); }
+  if (k === 'cave'){ add(new T3.DodecahedronGeometry(0.1,0), 0x6d6258, 0, 0, 0); add(new T3.CylinderGeometry(0.008,0.008,0.12,5), 0x5a3a1e, 0.1, 0.02, 0.05); add(new T3.SphereGeometry(0.025,6,4), 0xffa020, 0.1, 0.09, 0.05).material = new T3.MeshBasicMaterial({color:0xffa020}); }
+  if (k === 'house'){ add(new T3.BoxGeometry(0.18,0.12,0.14), 0xf1e3c8, 0, -0.02, 0); const r = add(new T3.ConeGeometry(0.15,0.1,4), 0xb5452f, 0, 0.09, 0); r.rotation.y = Math.PI/4; add(new T3.BoxGeometry(0.04,0.07,0.01), 0x6b4a2b, 0, -0.045, 0.071); }
+  return g;
+}
 function plane(parent, tex, w, h, x, y, z, ry){ const m = new T3.Mesh(new T3.PlaneGeometry(w,h), new T3.MeshBasicMaterial({map:tex})); m.position.set(x,y,z); m.rotation.y = ry; parent.add(m); return m; }
 function buildLobby(parent, real){
   const walls = [
@@ -658,6 +695,13 @@ function buildLobby(parent, real){
   const board = plane(parent, boardTex, 1.1, 0.645, PED2.x - 0.35, 1.25, PED2.z, Math.PI/2);
   parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
   plane(parent, weaponTex, 3.25, 0.6, -15.7, 1.45, LB.z0+TW/2+0.006, 0);
+  plane(parent, mapTex, 3.25, 0.6, -17.95, 1.45, LB.z1-TW/2-0.006, Math.PI);
+  parent.add(wallMesh(MAPBTN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
+  for (const w of MAPBTN){
+    const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
+    cap.position.set(w.x, w.top+0.03, w.z); parent.add(cap); (w.caps = w.caps || []).push(cap);
+    const ic = mapIcon(w.k); ic.position.set(w.x, w.top + 0.16, w.z); parent.add(ic); (w.models = w.models || []).push(ic);
+  }
   for (const w of WPN){
     const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
     cap.position.set(w.x, w.top+0.03, w.z); parent.add(cap); (w.caps = w.caps || []).push(cap);
@@ -818,6 +862,526 @@ function updateWires(dt){
   wireMesh.count = segN; wireMesh.instanceMatrix.needsUpdate = true; if (wireMesh.instanceColor) wireMesh.instanceColor.needsUpdate = true;
 }
 
+// ================= the other maps =================
+let lightsOut = false;
+// ---- building blocks the maps share ----
+// A box as plain triangles, with texture coordinates in metres (so textures tile the same on every size)
+function worldBox(a, b, us, skip){
+  const [x0,y0,z0] = a, [x1,y1,z1] = b, pos = [], nor = [], uv = [];
+  const F = {'x+':[[x1,y0,z0],[x1,y0,z1],[x1,y1,z1],[x1,y1,z0],[1,0,0]], 'x-':[[x0,y0,z1],[x0,y0,z0],[x0,y1,z0],[x0,y1,z1],[-1,0,0]],
+    'z+':[[x1,y0,z1],[x0,y0,z1],[x0,y1,z1],[x1,y1,z1],[0,0,1]], 'z-':[[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[0,0,-1]],
+    'y+':[[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1],[0,1,0]], 'y-':[[x0,y0,z0],[x0,y0,z1],[x1,y0,z1],[x1,y0,z0],[0,-1,0]]};
+  for (const k in F){
+    if (skip && skip.includes(k)) continue;
+    const [p0,p1,p2,p3,n] = F[k];
+    const e1 = [p1[0]-p0[0], p1[1]-p0[1], p1[2]-p0[2]], e2 = [p2[0]-p0[0], p2[1]-p0[1], p2[2]-p0[2]];
+    const cr = [e1[1]*e2[2]-e1[2]*e2[1], e1[2]*e2[0]-e1[0]*e2[2], e1[0]*e2[1]-e1[1]*e2[0]];
+    const tri = cr[0]*n[0] + cr[1]*n[1] + cr[2]*n[2] > 0 ? [p0,p1,p2,p0,p2,p3] : [p0,p2,p1,p0,p3,p2];
+    for (const p of tri){ pos.push(...p); nor.push(...n); uv.push((n[0] ? p[2] : p[0])/us, (n[1] ? p[2] : p[1])/us); }
+  }
+  const g = new T3.BufferGeometry();
+  g.setAttribute('position', new T3.Float32BufferAttribute(pos,3)); g.setAttribute('normal', new T3.Float32BufferAttribute(nor,3)); g.setAttribute('uv', new T3.Float32BufferAttribute(uv,2));
+  return g;
+}
+function mergeNI(list){
+  const pos = [], nor = [], uv = [];
+  for (let g of list){ if (g.index) g = g.toNonIndexed(); if (!g.attributes.normal) g.computeVertexNormals();
+    pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array);
+    if (g.attributes.uv) uv.push(...g.attributes.uv.array); else for (let i=0;i<g.attributes.position.count;i++) uv.push(0,0); }
+  const out = new T3.BufferGeometry();
+  out.setAttribute('position', new T3.Float32BufferAttribute(pos,3)); out.setAttribute('normal', new T3.Float32BufferAttribute(nor,3)); out.setAttribute('uv', new T3.Float32BufferAttribute(uv,2));
+  out.computeBoundingSphere(); return out;
+}
+// Everything a map draws is binned by material and merged into one mesh per material.
+function mapBuilder(O){
+  const group = new T3.Group(), bins = {}, solids = [];
+  const W = a => [a[0]+O.x, a[1]+O.y, a[2]+O.z];
+  const B = {group, O, solids, bins,
+    mat(k, m){ bins[k] = {m, list:[]}; return B; },
+    box(k, a, c, o){ o = o || {}; const A = W(a), C2 = W(c); if (k) bins[k].list.push(worldBox(A, C2, o.us || 1, o.skip)); if (o.solid !== false) solids.push(addBox(A, C2)); },
+    solid(a, c){ solids.push(addBox(W(a), W(c))); },
+    geo(k, geo, x, y, z, rx, ry, rz, sx, sy, sz){ const s = sx == null ? 1 : sx; bins[k].list.push(geo.clone().applyMatrix4(new M4().compose(new V(x+O.x, y+O.y, z+O.z), new Q().setFromEuler(new T3.Euler(rx||0, ry||0, rz||0)), new V(s, sy == null ? s : sy, sz == null ? s : sz)))); },
+    finish(light){
+      for (const k in bins){ const b = bins[k]; if (!b.list.length) continue; const geo = mergeNI(b.list);
+        if (light && b.m.vertexColors){ const p = geo.attributes.position, cols = new Float32Array(p.count*3);
+          for (let i=0;i<p.count;i++){ const c = light(p.getX(i), p.getY(i), p.getZ(i)); cols[i*3] = c[0]; cols[i*3+1] = c[1]; cols[i*3+2] = c[2]; }
+          geo.setAttribute('color', new T3.BufferAttribute(cols, 3)); }
+        group.add(new T3.Mesh(geo, b.m)); }
+      group.visible = false; scene.add(group); return group;
+    }};
+  return B;
+}
+// Robots walk on a grid of 2 m cells: a cell is walkable where there's floor and nothing in the way.
+function buildNav(solids, O, size, c, lv){
+  const nx = Math.floor(size/c), x0 = O.x, z0 = O.z;
+  const hit = (lo, hi) => { for (const b of solids) if (b.min[0] < hi[0] && b.max[0] > lo[0] && b.min[1] < hi[1] && b.max[1] > lo[1] && b.min[2] < hi[2] && b.max[2] > lo[2]) return true; return false; };
+  const floorAt = (x, z, y) => { for (const b of solids) if (b.min[0] <= x && b.max[0] >= x && b.min[2] <= z && b.max[2] >= z && b.max[1] >= y-0.05 && b.max[1] <= y+0.3) return true; return false; };
+  const clear = (x, z, y, r) => floorAt(x, z, y) && !hit([x-r, y+0.32, z-r], [x+r, y+1.0, z+r]);
+  const ok = lv.map(y => Array.from({length:nx}, (_, j) => Array.from({length:nx}, (_, i) => clear(x0+(i+0.5)*c, z0+(j+0.5)*c, y, 0.35))));
+  const link = lv.map((y, l) => Array.from({length:nx}, (_, j) => Array.from({length:nx}, (_, i) => {
+    const out = [false, false];      // +x, +z
+    for (const [k, di, dj] of [[0,1,0],[1,0,1]]){
+      if (!ok[l][j][i] || !(ok[l][j+dj] && ok[l][j+dj][i+di])) continue;
+      let good = true; for (const t of [0.25, 0.5, 0.75]) if (!clear(x0+(i+0.5+di*t)*c, z0+(j+0.5+dj*t)*c, y, 0.25)) good = false;
+      out[k] = good;
+    }
+    return out;
+  })));
+  return {x0, z0, nx, nz:nx, c, lv, ok:(i,j,l) => !!(ok[l] && ok[l][j] && ok[l][j][i]),
+    open:(i,j,l,di,dj) => { if (di === 1) return link[l][j][i][0]; if (di === -1) return i > 0 && link[l][j][i-1][0]; if (dj === 1) return link[l][j][i][1]; return j > 0 && link[l][j-1][i][1]; }};
+}
+const lam = (c, o) => new T3.MeshLambertMaterial(Object.assign({color:c}, o || {}));
+const tex = (w, h, f) => canvasTex(w, h, f, true);
+const noiseFill = (g, w, h, n, col, a, s) => { for (let i=0;i<n;i++){ g.fillStyle = col.replace('A', (R()*a).toFixed(3)); g.fillRect(R()*w, R()*h, s || 2, s || 2); } };
+let mapSeed = 1;
+const mr = () => { mapSeed = (mapSeed*16807) % 2147483647; return (mapSeed - 1)/2147483646; };
+const placeFree = (taken, x0, x1, z0, z1, rad, avoid) => { for (let t=0;t<200;t++){ const x = x0 + mr()*(x1-x0), z = z0 + mr()*(z1-z0);
+  if (avoid && avoid(x, z)) continue; if (taken.some(([a,b,r]) => Math.hypot(a-x, b-z) < r + rad)) continue; taken.push([x, z, rad]); return [x, z]; } return null; };
+const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone('triangle', 360, 900, 0.18, 0.12); };
+
+// ======================= FOREST =======================
+// Quirk: giant bouncy mushrooms. Slap one with a claw (or land on it) and you're launched into the air.
+{
+  const O = new V(0, 0, 100), B = mapBuilder(O); mapSeed = 4242;
+  const grass = tex(256, 256, (g,w,h) => { g.fillStyle = '#4f8a35'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 6000, 'rgba(20,60,10,A)', 0.35); noiseFill(g, w, h, 3000, 'rgba(170,220,90,A)', 0.25);
+    g.strokeStyle = 'rgba(30,80,20,.35)'; for (let i=0;i<500;i++){ const x = R()*w, y = R()*h; g.beginPath(); g.moveTo(x,y); g.lineTo(x+(R()-0.5)*4, y-4-R()*5); g.stroke(); } });
+  const hedge = tex(128, 128, (g,w,h) => { g.fillStyle = '#2c5a24'; g.fillRect(0,0,w,h); for (let i=0;i<700;i++){ g.fillStyle = `rgba(${40+R()*60|0},${90+R()*70|0},${30+R()*30|0},.7)`; g.beginPath(); g.arc(R()*w, R()*h, 2+R()*5, 0, 7); g.fill(); } });
+  const bark = tex(64, 128, (g,w,h) => { g.fillStyle = '#5d4027'; g.fillRect(0,0,w,h); g.strokeStyle = 'rgba(30,18,8,.5)'; for (let i=0;i<20;i++){ const x = R()*w; g.beginPath(); g.moveTo(x,0); g.lineTo(x+(R()-0.5)*8,h); g.stroke(); } });
+  const rockT = tex(128, 128, (g,w,h) => { g.fillStyle = '#8b8d88'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 2500, 'rgba(40,40,40,A)', 0.3, 3); noiseFill(g, w, h, 1200, 'rgba(220,220,210,A)', 0.2, 2); });
+  const capT = canvasTex(128, 128, (g,w,h) => { g.fillStyle = '#d8342c'; g.fillRect(0,0,w,h); g.fillStyle = '#fff6ea'; for (let i=0;i<14;i++){ g.beginPath(); g.arc(R()*w, R()*h*0.75, 5+R()*8, 0, 7); g.fill(); } });
+  B.mat('grass', lam(0xffffff, {map:grass})).mat('hedge', lam(0xffffff, {map:hedge})).mat('bark', lam(0xffffff, {map:bark})).mat('leaf', lam(0x3f8f3a)).mat('leaf2', lam(0x5aa840))
+   .mat('pine', lam(0x24603a)).mat('rock', lam(0xffffff, {map:rockT})).mat('log', lam(0x7a5534)).mat('stem', lam(0xf0e6d0)).mat('bush', lam(0x3b7d2e)).mat('flower', lam(0xffd84a));
+  B.box('grass', [-2,-1,-2], [46,0,46], {us:3});
+  // the edge: a tall hedge, with an invisible wall above it so nobody climbs out
+  for (const [a,b] of [[[-1,0,-1],[0,4.5,45]], [[44,0,-1],[45,4.5,45]], [[0,0,-1],[44,4.5,0]], [[0,0,44],[44,4.5,45]]]){ B.box('hedge', a, b, {us:2}); B.solid([a[0],4.5,a[2]], [b[0],16,b[2]]); }
+  for (let i=0;i<44;i++){ const t = i/44*4, side = Math.floor(t), f = (t - side)*46 - 1, p = [[f,-3],[47,f],[46-f,47],[-3,46-f]][side];
+    B.geo('pine', new T3.ConeGeometry(2.2, 6, 7), p[0], 6, p[1]); B.geo('pine', new T3.ConeGeometry(1.6, 4.5, 7), p[0], 8.5, p[1]); }
+  const taken = [[22, 22, 5]];          // keep a clearing in the middle where you spawn
+  const pine = (x, z, s) => { B.geo('bark', new T3.CylinderGeometry(0.2*s, 0.28*s, 2.4*s, 7), x, 1.2*s, z); B.solid([x-0.2*s, 0, z-0.2*s], [x+0.2*s, 5*s, z+0.2*s]);
+    for (let k=0;k<3;k++) B.geo('pine', new T3.ConeGeometry((1.6 - k*0.4)*s, 2.4*s, 8), x, (2.4 + k*1.3)*s, z, 0, mr()*3, 0); };
+  const leafy = (x, z, s) => { B.geo('bark', new T3.CylinderGeometry(0.25*s, 0.38*s, 3.6*s, 7), x, 1.8*s, z); B.solid([x-0.26*s, 0, z-0.26*s], [x+0.26*s, 3.4*s, z+0.26*s]);
+    B.geo(mr() < 0.5 ? 'leaf' : 'leaf2', new T3.IcosahedronGeometry(1.9*s, 1), x, 4.3*s, z, mr(), mr(), mr(), 1, 0.8, 1);
+    B.geo('leaf', new T3.IcosahedronGeometry(1.1*s, 0), x + 0.9*s, 3.7*s, z + 0.4*s);
+    B.solid([x-1.25*s, 3.4*s, z-1.25*s], [x+1.25*s, 5.2*s, z+1.25*s]); };
+  for (let i=0;i<38;i++){ const p = placeFree(taken, 2, 42, 2, 42, 1.6); if (p) (mr() < 0.55 ? pine : leafy)(p[0], p[1], 0.85 + mr()*0.45); }
+  for (let i=0;i<14;i++){ const p = placeFree(taken, 2, 42, 2, 42, 1.2); if (!p) continue; const r = 0.45 + mr()*0.9;
+    B.geo('rock', new T3.DodecahedronGeometry(r, 0), p[0], r*0.35, p[1], mr(), mr()*6, mr(), 1, 0.65, 1); B.solid([p[0]-r*0.62, 0, p[1]-r*0.62], [p[0]+r*0.62, r*0.35 + r*0.5, p[1]+r*0.62]); }
+  for (let i=0;i<7;i++){ const p = placeFree(taken, 3, 41, 3, 41, 2.2); if (!p) continue; const L = 3 + mr()*1.5, along = mr() < 0.5;
+    B.geo('log', new T3.CylinderGeometry(0.32, 0.36, L, 9), p[0], 0.32, p[1], along ? 0 : Math.PI/2, 0, along ? Math.PI/2 : 0);
+    B.solid(along ? [p[0]-L/2, 0, p[1]-0.3] : [p[0]-0.3, 0, p[1]-L/2], along ? [p[0]+L/2, 0.62, p[1]+0.3] : [p[0]+0.3, 0.62, p[1]+L/2]); }
+  for (let i=0;i<20;i++){ const p = placeFree(taken, 1, 43, 1, 43, 0.7); if (!p) continue; B.geo('bush', new T3.IcosahedronGeometry(0.55 + mr()*0.35, 0), p[0], 0.3, p[1], mr(), mr(), mr(), 1, 0.7, 1);
+    for (let k=0;k<3;k++) B.geo('flower', new T3.SphereGeometry(0.06, 5, 4), p[0] + (mr()-0.5)*1.4, 0.06, p[1] + (mr()-0.5)*1.4); }
+  // the mushrooms: their caps are their own meshes so they can squash when they bounce you
+  const capMat = lam(0xffffff, {map:capT}), shrooms = [];
+  for (let i=0;i<8;i++){
+    const p = i === 0 ? [27, 22] : placeFree(taken, 4, 40, 4, 40, 1.8); if (!p) continue; if (i === 0) taken.push([27, 22, 1.8]);
+    const r = 0.9 + mr()*0.5, top = 1.0 + mr()*0.8;
+    B.geo('stem', new T3.CylinderGeometry(0.22, 0.32, top, 10), p[0], top/2, p[1]); B.solid([p[0]-0.22, 0, p[1]-0.22], [p[0]+0.22, top - 0.35, p[1]+0.22]);
+    B.solid([p[0]-r*0.75, top - 0.35, p[1]-r*0.75], [p[0]+r*0.75, top, p[1]+r*0.75]);
+    const cap = new T3.Mesh(new T3.SphereGeometry(r, 16, 8, 0, Math.PI*2, 0, Math.PI/2), capMat); cap.scale.y = 0.55; cap.position.set(p[0]+O.x, top - 0.55*r, p[1]+O.z); B.group.add(cap);
+    shrooms.push({x:p[0]+O.x, z:p[1]+O.z, r, top, cap, t:0});
+  }
+  const grp = B.finish(), nav = buildNav(B.solids, O, 44, 2, [0]);
+  const bounceCD = new WeakMap(); let meCD = 0;
+  MAPS.forest = {name:'FOREST', group:grp, spawn:new V(22, 0, 22).add(O), yaw:0, nav, yMin:-5, yMax:20,
+    sky:{bg:0xa9d6f0, fog:0xb6dcef, near:12, far:48, hs:0xeef8ff, hg:0x4c6b30, hi:1.0, ac:0xffffff, ai:0.32},
+    update(dt, inGame){
+      meCD -= dt;
+      for (const s of shrooms){ if (s.t > 0){ s.t -= dt; const k = s.t/0.35; s.cap.scale.set(1 + 0.25*Math.sin(k*Math.PI), 0.55*(1 - 0.35*Math.sin(k*Math.PI)), 1 + 0.25*Math.sin(k*Math.PI)); } }
+      if (!inGame) return;
+      const on = (p, pad) => { for (const s of shrooms) if (Math.hypot(p.x - s.x, p.z - s.z) < s.r*0.95 && p.y > s.top - 0.35 && p.y < s.top + pad) return s; return null; };
+      // you: a claw on the cap, or your body coming down on it
+      if (meCD <= 0){
+        let hitS = null;
+        for (const i of [0,1]) if (!me.lost[i] && (loco.S.wasTouching[i] || loco.S.isTouching && loco.S.isTouching[i])){ const s = on(handW[i], 0.2); if (s) hitS = s; }
+        const head = loco.headPos(); const s2 = on(new V(head.x, head.y - 0.5, head.z), 0.4); if (s2 && loco.S.velocity.y < 1) hitS = s2;
+        if (hitS){ meCD = 0.6; hitS.t = 0.35; boing(); pulse(0, 1, 90); pulse(1, 1, 90);
+          const v = loco.S.velocity; v.y = 9.5; v.x *= 1.3; v.z *= 1.3; }
+      }
+      // loose pieces and knocked-over robots bounce too
+      for (const p of parts){
+        if (p.parent || p.obj.userData.dead || p.mode !== 'free' || !mine(p)) continue;
+        const c = centerW(p), s = on(new V(c.x, c.y - p.r, c.z), 0.25); if (!s) continue;
+        const t = bounceCD.get(p) || 0; if (clock - t < 0.5) continue; bounceCD.set(p, clock);
+        p.asleep = false; p.v.y = 7 + R()*2; p.v.x += (R()-0.5)*2; p.v.z += (R()-0.5)*2; s.t = 0.35; if (c.distanceTo(lastPlayer) < 8) boing();
+      }
+    }};
+}
+
+// ======================= CITY =======================
+// Quirk: traffic. Cars run down both streets (timed by the clock, so everyone sees the same cars) and
+// they flatten whatever's in the road: you get sent flying, robots get smashed.
+{
+  const O = new V(0, 0, 200), B = mapBuilder(O); mapSeed = 777;
+  const asph = tex(256, 256, (g,w,h) => { g.fillStyle = '#3b3d40'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 9000, 'rgba(0,0,0,A)', 0.25); noiseFill(g, w, h, 4000, 'rgba(160,160,160,A)', 0.18); });
+  const walk = tex(128, 128, (g,w,h) => { g.fillStyle = '#a9a59c'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 1500, 'rgba(60,55,50,A)', 0.2); g.strokeStyle = 'rgba(70,65,60,.5)'; g.lineWidth = 2; g.strokeRect(0,0,w,h); g.beginPath(); g.moveTo(w/2,0); g.lineTo(w/2,h); g.moveTo(0,h/2); g.lineTo(w,h/2); g.stroke(); });
+  const facade = (base, win, lit) => tex(128, 256, (g,w,h) => { g.fillStyle = base; g.fillRect(0,0,w,h); noiseFill(g, w, h, 800, 'rgba(0,0,0,A)', 0.12, 3);
+    for (let y=10;y<h;y+=42) for (let x=8;x<w;x+=42){ g.fillStyle = R() < lit ? '#f4e3a0' : win; g.fillRect(x, y, 26, 28); g.fillStyle = 'rgba(255,255,255,.25)'; g.fillRect(x, y, 26, 4); } });
+  B.mat('asph', lam(0xffffff, {map:asph})).mat('walk', lam(0xffffff, {map:walk})).mat('fA', lam(0xffffff, {map:facade('#a8644a', '#2a3644', 0.15)})).mat('fB', lam(0xffffff, {map:facade('#8e949b', '#1f2a36', 0.1)}))
+   .mat('fC', lam(0xffffff, {map:facade('#5f7f9e', '#9cc7e8', 0.05)})).mat('roof', lam(0x55585c)).mat('paint', lam(0xf2f2ea)).mat('yellow', lam(0xf2c230)).mat('tunnel', new T3.MeshBasicMaterial({color:0x050505}))
+   .mat('pole', lam(0x3c4046)).mat('lamp', new T3.MeshBasicMaterial({color:0xfff2c0})).mat('red', lam(0xc8302a)).mat('green', lam(0x2f6b35)).mat('bin', lam(0x2e5a3a)).mat('wood', lam(0x8a6a44)).mat('grassC', lam(0x5c9440)).mat('ac', lam(0xb9bdc2)).mat('leafC', lam(0x3f8f3a)).mat('barkC', lam(0x5d4027));
+  B.box('asph', [-2,-1,-2], [46,0,46], {us:4});
+  // markings: centre lines and crosswalks
+  for (let x=0;x<44;x+=3) if (x < 15 || x > 28) B.box('yellow', [x, 0, 21.9], [x+1.6, 0.006, 22.1], {solid:false});
+  for (let z=0;z<44;z+=3) if (z < 15 || z > 28) B.box('yellow', [21.9, 0, z], [22.1, 0.006, z+1.6], {solid:false});
+  for (let k=0;k<6;k++){ for (const c of [16.6, 27.4]){ B.box('paint', [18.4 + k*1.3, 0, c-0.9], [19.0 + k*1.3, 0.006, c+0.9], {solid:false}); B.box('paint', [c-0.9, 0, 18.4 + k*1.3], [c+0.9, 0.006, 19.0 + k*1.3], {solid:false}); } }
+  // four blocks: a raised sidewalk, then buildings with alleys between them
+  const quads = [[0,18,0,18],[26,44,0,18],[0,18,26,44],[26,44,26,44]];
+  const tall = [3.2, 4.5, 8, 13, 19, 24];
+  quads.forEach(([x0,x1,z0,z1], qi) => {
+    B.box('walk', [x0, 0, z0], [x1, 0.15, z1], {us:2});
+    const ix0 = x0 === 0 ? 0 : x0 + 3, ix1 = x1 === 44 ? 44 : x1 - 3, iz0 = z0 === 0 ? 0 : z0 + 3, iz1 = z1 === 44 ? 44 : z1 - 3;
+    const mx = (ix0 + ix1)/2, mz = (iz0 + iz1)/2;
+    const cells = [[ix0, mx-1.5, iz0, mz-1.5], [mx+1.5, ix1, iz0, mz-1.5], [ix0, mx-1.5, mz+1.5, iz1], [mx+1.5, ix1, mz+1.5, iz1]];
+    cells.forEach(([a0,a1,b0,b1], ci) => {
+      if ((qi + ci) % 5 === 3){       // a little park instead of a building
+        B.box('grassC', [a0, 0.15, b0], [a1, 0.2, b1], {solid:false});
+        const cx = (a0+a1)/2, cz = (b0+b1)/2;
+        B.geo('barkC', new T3.CylinderGeometry(0.25, 0.32, 3, 7), cx, 1.65, cz); B.solid([cx-0.25, 0, cz-0.25], [cx+0.25, 3, cz+0.25]);
+        B.geo('leafC', new T3.IcosahedronGeometry(1.8, 1), cx, 4, cz); B.solid([cx-1.2, 3.1, cz-1.2], [cx+1.2, 4.9, cz+1.2]);
+        B.box('wood', [cx+1.2, 0.15, cz-0.9], [cx+1.7, 0.6, cz+0.9]); return; }
+      const h = tall[Math.floor(mr()*tall.length)], k = ['fA','fB','fC'][Math.floor(mr()*3)];
+      B.box(k, [a0, 0, b0], [a1, h, b1], {us:3, skip:['y+','y-']}); B.box('roof', [a0, h, b0], [a1, h+0.05, b1], {solid:false});
+      if (h > 4 && mr() < 0.7){ const ax = a0 + 1 + mr()*(a1-a0-3), az = b0 + 1 + mr()*(b1-b0-3); B.box('ac', [ax, h, az], [ax+1.4, h+0.9, az+1.1]); }
+      if (h < 5) B.box('pole', [a0, h, b0], [a1, h+0.4, b0+0.15]);     // a little parapet to grab on low roofs
+    });
+    // street furniture on the sidewalk
+    const sx = x0 === 0 ? x1 - 1.2 : x0 + 1.2, sz = z0 === 0 ? z1 - 1.2 : z0 + 1.2;
+    B.box('pole', [sx-0.07, 0, sz-0.07], [sx+0.07, 4.6, sz+0.07]); B.box('pole', [sx-0.05, 4.5, sz-0.05], [sx + (x0 === 0 ? 1.2 : -1.2), 4.6, sz+0.05], {solid:false});
+    B.box('lamp', [sx + (x0 === 0 ? 0.9 : -1.3), 4.4, sz-0.2], [sx + (x0 === 0 ? 1.3 : -0.9), 4.5, sz+0.2], {solid:false});
+    const hx = x0 === 0 ? x1 - 1 : x0 + 1, hz = (z0 + z1)/2 + (mr()-0.5)*6;
+    B.geo('red', new T3.CylinderGeometry(0.14, 0.16, 0.6, 8), hx, 0.45, hz); B.solid([hx-0.14, 0, hz-0.14], [hx+0.14, 0.75, hz+0.14]);
+    const bx = (x0 + x1)/2 + (mr()-0.5)*6, bz = z0 === 0 ? z1 - 1 : z0 + 1;
+    B.box('wood', [bx-0.9, 0.15, bz-0.25], [bx+0.9, 0.55, bz+0.25]); B.box('pole', [bx-0.9, 0.55, bz + (z0 === 0 ? 0.2 : -0.25)], [bx+0.9, 0.95, bz + (z0 === 0 ? 0.25 : -0.2)]);
+    // dumpster in an alley
+    B.box('bin', [mx-1, 0.15, mz-0.6], [mx+1, 1.35, mz+0.6]);
+  });
+  // the edge: tall buildings all round, with dark tunnels where the streets leave
+  const edge = (a, b) => { B.box('fB', a, b, {us:3}); B.solid([a[0], b[1], a[2]], [b[0], 34, b[2]]); };
+  edge([-1,0,-1], [0,26,18]); edge([-1,0,26], [0,26,45]); edge([44,0,-1], [45,26,18]); edge([44,0,26], [45,26,45]);
+  edge([0,0,-1], [18,26,0]); edge([26,0,-1], [44,26,0]); edge([0,0,44], [18,26,45]); edge([26,0,44], [44,26,45]);
+  for (const [a,b] of [[[-1,0,18],[0,5,26]], [[44,0,18],[45,5,26]], [[18,0,-1],[26,5,0]], [[18,0,44],[26,5,45]]]){ B.box('tunnel', a, b); B.box('fA', [a[0],5,a[2]], [b[0],26,b[2]], {us:3}); B.solid([a[0],26,a[2]], [b[0],34,b[2]]); }
+  const grp = B.finish(), nav = buildNav(B.solids, O, 44, 2, [0]);
+  // ---- the cars ----
+  const carCols = [0xd23a2a, 0x2a62c8, 0xf2c230, 0x2f9e55, 0xeeeeee, 0x7a3fb0];
+  const makeCar = (col) => { const g = new T3.Group(), add = (geo, m, x, y, z) => { const o = new T3.Mesh(geo, m); o.position.set(x,y,z); g.add(o); return o; };
+    const body = lam(col), dark = lam(0x1a1c20), glass = lam(0x7fa8c8), light = new T3.MeshBasicMaterial({color:0xfff6c8}), tail = new T3.MeshBasicMaterial({color:0xff2a1a});
+    add(new T3.BoxGeometry(4.2, 0.7, 1.8), body, 0, 0.6, 0); add(new T3.BoxGeometry(2.2, 0.6, 1.6), body, -0.2, 1.25, 0); add(new T3.BoxGeometry(2.24, 0.46, 1.64), glass, -0.2, 1.25, 0);
+    for (const [x,z] of [[1.35,0.85],[1.35,-0.85],[-1.35,0.85],[-1.35,-0.85]]) add(new T3.CylinderGeometry(0.36, 0.36, 0.25, 12), dark, x, 0.36, z).rotation.x = Math.PI/2;
+    for (const z of [0.6,-0.6]){ add(new T3.BoxGeometry(0.05, 0.16, 0.34), light, 2.12, 0.72, z); add(new T3.BoxGeometry(0.05, 0.14, 0.3), tail, -2.12, 0.72, z); }
+    g.visible = false; grp.add(g); return g; };
+  const P = 10, SPD = 11;
+  // lane: start point, direction, time offset
+  const lanes = [[new V(-4, 0, 20.3), new V(1,0,0), 0], [new V(48, 0, 23.7), new V(-1,0,0), 0.4], [new V(23.7, 0, -4), new V(0,0,1), 5], [new V(20.3, 0, 48), new V(0,0,-1), 5.4]]
+    .map(([s, d, off], i) => ({s:s.add(O), d, off, car:makeCar(carCols[i]), hitCD:0, honk:0}));
+  let hitMeCD = 0;
+  const sndCrash = () => { if (!AC) return; noiseHit(0.5, 700, 0.7, 0.9); noiseHit(0.2, 2400, 2, 0.5); tone('square', 300, 60, 0.3, 0.15); };
+  const honk = (vol) => { if (!AC) return; const o = AC.createOscillator(), o2 = AC.createOscillator(), gg = AC.createGain(), t = AC.currentTime; o.type = o2.type = 'square'; o.frequency.value = 415; o2.frequency.value = 523;
+    gg.gain.setValueAtTime(0.05*vol, t); gg.gain.setValueAtTime(0.05*vol, t+0.35); gg.gain.exponentialRampToValueAtTime(0.001, t+0.45); o.connect(gg); o2.connect(gg); gg.connect(AC.destination); o.start(t); o2.start(t); o.stop(t+0.5); o2.stop(t+0.5); };
+  MAPS.city = {name:'CITY', group:grp, spawn:new V(15.5, 0.15, 15.5).add(O), yaw:-Math.PI*0.75, nav, yMin:-5, yMax:36,
+    sky:{bg:0x9ec9ea, fog:0xb4cbe0, near:14, far:60, hs:0xffffff, hg:0x8a8070, hi:1.0, ac:0xffffff, ai:0.3},
+    update(dt, inGame){
+      hitMeCD -= dt;
+      const t = Date.now()/1000;
+      for (const L of lanes){
+        const s = (((t - L.off) % P) + P) % P*SPD, c = L.car;
+        c.visible = s < 52; if (!c.visible) continue;
+        const pos = L.s.clone().addScaledVector(L.d, s); c.position.copy(pos); c.rotation.y = Math.atan2(-L.d.z, L.d.x);
+        if (!inGame) continue;
+        const side = new V(-L.d.z, 0, L.d.x);
+        const inCar = (p, pad) => { const r = p.clone().sub(pos); return Math.abs(r.dot(L.d)) < 2.2 + pad && Math.abs(r.dot(side)) < 0.95 + pad && p.y < 1.6 + pad; };
+        // honk when you're standing in its way
+        const head = loco.headPos(), ahead = head.clone().sub(pos);
+        if (ahead.dot(L.d) > 0 && ahead.dot(L.d) < 14 && Math.abs(ahead.dot(side)) < 1.4 && clock - L.honk > 2){ L.honk = clock; honk(1); }
+        if (hitMeCD <= 0 && (inCar(head, 0.15) || inCar(head.clone().add(new V(0,-0.8,0)), 0.15))){
+          hitMeCD = 1.5; sndCrash(); pulse(0, 1, 250); pulse(1, 1, 250); spawnSparks(head, 40, 5);
+          const away = Math.sign(ahead.dot(side)) || 1;
+          loco.S.velocity.copy(L.d).multiplyScalar(SPD*1.15).addScaledVector(side, away*3).add(new V(0, 6, 0)); lastCombat = clock;
+          const arms = [0,1].filter(i => !me.lost[i]);
+          if (arms.length && R() < 0.3){ const i = pick(arms); me.lost[i] = true; release(i, true); hs[i] = {mode:'none'}; debris(handW[i], 0x3c4048); showMsg('Hit by a car! Your arm came off!'); }
+          else showMsg('Hit by a car!');
+        }
+        // robots and loose pieces in the road
+        for (const p of parts){
+          if (p.parent || p.obj.userData.dead || !mine(p) || p.mode === 'held' || p.stuck) continue;
+          const c2 = centerW(p); if (!inCar(c2, p.r)) continue;
+          if (L.hitCD > clock && L.lastHit === p) continue; L.hitCD = clock + 0.4; L.lastHit = p;
+          p.mode = 'free'; p.asleep = false; p.v.copy(L.d).multiplyScalar(SPD*1.1).add(new V((R()-0.5)*3, 4 + R()*3, (R()-0.5)*3)); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(20);
+          if (p.kids.length) detach(pick(p.kids), p.v.clone().add(new V(R()-0.5, 2, R()-0.5)));
+          const b = p.bot; if (b && !b.dead && p === b.root){ say(b, pick(['SPLAT','I did not see the car','beep beep (me)','why is there traffic in here'])); }
+          if (c2.distanceTo(lastPlayer) < 15){ sndCrash(); spawnSparks(c2, 30, 4); }
+        }
+      }
+    }};
+}
+
+// ======================= CAVE =======================
+// Quirk: torches. They light the place up, but stand in one too long and you catch fire (so do robots).
+{
+  const O = new V(0, 0, 300), B = mapBuilder(O); mapSeed = 9001;
+  const rockT = tex(128, 128, (g,w,h) => { g.fillStyle = '#8a7e72'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 3000, 'rgba(30,25,20,A)', 0.35, 3); noiseFill(g, w, h, 1500, 'rgba(200,190,170,A)', 0.18, 2);
+    g.strokeStyle = 'rgba(40,32,26,.35)'; for (let i=0;i<30;i++){ g.beginPath(); g.moveTo(R()*w, R()*h); g.lineTo(R()*w, R()*h); g.stroke(); } });
+  const rock = lam(0xffffff, {map:rockT, vertexColors:true});
+  B.mat('rock', rock).mat('rock2', lam(0xb8aa98, {vertexColors:true})).mat('wood', lam(0x6b4423, {vertexColors:true})).mat('crystalA', new T3.MeshBasicMaterial({color:0x6fe8ff})).mat('crystalB', new T3.MeshBasicMaterial({color:0xc58bff}));
+  const CH = 7;
+  B.box('rock', [-2,-1,-2], [46,0,46], {us:3}); B.box('rock', [-2,CH,-2], [46,CH+1,46], {us:3});
+  for (const [a,b] of [[[-1,0,-1],[0,CH,45]], [[44,0,-1],[45,CH,45]], [[0,0,-1],[44,CH,0]], [[0,0,44],[44,CH,45]]]) B.box('rock', a, b, {us:3});
+  // lumpy rock along the walls so they don't look flat
+  for (let i=0;i<70;i++){ const t = mr()*44, side = Math.floor(mr()*4), r = 0.8 + mr()*1.6, y = mr()*CH;
+    const p = [[t, 0.2], [43.8, t], [t, 43.8], [0.2, t]][side]; B.geo('rock2', new T3.DodecahedronGeometry(r, 0), p[0], y, p[1], mr()*3, mr()*3, mr()*3, 1, 0.8 + mr()*0.6, 1); }
+  // bumpy ceiling with stalactites
+  { const g = new T3.PlaneGeometry(44, 44, 30, 30); g.rotateX(Math.PI/2); const p = g.attributes.position;
+    for (let i=0;i<p.count;i++) p.setY(i, -(Math.sin(p.getX(i)*0.7)*Math.sin(p.getZ(i)*0.5) + 1)*0.45 - mr()*0.25);
+    g.computeVertexNormals(); B.geo('rock', g, 22, CH - 0.02, 22); }
+  const taken = [[22, 22, 6]];
+  const torches = [], crystals = [];
+  // big pillars floor to ceiling
+  for (let i=0;i<9;i++){ const r = 1.1 + mr()*1.1, p = placeFree(taken, 4, 40, 4, 40, r + 1.6); if (!p) continue;
+    for (let k=0;k<4;k++) B.geo('rock', new T3.DodecahedronGeometry(r*(k % 2 ? 1.15 : 0.95), 1), p[0] + (mr()-0.5)*0.4, k*2.1 + 0.6, p[1] + (mr()-0.5)*0.4, mr()*3, mr()*3, 0, 1, 1.3, 1);
+    B.solid([p[0]-r*0.72, 0, p[1]-r*0.72], [p[0]+r*0.72, CH, p[1]+r*0.72]);
+    const a = mr()*6.3; torches.push(new V(p[0] + Math.cos(a)*(r*0.95 + 0.15), 1.75, p[1] + Math.sin(a)*(r*0.95 + 0.15)).add(O)); torches[torches.length-1].wall = new V(Math.cos(a), 0, Math.sin(a)); }
+  // ledges to climb on
+  for (let i=0;i<7;i++){ const w = 2.5 + mr()*2.5, d = 2.5 + mr()*2, h = 0.9 + mr()*1.9, p = placeFree(taken, 3, 41, 3, 41, Math.max(w,d)/2 + 1); if (!p) continue;
+    B.box('rock', [p[0]-w/2, 0, p[1]-d/2], [p[0]+w/2, h, p[1]+d/2], {us:1.5});
+    for (let k=0;k<4;k++) B.geo('rock2', new T3.DodecahedronGeometry(0.5 + mr()*0.5, 0), p[0] + (mr()-0.5)*w, h*0.7, p[1] + (mr()-0.5)*d, mr()*3, mr()*3, 0, 1, 0.6, 1); }
+  // boulders and stalagmites
+  for (let i=0;i<20;i++){ const r = 0.35 + mr()*0.7, p = placeFree(taken, 2, 42, 2, 42, r + 0.6); if (!p) continue;
+    B.geo('rock2', new T3.DodecahedronGeometry(r, 0), p[0], r*0.5, p[1], mr()*3, mr()*3, mr()*3, 1, 0.8, 1); B.solid([p[0]-r*0.6, 0, p[1]-r*0.6], [p[0]+r*0.6, r*1.05, p[1]+r*0.6]); }
+  for (let i=0;i<24;i++){ const r = 0.2 + mr()*0.3, h = 0.8 + mr()*1.6, p = placeFree(taken, 2, 42, 2, 42, r + 0.5); if (!p) continue;
+    B.geo('rock', new T3.ConeGeometry(r, h, 6), p[0], h/2, p[1]); B.solid([p[0]-r*0.5, 0, p[1]-r*0.5], [p[0]+r*0.5, h*0.75, p[1]+r*0.5]); }
+  for (let i=0;i<40;i++){ const r = 0.15 + mr()*0.35, h = 0.6 + mr()*1.8, x = 1 + mr()*42, z = 1 + mr()*42; B.geo('rock', new T3.ConeGeometry(r, h, 6), x, CH - 0.4 - h/2, z, Math.PI, 0, 0); }
+  // glowing crystals
+  for (let i=0;i<12;i++){ const p = placeFree(taken, 2, 42, 2, 42, 0.6); if (!p) continue; const k = mr() < 0.5 ? 'crystalA' : 'crystalB';
+    for (let j=0;j<4;j++) B.geo(k, new T3.OctahedronGeometry(0.12 + mr()*0.12, 0), p[0] + (mr()-0.5)*0.5, 0.15 + mr()*0.25, p[1] + (mr()-0.5)*0.5, mr(), mr(), mr(), 1, 2.2, 1);
+    crystals.push({p:new V(p[0], 0.3, p[1]), c:k === 'crystalA' ? [0.25, 0.75, 1.0] : [0.7, 0.4, 1.0]}); }
+  // torches along the walls too
+  for (let i=0;i<10;i++){ const side = i % 4, t = 4 + (i*7.3) % 36; const n = [[0,0,1],[-1,0,0],[0,0,-1],[1,0,0]][side];
+    const p = [[t, 1.75, 0.25], [43.75, 1.75, t], [t, 1.75, 43.75], [0.25, 1.75, t]][side]; const v = new V(...p).add(O); v.wall = new V(...n); torches.push(v); }
+  for (const tp of torches){ const l = tp.clone().sub(O), w = tp.wall;
+    B.geo('wood', new T3.CylinderGeometry(0.035, 0.03, 0.5, 6), l.x - w.x*0.12, l.y - 0.22, l.z - w.z*0.12, w.z*0.35, 0, -w.x*0.35); }
+  // baked light: warm around every torch, a cold glow by the crystals, very dark everywhere else
+  const light = (x, y, z) => { let r = 0.16, g = 0.13, b = 0.12;
+    for (const t of torches){ const d = Math.hypot(x - t.x, y - t.y, z - t.z), k = 1.6*Math.exp(-d/2.6); r += k; g += k*0.62; b += k*0.3; }
+    for (const c of crystals){ const d = Math.hypot(x - c.p.x - O.x, y - c.p.y, z - c.p.z - O.z), k = 0.8*Math.exp(-d/1.6); r += k*c.c[0]; g += k*c.c[1]; b += k*c.c[2]; }
+    return [r, g, b]; };
+  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0]);
+  const glow = new T3.SpriteMaterial({map:flashTex, blending:T3.AdditiveBlending, depthWrite:false, transparent:true, fog:false, color:0xffb060});
+  const glows = torches.map(t => { const s = new T3.Sprite(glow); s.position.copy(t).add(new V(0, 0.08, 0)); s.scale.setScalar(0.7); grp.add(s); return s; });
+  let heatMe = 0;
+  MAPS.cave = {name:'CAVE', group:grp, spawn:new V(22, 0, 22).add(O), yaw:0, nav, yMin:-5, yMax:CH + 1.5,
+    sky:{bg:0x000000, fog:0x050302, near:4, far:22, hs:0xffd2a0, hg:0x302015, hi:0.65, ac:0xffd0a0, ai:0.34},
+    update(dt, inGame){
+      for (let i=0;i<torches.length;i++){
+        const t = torches[i]; glows[i].scale.setScalar(0.6 + 0.15*Math.sin(clock*13 + i*3) + 0.1*R());
+        if (t.distanceTo(lastPlayer) > 12) continue;
+        if (R() < 0.35) emitFire(t.clone().add(new V((R()-0.5)*0.05, 0.02, (R()-0.5)*0.05)), new V((R()-0.5)*0.15, 0.5 + R()*0.4, (R()-0.5)*0.15), 0.035 + R()*0.02, 0.35 + R()*0.25);
+        if (R() < 0.03) spawnSparks(t, 1, 1);
+      }
+      if (!inGame) return;
+      // standing in a torch: it heats you up, then you're on fire
+      const head = loco.headPos(), spots = {head, torso:head.clone().add(new V(0,-0.35,0)), arm0:handW[0], arm1:handW[1]};
+      let near = null;
+      for (const k in spots){ if (k[0] === 'a' && me.lost[+k[3]]) continue; for (const t of torches) if (spots[k].distanceTo(t) < 0.42){ near = k; break; } if (near) break; }
+      if (near && !myBurn){ heatMe += dt; if (near[0] === 'a') pulse(+near[3], 0.2 + heatMe*0.4, 20); if (R() < 0.3) partFlames(spots[near], 0.06, 1.5);
+        if (heatMe > 1.4){ heatMe = 0; igniteMe(near, 'a torch'); } }
+      else heatMe = Math.max(0, heatMe - dt);
+      for (const p of parts){
+        if (p.obj.userData.dead || p.fire || p.name === 'mine' || !mine(rootOf(p))) continue;
+        const c = centerW(p); let hot = false; for (const t of torches) if (c.distanceTo(t) < 0.3 + p.r*0.5){ hot = true; break; }
+        if (!hot) continue; p.heat = (p.heat || 0) + dt; p.heatT = clock; heated.add(p); if (p.heat > 1.2) ignitePart(p);
+      }
+    }};
+}
+
+// ======================= HOUSE =======================
+// Three floors (basement, ground, upstairs), furnished. Quirk: a robot vacuum does its rounds downstairs
+// and sucks up any robot bits lying on the floor (and bumps into robots). Don't let it find a mine.
+{
+  const O = new V(0, 0, 400), B = mapBuilder(O); mapSeed = 31337;
+  const grass = tex(256, 256, (g,w,h) => { g.fillStyle = '#5a9a3c'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 6000, 'rgba(20,60,10,A)', 0.3); noiseFill(g, w, h, 3000, 'rgba(170,220,90,A)', 0.2); });
+  const woodF = tex(256, 256, (g,w,h) => { for (let y=0;y<h;y+=32){ g.fillStyle = `hsl(30,${40+R()*15}%,${38+R()*10}%)`; g.fillRect(0,y,w,32); g.fillStyle = 'rgba(40,20,5,.5)'; g.fillRect(0,y,w,2); const x = R()*w; g.fillRect(x,y,2,32); }
+    noiseFill(g, w, h, 2000, 'rgba(60,30,10,A)', 0.12, 2); });
+  const paper = (a, b) => tex(128, 128, (g,w,h) => { g.fillStyle = a; g.fillRect(0,0,w,h); g.fillStyle = b; for (let x=0;x<w;x+=32) g.fillRect(x, 0, 12, h); for (let y=16;y<h;y+=32) for (let x=22;x<w;x+=32){ g.beginPath(); g.arc(x, y, 4, 0, 7); g.fill(); } });
+  const tileT = tex(128, 128, (g,w,h) => { g.fillStyle = '#e9eef0'; g.fillRect(0,0,w,h); g.strokeStyle = '#a9b4ba'; g.lineWidth = 2; for (let k=0;k<=w;k+=32){ g.beginPath(); g.moveTo(k,0); g.lineTo(k,h); g.moveTo(0,k); g.lineTo(w,k); g.stroke(); } });
+  const concrete = tex(128, 128, (g,w,h) => { g.fillStyle = '#8f8d88'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 3000, 'rgba(40,40,40,A)', 0.2, 2); noiseFill(g, w, h, 600, 'rgba(230,230,220,A)', 0.15, 3); });
+  const siding = tex(128, 128, (g,w,h) => { g.fillStyle = '#e8dcc0'; g.fillRect(0,0,w,h); g.fillStyle = 'rgba(120,100,70,.35)'; for (let y=0;y<h;y+=16) g.fillRect(0, y, w, 2); });
+  const rugT = tex(128, 128, (g,w,h) => { g.fillStyle = '#a33b3b'; g.fillRect(0,0,w,h); g.strokeStyle = '#e8c070'; g.lineWidth = 6; g.strokeRect(10,10,w-20,h-20); g.strokeRect(30,30,w-60,h-60); g.fillStyle = '#2c4a7a'; g.beginPath(); g.arc(w/2,h/2,18,0,7); g.fill(); });
+  const fence = tex(128, 64, (g,w,h) => { g.fillStyle = '#c9a77a'; g.fillRect(0,0,w,h); g.fillStyle = 'rgba(80,55,30,.6)'; for (let x=0;x<w;x+=16) g.fillRect(x, 0, 2, h); });
+  const art = (draw) => canvasTex(128, 96, (g,w,h) => { g.fillStyle = '#5a3a1e'; g.fillRect(0,0,w,h); g.save(); g.beginPath(); g.rect(8,8,w-16,h-16); g.clip(); draw(g, w, h); g.restore(); });
+  const tvT = canvasTex(128, 80, (g,w,h) => { g.fillStyle = '#123'; g.fillRect(0,0,w,h); g.fillStyle = '#6fd3ff'; g.font = 'bold 20px monospace'; g.fillText('BEEP', 40, 34); g.fillStyle = '#ffd23d'; g.fillText('BOOP', 40, 60); });
+  B.mat('grass', lam(0xffffff, {map:grass})).mat('fence', lam(0xffffff, {map:fence})).mat('siding', lam(0xffffff, {map:siding})).mat('woodF', lam(0xffffff, {map:woodF}))
+   .mat('paperA', lam(0xffffff, {map:paper('#e9dcbc', '#dccca4')})).mat('paperB', lam(0xffffff, {map:paper('#cfe0e8', '#bcd2dc')})).mat('conc', lam(0xffffff, {map:concrete})).mat('tile', lam(0xffffff, {map:tileT}))
+   .mat('ceil', lam(0xf4f1ea)).mat('roof', lam(0x6a6e73)).mat('rug', lam(0xffffff, {map:rugT})).mat('path', lam(0x8f8a80)).mat('trim', lam(0xf8f6f0))
+   .mat('wood', lam(0x8a5a32)).mat('darkwood', lam(0x4e3220)).mat('fabric', lam(0x4f6d8f)).mat('fabric2', lam(0x9a4f5f)).mat('white', lam(0xf2f2ee)).mat('metal', lam(0x9aa0a6)).mat('black', lam(0x1c1d20))
+   .mat('red', lam(0xc8302a)).mat('blue', lam(0x2f62c8)).mat('yellow', lam(0xf2c230)).mat('green', lam(0x3f9a4a)).mat('pillow', lam(0xfbf8f0)).mat('lamp', new T3.MeshBasicMaterial({color:0xfff4d0}))
+   .mat('glow', new T3.MeshBasicMaterial({color:0xff7a20})).mat('tv', new T3.MeshBasicMaterial({map:tvT})).mat('brick', lam(0x9a4a36)).mat('leaf', lam(0x3f8f3a)).mat('bark', lam(0x5d4027)).mat('cardboard', lam(0xc09a62)).mat('mirror', new T3.MeshBasicMaterial({color:0xbfd4dc}));
+  const arts = [art((g,w,h) => { g.fillStyle = '#8cc8f0'; g.fillRect(0,0,w,h); g.fillStyle = '#ffd23d'; g.beginPath(); g.arc(90,30,14,0,7); g.fill(); g.fillStyle = '#4a8a3a'; g.beginPath(); g.moveTo(0,h); g.lineTo(40,40); g.lineTo(80,h); g.fill(); }),
+    art((g,w,h) => { g.fillStyle = '#f2e8d0'; g.fillRect(0,0,w,h); g.fillStyle = '#e07a5f'; g.fillRect(20,20,40,40); g.fillStyle = '#3d405b'; g.beginPath(); g.arc(80,55,22,0,7); g.fill(); }),
+    art((g,w,h) => { g.fillStyle = '#20304a'; g.fillRect(0,0,w,h); g.fillStyle = '#f3f0e6'; g.fillRect(46,24,36,30); g.fillStyle = '#6fd3ff'; g.fillRect(52,30,24,16); g.fillStyle = '#f3f0e6'; g.fillRect(56,56,16,20); })];
+  arts.forEach((t, i) => B.mat('art' + i, lam(0xffffff, {map:t})));
+  // ---- ground, yard, fence ----
+  const FX0 = 8, FX1 = 36, FZ0 = 12, FZ1 = 32, T = 0.3, L = [-3, 0, 3], CEIL = 2.75;
+  B.box('grass', [-2,-1,-2], [46,0,FZ0], {us:3}); B.box('grass', [-2,-1,FZ1], [46,0,46], {us:3}); B.box('grass', [-2,-1,FZ0], [FX0,0,FZ1], {us:3}); B.box('grass', [FX1,-1,FZ0], [46,0,FZ1], {us:3});
+  B.box('path', [21, 0, 0], [23, 0.01, FZ0], {solid:false});
+  for (const [a,b] of [[[-1,0,-1],[0,1.6,45]], [[44,0,-1],[45,1.6,45]], [[0,0,-1],[44,1.6,0]], [[0,0,44],[44,1.6,45]]]){ B.box('fence', a, b, {us:2}); B.solid([a[0],1.6,a[2]], [b[0],14,b[2]]); }
+  for (const [x,z,s] of [[4,6,1],[39,5,1.2],[5,38,1.1],[40,39,0.9],[15,40,1]]){ B.geo('bark', new T3.CylinderGeometry(0.25*s, 0.35*s, 3.4*s, 7), x, 1.7*s, z); B.solid([x-0.25*s,0,z-0.25*s],[x+0.25*s,3.3*s,z+0.25*s]);
+    B.geo('leaf', new T3.IcosahedronGeometry(1.8*s, 1), x, 4.1*s, z); B.solid([x-1.2*s,3.3*s,z-1.2*s],[x+1.2*s,5*s,z+1.2*s]); }
+  // a wall along x (at z range zA..zB) or along z, with openings [a0, a1, y0, y1] cut out of it
+  const wallRun = (keys, axis, c0, c1, t0, t1, y0, y1, holes, us) => {
+    const seg = (a, b, ya, yb) => { if (b - a < 0.01 || yb - ya < 0.01) return; const mn = axis === 'x' ? [a, ya, t0] : [t0, ya, a], mx = axis === 'x' ? [b, yb, t1] : [t1, yb, b];
+      keys.forEach((k, i) => B.box(k, mn, mx, {us:us || 1.6, solid:i === 0})); };
+    let cur = c0; for (const [a0, a1, hy0, hy1] of (holes || []).slice().sort((p, q) => p[0] - q[0])){ seg(cur, a0, y0, y1); seg(a0, a1, y0, hy0); seg(a0, a1, hy1, y1); cur = a1; }
+    seg(cur, c1, y0, y1);
+  };
+  // outer walls, per floor (inside paper changes per floor), with windows and the front door
+  const floorKey = ['conc', 'paperA', 'paperB'];
+  for (let f=0;f<3;f++){
+    const y0 = L[f] - (f === 0 ? 0.6 : 0.25), y1 = f === 2 ? 6.0 : L[f+1] - 0.25 + 0.25, k = floorKey[f];
+    const win = f === 0 ? [] : [[0.9, 1.0 + L[f], 2.1 + L[f]]];
+    const xs = f === 0 ? [] : [11, 15, 28, 32].map(x => [x, x + 1.4, L[f] + 0.9, L[f] + 2.1]);
+    const zs = f === 0 ? [] : [15, 19, 26].map(z => [z, z + 1.4, L[f] + 0.9, L[f] + 2.1]);
+    const front = xs.concat(f === 1 ? [[21, 23, L[1], L[1] + 2.2]] : []);
+    wallRun([k], 'x', FX0, FX1, FZ0, FZ0 + T, y0, y1, front); wallRun([k], 'x', FX0, FX1, FZ1 - T, FZ1, y0, y1, xs);
+    wallRun([k], 'z', FZ0 + T, FZ1 - T, FX0, FX0 + T, y0, y1, zs); wallRun([k], 'z', FZ0 + T, FZ1 - T, FX1 - T, FX1, y0, y1, zs);
+    if (f > 0){ // siding skin outside (visual only)
+      wallRun(['siding'], 'x', FX0 - 0.02, FX1 + 0.02, FZ0 - 0.02, FZ0, y0 < 0 ? 0 : y0, y1, front); wallRun(['siding'], 'x', FX0 - 0.02, FX1 + 0.02, FZ1, FZ1 + 0.02, y0 < 0 ? 0 : y0, y1, xs);
+      wallRun(['siding'], 'z', FZ0, FZ1, FX0 - 0.02, FX0, y0 < 0 ? 0 : y0, y1, zs); wallRun(['siding'], 'z', FZ0, FZ1, FX1, FX1 + 0.02, y0 < 0 ? 0 : y0, y1, zs);
+      for (const o of [...front, ...xs]) if (o[1] - o[0] < 2) for (const zz of [FZ0 - 0.06, FZ1 - 0.02]) B.box('trim', [o[0]-0.06, o[2]-0.08, zz], [o[1]+0.06, o[2], zz + 0.08], {solid:false});
+    }
+  }
+  // floors (with stair holes) and ceilings
+  const UPH = [8.3, 10.5, 23.5, FZ1 - T], DNH = [10.5, 12.9, 23.5, FZ1 - T];    // holes: x0,x1,z0,z1
+  const slab = (y, hole, top, bot) => { const parts_ = hole ? [[FX0, hole[0], FZ0, FZ1], [hole[1], FX1, FZ0, FZ1], [hole[0], hole[1], FZ0, hole[2]], [hole[0], hole[1], hole[3], FZ1]] : [[FX0, FX1, FZ0, FZ1]];
+    for (const [x0, x1, z0, z1] of parts_){ if (x1 - x0 < 0.01 || z1 - z0 < 0.01) continue; B.box(top, [x0, y - 0.25, z0], [x1, y, z1], {us:2, skip:['y-','x+','x-','z+','z-']}); B.box(bot, [x0, y - 0.25, z0], [x1, y, z1], {us:2, skip:['y+'], solid:false}); } };
+  B.box('conc', [FX0, -3.6, FZ0], [FX1, -3, FZ1], {us:2});
+  slab(0, DNH, 'woodF', 'ceil'); slab(3, UPH, 'woodF', 'ceil'); slab(6, null, 'roof', 'ceil');
+  // flat roof: parapet and a chimney to climb on
+  for (const [a,b] of [[[FX0,6,FZ0],[FX1,6.5,FZ0+0.25]], [[FX0,6,FZ1-0.25],[FX1,6.5,FZ1]], [[FX0,6,FZ0],[FX0+0.25,6.5,FZ1]], [[FX1-0.25,6,FZ0],[FX1,6.5,FZ1]]]) B.box('siding', a, b);
+  B.box('brick', [17.5, 6, 29.6], [19.5, 7.8, 31.6]);
+  // stairs: up (ground -> upstairs) and down (ground -> basement), fine steps underneath for the feet
+  // up: bottom at the back (z 31.6, y 0), top at z 23.6 (y 3)
+  { const n = 30, dz = 8/n; for (let i=0;i<n;i++){ const za = 31.6 - (i+1)*dz, zb = 31.6 - i*dz, y = (i+1)*3/n; B.box(i % 2 ? null : 'wood', [8.35, 0, za], [10.3, y, zb]); } }
+  // down: top at z 23.6 (y 0), bottom at the back (z 31.6, y -3)
+  { const n = 30, dz = 8/n; for (let i=0;i<n;i++){ const za = 23.6 + i*dz, zb = za + dz, y = -(i+1)*3/n; B.box(i % 2 ? null : 'wood', [10.7, -3, za], [12.8, y, zb]); } }
+  // railings
+  const rail = (a, b) => B.box('darkwood', a, b);
+  rail([10.4, 0, 24.6], [10.55, 1.0, 31.6]); rail([12.85, 0, 23.6], [13.0, 1.0, 31.6]); rail([10.45, 3, 23.6], [10.6, 4.0, 31.6]);
+  // interior walls (gaps are doorways)
+  const iw = (axis, c0, c1, at, f, gaps) => wallRun([floorKey[f]], axis, c0, c1, at - 0.08, at + 0.08, L[f], L[f] + CEIL, (gaps || []).map(([a, b]) => [a, b, L[f], L[f] + 2.15]));
+  iw('z', FZ0 + T, 23.5, 18, 1, [[16, 17.6]]); iw('z', FZ0 + T, 23.5, 26, 1, [[16, 17.6]]);
+  iw('x', 13, 18, 23.5, 1, []); iw('x', 18, 26, 23.5, 1, [[21, 23]]); iw('x', 26, FX1 - T, 23.5, 1, [[29, 30.6]]);
+  iw('x', FX0 + T, FX1 - T, 21, 2, [[12, 13.4], [20, 21.4], [28, 29.4]]); iw('z', FZ0 + T, 21, 18, 2); iw('z', FZ0 + T, 21, 24, 2);
+  iw('x', 10.6, FX1 - T, 23.5, 2, [[16, 17.4], [29, 30.4]]); iw('z', 23.5, FZ1 - T, 24, 2);
+  iw('z', FZ0 + T, 26, 22, 0, [[18, 19.6]]);
+  // ---- furniture ----
+  // f(key, x, y, z, w, h, d, solid): a box sitting at (x, y, z) = centre of its base
+  const f = (k, x, y, z, w, h, d, solid) => B.box(k, [x - w/2, y, z - d/2], [x + w/2, y + h, z + d/2], {us:1, solid:solid !== false});
+  const ceilingLight = (x, z, y) => f('lamp', x, y - 0.03, z, 1.0, 0.03, 0.5, false);
+  // pictures and screens are flat planes facing into the room (ry: which way they face)
+  const pic = (i, x, y, z, ry) => B.geo('art' + i, new T3.PlaneGeometry(1.2, 0.9), x, y + 0.45, z, 0, ry, 0);
+  const couch = (x, y, z, rot, k) => { const W = 2.2, D = 0.9; if (rot % 2 === 0){ f(k, x, y, z, W, 0.45, D); const bz = z + (rot ? 0.35 : -0.35); f(k, x, y + 0.45, bz, W, 0.45, 0.2); f(k, x - W/2 + 0.1, y + 0.45, z, 0.2, 0.25, D); f(k, x + W/2 - 0.1, y + 0.45, z, 0.2, 0.25, D); }
+    else { f(k, x, y, z, D, 0.45, W); const bx = x + (rot === 1 ? -0.35 : 0.35); f(k, bx, y + 0.45, z, 0.2, 0.45, W); f(k, x, y + 0.45, z - W/2 + 0.1, D, 0.25, 0.2); f(k, x, y + 0.45, z + W/2 - 0.1, D, 0.25, 0.2); } };
+  const chair = (x, y, z, rot) => { f('wood', x, y + 0.42, z, 0.44, 0.05, 0.44); for (const [sx, sz] of [[-1,-1],[1,-1],[-1,1],[1,1]]) f('wood', x + sx*0.19, y, z + sz*0.19, 0.04, 0.42, 0.04, false);
+    const [bx, bz, bw, bd] = [[0, 0.2, 0.44, 0.05], [0.2, 0, 0.05, 0.44], [0, -0.2, 0.44, 0.05], [-0.2, 0, 0.05, 0.44]][rot]; f('wood', x + bx, y + 0.47, z + bz, bw, 0.45, bd); };
+  const shelf = (x, y, z, w, d, h, rotX) => { f('darkwood', x, y, z, w, h, d); const cols = ['red','blue','yellow','green','white'];
+    for (let r=0;r<4;r++) for (let i=0;i<8;i++){ const bw = 0.07 + mr()*0.05, bh = 0.2 + mr()*0.12; if (rotX) f(cols[(i + r) % 5], x - w/2 + 0.1 + i*(w - 0.2)/8, y + 0.15 + r*h/4.3, z + (d/2 + 0.02)*rotX, bw, bh, 0.04, false);
+      else f(cols[(i + r) % 5], x + (w/2 + 0.02), y + 0.15 + r*h/4.3, z - d/2 + 0.1 + i*(d - 0.2)/8, 0.04, bh, bw, false); } };
+  const bed = (x, y, z, w, l, k) => { f('darkwood', x, y, z, w, 0.35, l); f('pillow', x, y + 0.35, z, w - 0.1, 0.2, l - 0.1, false); f(k, x, y + 0.42, z + 0.25, w - 0.05, 0.16, l - 0.6, false); f('pillow', x, y + 0.55, z - l/2 + 0.3, w - 0.4, 0.14, 0.35, false); f('darkwood', x, y, z - l/2 + 0.05, w, 1.0, 0.1); };
+  const plant = (x, y, z) => { B.geo('cardboard', new T3.CylinderGeometry(0.2, 0.15, 0.35, 8), x, y + 0.17, z); B.geo('leaf', new T3.IcosahedronGeometry(0.4, 0), x, y + 0.65, z); B.solid([x - 0.2, y, z - 0.2], [x + 0.2, y + 0.9, z + 0.2]); };
+  const lampStand = (x, y, z) => { f('metal', x, y, z, 0.05, 1.5, 0.05); B.geo('lamp', new T3.CylinderGeometry(0.15, 0.25, 0.3, 10), x, y + 1.55, z); B.solid([x - 0.06, y, z - 0.06], [x + 0.06, y + 1.6, z + 0.06]); };
+  // ground floor: living room (west), hall, kitchen (east), dining/den (back)
+  f('rug', 13, 0, 17.6, 4, 0.01, 3, false);
+  couch(13.4, 0, 21.9, 2, 'fabric'); f('wood', 13.4, 0, 18.4, 1.4, 0.42, 0.7);
+  f('darkwood', 13.4, 0, 13.0, 2.0, 0.55, 0.5); f('black', 13.4, 0.55, 13.0, 1.6, 0.9, 0.08); B.geo('tv', new T3.PlaneGeometry(1.5, 0.8), 13.4, 1.0, 13.05, 0, 0, 0);
+  shelf(8.75, 0, 16.5, 0.4, 1.8, 2.0, 0); couch(9.6, 0, 19.6, 1, 'fabric2'); plant(17.2, 0, 13.0); lampStand(17.3, 0, 22.8);
+  pic(0, 13.4, 1.5, 23.4, Math.PI); pic(1, 8.33, 1.4, 20.6, Math.PI/2);
+  f('darkwood', 19, 0, 13.0, 1.2, 0.5, 0.4); plant(25.2, 0, 13.0); f('rug', 22, 0, 17, 2, 0.01, 6, false); pic(2, 18.1, 1.4, 20.5, Math.PI/2);
+  // kitchen
+  f('wood', 35.2, 0, 16.5, 0.9, 0.9, 7.0); f('white', 35.2, 0.9, 16.5, 0.92, 0.04, 7.02, false); f('metal', 35.2, 0.92, 15.0, 0.6, 0.02, 0.5, false);
+  f('black', 35.2, 0.92, 18.2, 0.6, 0.02, 0.6, false); for (const dz of [-0.15, 0.15]) for (const dx of [-0.15, 0.15]) B.geo('red', new T3.CylinderGeometry(0.08, 0.08, 0.012, 10), 35.2 + dx, 0.94, 18.2 + dz);
+  f('white', 35.1, 0, 21.6, 0.9, 2.0, 0.9); f('wood', 35.5, 1.6, 16.5, 0.4, 0.7, 7.0);
+  f('wood', 30, 0, 17, 2.2, 0.76, 1.2); for (const [cx, cz, r] of [[29.4, 16.0, 0], [30.6, 16.0, 0], [29.4, 18.0, 2], [30.6, 18.0, 2]]) chair(cx, 0, cz, r);
+  // back room: long table, piano, fireplace
+  f('wood', 24, 0, 27.6, 4.6, 0.76, 1.2); for (let i=0;i<3;i++){ chair(22.4 + i*1.6, 0, 26.4, 0); chair(22.4 + i*1.6, 0, 28.8, 2); }
+  f('black', 33.5, 0, 30.6, 1.6, 1.2, 0.7); f('white', 33.5, 0.75, 30.15, 1.4, 0.05, 0.25, false);
+  f('brick', 18.5, 0, 31.3, 2.0, 1.4, 0.5); f('black', 18.5, 0.1, 31.05, 1.2, 0.8, 0.02, false); for (let i=0;i<5;i++) B.geo('glow', new T3.DodecahedronGeometry(0.1, 0), 18.0 + i*0.25, 0.2, 31.2);
+  shelf(15, 0, 31.4, 1.8, 0.4, 2.0, -1); pic(0, 28, 1.4, 31.68, Math.PI);
+  // upstairs: bedroom 1, bathroom, bedroom 2, game room, kids' room
+  const U = 3;
+  bed(11.5, U, 15.0, 1.8, 2.1, 'fabric'); f('wood', 10.2, U, 13.2, 0.5, 0.55, 0.5); f('wood', 12.8, U, 13.2, 0.5, 0.55, 0.5); lampStand(12.8, U + 0.55, 13.2);
+  f('darkwood', 17.2, U, 13.6, 1.1, 2.0, 0.6); f('wood', 16.8, U, 19.6, 1.4, 0.75, 0.6); chair(16.8, U, 19.0, 0); f('rug', 13, U, 17.5, 2.5, 0.01, 2, false); pic(1, 8.33, U + 1.3, 17.5, Math.PI/2);
+  B.box('tile', [18.1, U, FZ0 + T], [23.9, U + 0.01, 20.9], {solid:false, us:0.6});
+  f('white', 21, U, 13.2, 1.8, 0.6, 0.8); f('blue', 21, U + 0.45, 13.2, 1.6, 0.02, 0.6, false);
+  f('white', 19.0, U, 20.3, 0.45, 0.45, 0.55); f('white', 19.0, U + 0.45, 20.65, 0.45, 0.4, 0.2); f('white', 22.8, U, 20.55, 0.6, 0.85, 0.5); B.box('mirror', [22.4, U + 1.2, 20.86], [23.2, U + 2.0, 20.9], {solid:false});
+  bed(31.5, U, 15.0, 1.6, 2.1, 'fabric2'); f('darkwood', 26.2, U, 13.6, 1.1, 2.0, 0.6); f('wood', 34.9, U, 19.5, 0.6, 0.9, 1.4); B.geo('yellow', new T3.SphereGeometry(0.5, 10, 6), 27.5, U + 0.3, 19.0, 0, 0, 0, 1, 0.6, 1);
+  f('green', 17, U, 27.6, 2.7, 0.76, 1.5); f('white', 17, U + 0.76, 27.6, 0.02, 0.15, 1.5, false); f('black', 22.9, U, 30.9, 0.8, 1.8, 0.7); B.geo('tv', new T3.PlaneGeometry(0.6, 0.45), 22.9, U + 1.25, 30.54, 0, Math.PI, 0);
+  couch(13.4, U, 30.8, 2, 'fabric');
+  f('darkwood', 34.6, U, 27.2, 1.1, 0.12, 2.1); f('darkwood', 34.6, U + 1.25, 27.2, 1.1, 0.12, 2.1); for (const dz of [-1, 1]) f('darkwood', 35.1, U, 27.2 + dz, 0.08, 2.0, 0.08);
+  f('pillow', 34.6, U + 0.12, 27.2, 1.0, 0.15, 2.0, false); f('pillow', 34.6, U + 1.37, 27.2, 1.0, 0.15, 2.0, false);
+  for (let i=0;i<10;i++) f(['red','blue','yellow','green'][i % 4], 27 + mr()*5, U, 25 + mr()*5, 0.3, 0.3, 0.3);
+  f('wood', 25.0, U, 30.9, 1.2, 0.6, 0.6);
+  // basement: laundry, storage boxes, workbench, water heater, old couch
+  const D = -3;
+  f('white', 24, D, 13.0, 0.7, 0.9, 0.7); f('white', 24.8, D, 13.0, 0.7, 0.9, 0.7); for (const x of [24, 24.8]) B.geo('black', new T3.CylinderGeometry(0.22, 0.22, 0.02, 14), x, D + 0.5, 13.36, Math.PI/2);
+  B.geo('metal', new T3.CylinderGeometry(0.3, 0.3, 1.6, 12), 34.8, D + 0.8, 13.2); B.solid([34.5, D, 12.9], [35.1, D + 1.6, 13.5]);
+  f('darkwood', 30, D, 31.2, 3, 0.9, 0.7); for (let i=0;i<6;i++) f('metal', 28.8 + i*0.45, D + 0.9, 31.2, 0.1, 0.1 + mr()*0.2, 0.3, false);
+  for (let i=0;i<14;i++){ const s = 0.4 + mr()*0.3; f('cardboard', 9 + mr()*3.5 + (i > 7 ? 3 : 0), D + (i % 3 === 2 ? 0.45 : 0), 13 + mr()*6, s, s, s); }
+  shelf(16.5, D, 12.6, 2.4, 0.4, 2.0, 1); couch(28, D, 20, 0, 'fabric2'); f('green', 17, D, 22, 2.7, 0.76, 1.5);
+  // ceiling lights
+  for (const [x, z] of [[13, 17.5], [22, 17], [31, 17], [24, 27.6], [33, 27.6]]) ceilingLight(x, z, CEIL);
+  for (const [x, z] of [[13, 16.5], [21, 16.5], [30, 16.5], [17, 27.6], [30, 27.6], [20, 22.2]]) ceilingLight(x, z, U + CEIL);
+  for (const [x, z] of [[16, 18], [28, 18], [24, 27]]) ceilingLight(x, z, D + CEIL);
+  const grp = B.finish(), nav = buildNav(B.solids, O, 44, 2, [D, 0, U]);
+  // ---- the robot vacuum: drives a fixed loop on the ground floor (timed by the clock, same for everyone) ----
+  const route = [[11.5,16.8],[17.5,16.8],[22,16.8],[27.2,16.8],[27.6,14],[33.4,14],[33.4,22.6],[29.8,22.6],[29.8,25.1],[22,25.1],[22,22.4],[22,16.8],[17.5,16.8]].map(([x,z]) => new V(x + O.x, 0.06, z + O.z));
+  const segs = route.map((p, i) => { const q = route[(i+1) % route.length]; return {p, q, len:p.distanceTo(q)}; }), total = segs.reduce((s, g) => s + g.len, 0);
+  const vac = new T3.Group(); { const body = new T3.Mesh(new T3.CylinderGeometry(0.32, 0.33, 0.09, 20), lam(0x2a2c30)); body.position.y = 0.045; vac.add(body);
+    const top = new T3.Mesh(new T3.CylinderGeometry(0.2, 0.2, 0.012, 16), lam(0x5a5e66)); top.position.y = 0.095; vac.add(top);
+    vac.light = new T3.Mesh(new T3.SphereGeometry(0.025, 8, 6), new T3.MeshBasicMaterial({color:0x40ff80})); vac.light.position.set(0, 0.1, -0.22); vac.add(vac.light);
+    const bump = new T3.Mesh(new T3.CylinderGeometry(0.335, 0.335, 0.05, 20, 1, true, -1.2, 2.4), lam(0x9aa0a6)); bump.position.y = 0.05; bump.rotation.y = Math.PI; vac.add(bump); }
+  grp.add(vac);
+  let slurpT = 0;
+  const slurp = () => { if (!AC) return; noiseHit(0.35, 900, 3, 0.3); tone('sine', 300, 1400, 0.3, 0.08); };
+  MAPS.house = {name:'HOUSE', group:grp, spawn:new V(22, 0, 6).add(O), yaw:Math.PI, nav, yMin:-8, yMax:18,
+    sky:{bg:0xa9d2ee, fog:0xc4dbe8, near:14, far:55, hs:0xfffaf0, hg:0x7a6a50, hi:0.95, ac:0xfff4e0, ai:0.38},
+    update(dt, inGame){
+      let s = ((Date.now()/1000*0.7) % total + total) % total, seg = segs[0];
+      for (const g of segs){ if (s <= g.len){ seg = g; break; } s -= g.len; }
+      const dir = seg.q.clone().sub(seg.p).normalize(); vac.position.copy(seg.p).addScaledVector(dir, s);
+      vac.rotation.y = Math.atan2(-dir.x, -dir.z); vac.light.visible = (clock*2 % 1) < 0.7;
+      if (!inGame) return;
+      slurpT -= dt;
+      for (const p of parts){
+        if (p.parent || p.obj.userData.dead || p.mode === 'held' || p.stuck || !mine(p)) continue;
+        const c = centerW(p); if (c.y > 0.6 || c.y < -0.2 || Math.hypot(c.x - vac.position.x, c.z - vac.position.z) > 0.42 + p.r*0.4) continue;
+        if (p.name === 'mine'){ mineTrigger(p); continue; }
+        if (p.bot && !p.bot.dead && p === p.bot.root){ if (p.mode === 'bot'){ p.mode = 'free'; p.asleep = false; p.v.copy(dir).multiplyScalar(2).add(new V(0, 2.5, 0)); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(8); say(p.bot, pick(['hey! I am not dust','vacuum attack!!','rude'])); } continue; }
+        if (p.r > 0.3) continue;
+        removePart(p);                         // gulp (tells everyone)
+        if (slurpT <= 0 && c.distanceTo(lastPlayer) < 12){ slurpT = 0.25; slurp(); }
+        spawnSparks(vac.position.clone().add(new V(0, 0.1, 0)), 6, 1.5);
+      }
+    }};
+}
+
+// ======================= BACKROOMS quirk =======================
+// Every minute or so the lights flicker... and go out. Only the robots' faces glow in the dark.
+{
+  let t = 50 + R()*30, st = 'on', k = 0;
+  const darkSky = {bg:0x000000, fog:0x000000, near:0.5, far:9, hs:0x334455, hg:0x0, hi:0.22, ac:0x223040, ai:0.12};
+  const lightCol = new T3.Color(0xfffbe2);
+  const sndOff = () => { if (!AC) return; tone('sawtooth', 120, 30, 0.6, 0.12); noiseHit(0.15, 3000, 4, 0.2); };
+  MAPS.backrooms.update = (dt, inGame) => {
+    if (!inGame){ if (st !== 'on'){ st = 'on'; lightsOut = false; lightMat.color.copy(lightCol); applySky('backrooms'); } return; }
+    t -= dt;
+    if (st === 'on' && t <= 0){ st = 'flicker'; t = 1.6; }
+    else if (st === 'flicker'){ k -= dt; if (k <= 0){ k = 0.05 + R()*0.15; const off = R() < 0.5; lightsOut = off; lightMat.color.setHex(off ? 0x1a1812 : 0xfffbe2); applySky(off ? darkSky : 'backrooms'); }
+      if (t <= 0){ st = 'dark'; t = 7 + R()*4; lightsOut = true; lightMat.color.setHex(0x0a0908); applySky(darkSky); sndOff(); showMsg('LIGHTS OUT...'); } }
+    else if (st === 'dark' && t <= 0){ st = 'on'; t = 50 + R()*40; lightsOut = false; lightMat.color.copy(lightCol); applySky('backrooms'); }
+  };
+  MAPS.backrooms.leave = () => { st = 'on'; t = 50 + R()*30; lightsOut = false; lightMat.color.copy(lightCol); };
+}
+
 // ================= audio =================
 let AC = null, strainGain = null, noiseBuf = null;
 function audio(){
@@ -941,8 +1505,8 @@ function makeBot(color, pos, id){
   Object.assign(bot, {root:body, head, faceP:face, id});
   subtree(body).forEach((p, n) => { p.bot = bot; p.id = id + '.' + n; partsById.set(p.id, p); });
   body.owner = NET.id;
-  body.mode = 'bot'; body.obj.position.set(pos.x, STAND, pos.z); scene.add(body.obj);
-  const c = cellOf(pos); bot.cell = c; bot.target = cellPos(c[0], c[1]);
+  body.mode = 'bot'; body.obj.position.set(pos.x, pos.y, pos.z); scene.add(body.obj);
+  const c = cellOf(pos); bot.cell = c; bot.target = cellPos(...c);
   bots.push(bot); return bot;
 }
 function setFace(bot, k){ if (bot.face === k) return; bot.face = k; if (!bot.faceP.obj.userData.dead) bot.screen.material = FACES[k]; }
@@ -985,9 +1549,16 @@ function say(bot, text){
   if (!text) return; bot.sp = bubble(text); bot.sp.position.set(0, 0.66, 0); bot.head.obj.add(bot.sp); bot.spT = 2.4;
 }
 const pick = a => a[Math.floor(R()*a.length)];
-const cellOf = p => [Math.min(N-1,Math.max(0,Math.floor(p.x/C))), Math.min(N-1,Math.max(0,Math.floor(p.z/C)))];
-const cellPos = (x,y) => new V((x+0.5)*C, STAND, (y+0.5)*C);
-function farCell(from){ for (let i=0;i<200;i++){ const x = Math.floor(R()*N), y = Math.floor(R()*N); if (cellPos(x,y).distanceTo(new V(from.x,STAND,from.z)) > 13) return cellPos(x,y); } return cellPos(0,0); }
+// robots find their way on a grid of cells that each map supplies (lv = the floor heights)
+const cellOf = p => { const n = NAV; let l = 0; for (let k=0;k<n.lv.length;k++) if (p.y >= n.lv[k] - 0.3) l = k;
+  return [Math.min(n.nx-1,Math.max(0,Math.floor((p.x-n.x0)/n.c))), Math.min(n.nz-1,Math.max(0,Math.floor((p.z-n.z0)/n.c))), l]; };
+const cellPos = (x,y,l) => new V(NAV.x0+(x+0.5)*NAV.c, NAV.lv[l||0]+STAND, NAV.z0+(y+0.5)*NAV.c);
+function farCell(from){
+  const n = NAV, f = new V(from.x, from.y || 0, from.z);
+  for (let i=0;i<300;i++){ const x = Math.floor(R()*n.nx), y = Math.floor(R()*n.nz), l = Math.floor(R()*n.lv.length); if (n.ok(x,y,l) && cellPos(x,y,l).distanceTo(f) > 13) return cellPos(x,y,l); }
+  for (let i=0;i<300;i++){ const x = Math.floor(R()*n.nx), y = Math.floor(R()*n.nz), l = Math.floor(R()*n.lv.length); if (n.ok(x,y,l)) return cellPos(x,y,l); }
+  return cellPos(0,0,0);
+}
 const BOT_COLORS = [0xff7a66, 0x7dffb0, 0xc6a3ff, 0xffd23d, 0x6fd3ff, 0xff8fd6];
 let score = 0, respawnTimers = [];
 
@@ -1203,7 +1774,7 @@ function teleport(target, yaw){
   for (const i of [0,1]) release(i, true);
   io.yaw = rig.rotation.y = yaw;
   const hl = io.headLocal.clone().applyAxisAngle(UP, io.yaw);
-  rig.position.set(target.x - hl.x, 0.02, target.z - hl.z);
+  rig.position.set(target.x - hl.x, (target.y || 0) + 0.02, target.z - hl.z);
   loco.InitializeValues();
   for (const i of [0,1]) handPrev[i].copy(loco.S.lastHand[i]);
 }
@@ -1214,12 +1785,12 @@ function goto(m){
     me.lost[0] = me.lost[1] = false;
     if (m === 'game'){
       lastDeath = '';
-      resetWorld(); teleport(SPAWN, io.yaw); startT = performance.now(); score = 0; lastWrist = ''; gameJoinT = performance.now(); gotSnap = false; needTries = 0;
+      resetWorld(); setMap(netGame ? gameMap(netGame) : selMap); teleport(SPAWN, MAPS[curMap].yaw); startT = performance.now(); score = 0; lastWrist = ''; gameJoinT = performance.now(); gotSnap = false; needTries = 0;
       if (!netGame) for (let k=0;k<4;k++) makeBot(BOT_COLORS[k], farCell(SPAWN));
-      else if (isHost() && !bots.length) for (let k=0;k<4;k++){ const b = makeBot(BOT_COLORS[k], farCell(SPAWN)); netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(b.root.obj.position.x), z:r3(b.root.obj.position.z)}); }
+      else if (isHost() && !bots.length) for (let k=0;k<4;k++){ const b = makeBot(BOT_COLORS[k], farCell(SPAWN)); netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(b.root.obj.position.x), y:r3(b.root.obj.position.y), z:r3(b.root.obj.position.z)}); }
       else if (netGame){ netSend('ev', {t:'need'}); needT = 1.5; needTries = 1; }
     }
-    else { netGame = null; teleport(LOBBY_SPAWN, LOBBY_YAW); }
+    else { netGame = null; teleport(LOBBY_SPAWN, LOBBY_YAW); setMap('backrooms'); }
     netHello();
     meMirror.head.visible = meMirror.torso.visible = m === 'lobby';
     meMirror.arms.forEach(a => a.visible = m === 'lobby'); meMirror.claws.forEach(a => a.visible = m === 'lobby');
@@ -1436,9 +2007,10 @@ function updateBot(bot, dt, player){
     if (root.v.length() < 0.35 && root.grounded) root.still += dt; else root.still = 0;
     if (root.still > 1.0 && bot.head.parent === root){
       const e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ');
-      root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y, 0)); root.obj.position.y = STAND;
+      const c = cellOf(root.obj.position);
+      root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y, 0)); root.obj.position.y = NAV.lv[c[2]] + STAND;
       for (const k of subtree(root)) if (k !== root){ k.obj.position.copy(k.rest); k.obj.quaternion.copy(k.restQ); }
-      const c = cellOf(root.obj.position); bot.cell = c; bot.target = cellPos(c[0], c[1]); bot.prev = null;
+      bot.cell = c; bot.target = cellPos(...c); bot.prev = null;
       root.mode = 'bot'; setFace(bot, 'idle'); say(bot, pick(['I am fine. everything is fine','rebooting...','nope nope nope']));
     }
     return;
@@ -1451,18 +2023,19 @@ function updateBot(bot, dt, player){
   const to = bot.target.clone().sub(pos); to.y = 0;
   const near = flat.distanceTo(pos) < 10 || bot.burning;
   if (to.length() < 0.08){
-    const [x,y] = bot.cell = cellOf(bot.target);
-    let nb = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => x+dx>=0 && y+dy>=0 && x+dx<N && y+dy<N && open(x,y,dx,dy)).map(([dx,dy]) => [x+dx,y+dy]);
+    const [x,y,l] = bot.cell = cellOf(bot.target);
+    let nb = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => x+dx>=0 && y+dy>=0 && x+dx<NAV.nx && y+dy<NAV.nz && NAV.open(x,y,l,dx,dy)).map(([dx,dy]) => [x+dx,y+dy,l]);
+    if (!nb.length) nb = [cellOf(farCell(pos))];
     if (nb.length > 1 && bot.prev) nb = nb.filter(c => c[0] !== bot.prev[0] || c[1] !== bot.prev[1]);
     nb.sort((a,b) => near ? cellPos(...b).distanceTo(flat) - cellPos(...a).distanceTo(flat) + (R()-0.5)*3 : R()-0.5);
-    bot.prev = [x,y]; bot.target = cellPos(...nb[0]);
+    bot.prev = [x,y,l]; bot.target = cellPos(...nb[0]);
   } else {
     pos.addScaledVector(to.normalize(), Math.min(to.length(), spd*(near ? 1 : 0.5)*dt));
     const want = Math.atan2(to.x, to.z), e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ');
     let d = want - e.y; d = Math.atan2(Math.sin(d), Math.cos(d)); root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y + d*Math.min(1, dt*10), 0));
   }
   const run = near ? 1 : 0.5;
-  pos.y = (legs ? STAND : 0.18) + Math.abs(Math.sin(ph*run))*0.08*run;
+  pos.y = NAV.lv[(bot.cell && bot.cell[2]) || 0] + (legs ? STAND : 0.18) + Math.abs(Math.sin(ph*run))*0.08*run;
   bot.legs.forEach((l,j) => { if (l.parent === root) l.obj.rotation.x = (j ? -1 : 1)*Math.sin(ph*run)*0.7; });
   bot.ups.forEach((u,j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(near ? 2.4 + Math.sin(ph*1.3+j)*0.6 : 0.2 + Math.sin(ph)*0.2); });
   if (bot.head.parent === root) bot.head.obj.rotation.z = Math.sin(ph*0.5)*0.12;
@@ -2381,7 +2954,8 @@ function vrStep(dt){
   for (const i of [0,1]) if (loco.S.wasTouching[i] && !was[i]){ pulse(i, 0.25, 25); sndTap(0.18); }
   if (Math.abs(io.stickX) > 0.7 && !turnLatch){ loco.Turn(io.stickX > 0 ? -Math.PI/4 : Math.PI/4); turnLatch = true; } else if (Math.abs(io.stickX) < 0.3) turnLatch = false;
   rig.rotation.y = io.yaw;
-  if (rig.position.y < -5 || rig.position.y > H+2) teleport(mode === 'game' ? SPAWN : LOBBY_SPAWN, io.yaw);
+  const MP = MAPS[curMap];
+  if (mode === 'game' ? (rig.position.y < MP.yMin || rig.position.y > MP.yMax) : (rig.position.y < -5 || rig.position.y > H+2)) teleport(mode === 'game' ? SPAWN : LOBBY_SPAWN, io.yaw);
   const rq = new Q().setFromAxisAngle(UP, io.yaw);
   for (const i of [0,1]){
     handW[i].copy(loco.S.lastHand[i]); handQW[i].copy(rq).multiply(io.handQuat[i]);
@@ -2407,6 +2981,14 @@ function vrStep(dt){
       w.down = by >= 0;
       const sel = wpn.includes(w.k); w.caps.forEach(c => c.material.emissive.setHex(sel ? 0x553311 : 0x000000));
       (w.models || []).forEach(m => { m.rotation.y += sel ? 0.03 : 0.008; });
+    }
+    for (const w of MAPBTN){
+      let by = -1; for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-w.x, h.z-w.z) < w.cap+0.04 && h.y < w.top+0.06+0.05+0.02) by = i; }
+      w.caps.forEach(c => c.position.y = w.top + (by >= 0 ? 0.01 : 0.03));
+      if (by >= 0 && !w.down && selMap !== w.k){ selMap = w.k; sndBoop(); pulse(by, 0.8, 90); }
+      w.down = by >= 0;
+      const sel = selMap === w.k; w.caps.forEach(c => c.material.emissive.setHex(sel ? 0x553311 : 0x000000));
+      (w.models || []).forEach(m => { m.rotation.y += sel ? 0.03 : 0.006; });
     }
     if (pressed){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); netGame = null; goto('game'); }
     else if (pressed2){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); playTogether(); }
@@ -2449,8 +3031,9 @@ function worldStep(dt, player){
     }
   }
   despawn(dt);
+  if (MAPS[curMap].update) try { MAPS[curMap].update(dt, mode === 'game'); } catch(e){ console.warn(e); }
   applyRemoteState();
-  for (let i = respawnTimers.length-1; i >= 0; i--){ respawnTimers[i] -= dt; if (respawnTimers[i] <= 0){ respawnTimers.splice(i,1); if (mode === 'game' || !netGame){ const b = makeBot(pick(BOT_COLORS), farCell(player)); if (netGame) netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(b.root.obj.position.x), z:r3(b.root.obj.position.z)}); } } }
+  for (let i = respawnTimers.length-1; i >= 0; i--){ respawnTimers[i] -= dt; if (respawnTimers[i] <= 0){ respawnTimers.splice(i,1); if (mode === 'game' || !netGame){ const b = makeBot(pick(BOT_COLORS), farCell(player)); if (netGame) netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(b.root.obj.position.x), y:r3(b.root.obj.position.y), z:r3(b.root.obj.position.z)}); } } }
   for (let i = bots.length-1; i >= 0; i--){ const b = bots[i]; if (b.dead && b.deadT > 6 && (b.chkT = (b.chkT || 0) - dt) <= 0){ b.chkT = 2; if (!parts.some(p => p.bot === b && !p.obj.userData.dead)) bots.splice(i,1); } }
 
   scene.updateMatrixWorld();
@@ -2484,11 +3067,12 @@ function resetWorld(){
   for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead) removePart(p, true);
   bots.length = 0; respawnTimers.length = 0; wires.length = 0;
 }
+const gameMap = g => (g && g.split('~')[2]) || 'backrooms';
 function netHello(target){ netSend('hi', {n:myName, m:mode, g:netGame, ga:mode === 'game' && netGame ? (performance.now() - gameJoinT)/1000 : -1}, target); }
 function playTogether(){
   const others = Object.entries(NET.peers);
-  const live = others.find(([id,p]) => p.g);
-  netGame = live ? live[1].g : NET.id + '~' + Date.now().toString(36);
+  const live = others.find(([id,p]) => p.g && gameMap(p.g) === selMap);
+  netGame = live ? live[1].g : NET.id + '~' + Date.now().toString(36) + '~' + selMap;
   goto('game');
 }
 function nearestPlayerFn(me){
@@ -2589,8 +3173,9 @@ function applyRemoteState(){
   }
 }
 function onEvent(ev, from){
+  { const pg = NET.peers[from]; if (netGame && pg && pg.g && pg.g !== netGame && ev.t !== 'need') return; }   // someone in a different game
   const p = ev.p ? partsById.get(ev.p) : null;
-  if (ev.t === 'spawn'){ if (!bots.some(b => b.id === ev.b) && mode === 'game' && netGame && (!NET.peers[from] || NET.peers[from].g === netGame)) { const b = makeBot(ev.c, new V(ev.x, STAND, ev.z), ev.b); b.root.owner = from; } }
+  if (ev.t === 'spawn'){ if (!bots.some(b => b.id === ev.b) && mode === 'game' && netGame && (!NET.peers[from] || NET.peers[from].g === netGame)) { const b = makeBot(ev.c, new V(ev.x, ev.y != null ? ev.y : STAND, ev.z), ev.b); b.root.owner = from; } }
   else if (ev.t === 'det'){ if (p && p.parent){ detach(p, new V().fromArray(ev.v), from); } if (p) p.owner = from; }
   else if (ev.t === 'claim'){ const r = partsById.get(ev.r); if (r && !r.parent){ for (const i of [0,1]) if (hs[i].root === r) release(i, true); r.owner = from; } }
   else if (ev.t === 'slice'){ if (p && !p.parent) slicePart(p, new V().fromArray(ev.n), ev.d, ev.ids, from, ev.v ? new V().fromArray(ev.v) : null); }
@@ -2691,8 +3276,8 @@ let boardKey = '';
 function updateBoard(){
   const others = Object.values(NET.peers);
   const lines = lastDeath && mode === 'lobby' ? ['You got SCRAPPED by', lastDeath + '!', 'Push the blue button to rejoin.'] : !NET.ready ? ['Connecting...'] : !others.length ? ['Nobody else online yet.', 'Open this page on another headset', 'on the same Wi-Fi.'] :
-    others.map(p => `${p.n || 'Robot'}  ${p.g ? 'is PLAYING' : 'is in the lobby'}`).concat([others.some(p => p.g) ? 'Push the blue button to JOIN' : 'Push the blue button to START']);
-  const key = lines.join('|'); if (key === boardKey) return; boardKey = key; drawBoard(lines);
+    others.map(p => `${p.n || 'Robot'}  ${p.g ? 'is in ' + MAPS[gameMap(p.g)].name : 'is in the lobby'}`).concat([others.some(p => p.g && gameMap(p.g) === selMap) ? 'Blue button: JOIN them in ' + MAPS[selMap].name : 'Blue button: START ' + MAPS[selMap].name + ' online']);
+  const key = lines.join('|') + selMap; if (key === boardKey) return; boardKey = key; drawBoard(lines);
   const html = !NET.ready ? 'Connecting to multiplayer...' : others.length ? `<b>${others.length + 1}</b> players online: ${[myName].concat(others.map(p => p.n)).join(', ')}` : `Multiplayer ready. You are ${myName}.`;
   const el = $('net'); if (el) el.innerHTML = html;
 }
@@ -2752,7 +3337,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124032728';
+const BUILD = '20261124041458';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
@@ -2786,7 +3371,7 @@ renderer.setAnimationLoop((t, frame) => {
   if (frame && renderer.xr.isPresenting){ try { readXR(frame); player = vrStep(dt); } catch(e){ console.error(e); player = loco.headPos(); } }
   else { if (auto) pYaw += dt*0.12; camera.rotation.set(pPitch, pYaw, 0, 'YXZ'); player = rig.position.clone().add(camera.position); }
   try { worldStep(dt, player); } catch(e){ console.error(e); }
-  flickT -= dt; if (flickT < 0){ flickT = 0.05 + R()*0.4; for (const f of flickers) f.material.color.setHex(R() < 0.3 ? 0x6e6a52 : 0xfffbe2); }
+  flickT -= dt; if (flickT < 0){ flickT = 0.05 + R()*0.4; for (const f of flickers) f.material.color.setHex(lightsOut ? 0x0a0908 : R() < 0.3 ? 0x6e6a52 : 0xfffbe2); }
   renderer.render(scene, camera);
 });
 }
