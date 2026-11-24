@@ -387,7 +387,7 @@ const PED = {x:-18.9, z:2.3, top:0.55, cap:0.2};    // PLAY button pedestal (fro
 const LOBBY_SPAWN = new V(-17.9, 0, 3.6), LOBBY_YAW = Math.PI/2;
 const PED2 = {x:-18.9, z:4.9, top:0.55, cap:0.2};   // PLAY TOGETHER (front-left of spawn)
 // weapon buttons along the north wall: the claw that presses one gets that weapon
-const WPN = [{k:'none', x:-14.6, col:0x9aa0a6, label:'NONE'}, {k:'hammer', x:-15.3, col:0xff9a2a, label:'HAMMER'}, {k:'saw', x:-16.0, col:0xff3b2f, label:'CHAINSAW'}, {k:'flame', x:-16.7, col:0x3aa0ff, label:'FLAMETHROWER'}].map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
+const WPN = [{k:'none', x:-14.4, col:0x9aa0a6, label:'NONE'}, {k:'hammer', x:-15.05, col:0xff9a2a, label:'HAMMER'}, {k:'saw', x:-15.7, col:0xff3b2f, label:'CHAINSAW'}, {k:'flame', x:-16.35, col:0x3aa0ff, label:'FLAMETHROWER'}, {k:'mine', x:-17.0, col:0x5fd35a, label:'MINE'}].map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
 addBox([LB.x0-1,-1,LB.z0-1],[LB.x1+1,0,LB.z1+1]); addBox([LB.x0-1,H,LB.z0-1],[LB.x1+1,H+1,LB.z1+1]);
 addBox([LB.x0-TW/2,0,LB.z0-TW/2],[LB.x0+TW/2,H,LB.z1+TW/2]);
 addBox([LB.x1-TW/2,0,LB.z0-TW/2],[LB.x1+TW/2,H,LB.z1+TW/2]);
@@ -632,10 +632,10 @@ function drawBoard(lines){
   boardTex.needsUpdate = true;
 }
 drawBoard(['Looking for players on the network...']);
-const weaponTex = signTex(920, 200, (g,W,Hh) => {
+const weaponTex = signTex(1060, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK YOUR WEAPON', W/2, 62);
-  g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('press a button with the claw you want it on', W/2, 108);
-  g.font = 'bold 36px VT323, monospace'; [['FLAMER','#5ab4ff'],['CHAINSAW','#ff6a5e'],['HAMMER','#ffb04a'],['NONE','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.14 + i*0.24), 168); });
+  g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('one per claw: press with the claw you want it on', W/2, 108);
+  g.font = 'bold 36px VT323, monospace'; [['MINE','#7fe07a'],['FLAMER','#5ab4ff'],['CHAINSAW','#ff6a5e'],['HAMMER','#ffb04a'],['NONE','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.1 + i*0.2), 168); });
 });
 function plane(parent, tex, w, h, x, y, z, ry){ const m = new T3.Mesh(new T3.PlaneGeometry(w,h), new T3.MeshBasicMaterial({map:tex})); m.position.set(x,y,z); m.rotation.y = ry; parent.add(m); return m; }
 function buildLobby(parent, real){
@@ -657,11 +657,11 @@ function buildLobby(parent, real){
   cap2.position.set(PED2.x, PED2.top+0.04, PED2.z); parent.add(cap2); caps2.push(cap2);
   const board = plane(parent, boardTex, 1.1, 0.645, PED2.x - 0.35, 1.25, PED2.z, Math.PI/2);
   parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
-  plane(parent, weaponTex, 2.8, 0.6, -15.65, 1.45, LB.z0+TW/2+0.006, 0);
+  plane(parent, weaponTex, 3.25, 0.6, -15.7, 1.45, LB.z0+TW/2+0.006, 0);
   for (const w of WPN){
     const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
     cap.position.set(w.x, w.top+0.03, w.z); parent.add(cap); (w.caps = w.caps || []).push(cap);
-    if (w.k !== 'none'){ const m = w.k === 'saw' ? makeSaw() : w.k === 'flame' ? makeFlamer() : makeHammer(); if (w.k === 'saw'){ m.ext = 1; m.bar.scale.y = 1; } m.scale.setScalar(0.8); m.position.set(w.x, w.top + (w.k === 'saw' ? 0.62 : 0.6), w.z); m.rotation.z = 0.25; parent.add(m); (w.models = w.models || []).push(m); }
+    if (w.k !== 'none'){ const m = w.k === 'saw' ? makeSaw() : w.k === 'flame' ? makeFlamer() : w.k === 'mine' ? makeMine() : makeHammer(); if (w.k === 'saw'){ m.ext = 1; m.bar.scale.y = 1; } m.scale.setScalar(0.8); m.position.set(w.x, w.top + (w.k === 'saw' ? 0.62 : w.k === 'mine' ? 0.25 : 0.6), w.z); if (w.k === 'mine') m.scale.setScalar(1.6); m.rotation.z = 0.25; parent.add(m); (w.models = w.models || []).push(m); }
   }
   plane(parent, playTex, 1.3, 0.51, PED.x, 1.25, LB.z0+TW/2+0.006, 0);
   const arrow = new T3.Mesh(new T3.ConeGeometry(0.12,0.25,4), new T3.MeshBasicMaterial({color:0xff3b2f})); arrow.rotation.x = Math.PI; arrow.position.set(PED.x, 1.05, PED.z); arrow.userData.bob = true; parent.add(arrow);
@@ -1051,7 +1051,7 @@ function buildHalf(src, planes, id, owner, side){
   const half = mkPart(src.name, Math.max(0.03, src.r*0.72), src.c.clone());
   // copy only this piece's own meshes (not attached pieces, not speech bubbles)
   const copy = new T3.Group();
-  for (const c of src.obj.children){ if ((c.userData && c.userData.part) || c.isSprite) continue; copy.add(c.clone(true)); }
+  for (const c of src.obj.children){ if ((c.userData && (c.userData.part || c.userData.ember)) || c.isSprite) continue; const cc = c.clone(true); for (const k of cc.children.slice()) if (k.userData.kerf) cc.remove(k); copy.add(cc); }
   half.clip = planes.map(() => new T3.Plane());
   const inside = new T3.MeshBasicMaterial({map:gutsInsideTex, side:T3.BackSide, clippingPlanes:half.clip, color:0xd8d8d8});
   const shells = [];
@@ -1211,10 +1211,10 @@ function goto(m){
     me.lost[0] = me.lost[1] = false;
     if (m === 'game'){
       lastDeath = '';
-      resetWorld(); teleport(SPAWN, io.yaw); startT = performance.now(); score = 0; lastWrist = '';
+      resetWorld(); teleport(SPAWN, io.yaw); startT = performance.now(); score = 0; lastWrist = ''; gameJoinT = performance.now(); gotSnap = false; needTries = 0;
       if (!netGame) for (let k=0;k<4;k++) makeBot(BOT_COLORS[k], farCell(SPAWN));
       else if (isHost() && !bots.length) for (let k=0;k<4;k++){ const b = makeBot(BOT_COLORS[k], farCell(SPAWN)); netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(b.root.obj.position.x), z:r3(b.root.obj.position.z)}); }
-      else if (netGame) netSend('ev', {t:'need'});
+      else if (netGame){ netSend('ev', {t:'need'}); needT = 1.5; needTries = 1; }
     }
     else { netGame = null; teleport(LOBBY_SPAWN, LOBBY_YAW); }
     netHello();
@@ -1238,7 +1238,6 @@ function startHold(i, root, part){
 }
 function grab(i){
   if (me.lost[i]) return;
-  if (weapon === 'hammer' && weaponHand === i) return;
   const np = nearestPart(i, true);
   let bt = null, btd = Infinity;
   if (carriedT <= 0) for (const t of playerTargets()){ const d = t.dist(handW[i]); if (d < 0.08 && d < btd){ btd = d; bt = t; } }
@@ -1247,7 +1246,10 @@ function grab(i){
     const o = hs[1-i]; if (o.mode === 'player' && o.id === bt.id && o.k !== bt.k){ const d0 = handW[0].distanceTo(handW[1]); hs[i].d0 = o.d0 = d0; }
     pulse(i, 0.5, 50); sndTap(0.2); return;
   }
-  const p = np.p; if (!p) return;
+  let p = np.p;
+  for (const m of mines){ if (!m.obj.userData.dead && centerW(m).distanceTo(handW[i]) < 0.11 && !(hs[1-i].root === m)){ p = m; break; } }
+  if (!p) return;
+  if (p.name === 'mine' && (p.parent || p.stuck)){ freeMine(p); claim(p); p.obj.updateMatrixWorld(true); startHold(i, p, p); pulse(i, 0.5, 50); sndTap(0.2); return; }
   let root = rootOf(p); const o = hs[1-i];
   if (!mine(root)){
     if (root.mode === 'held' && p !== root){            // someone else is holding it: rip this piece off them
@@ -1391,7 +1393,7 @@ function bash(root){
 function punches(dt){
   for (const i of [0,1]){
     punchCD[i] -= dt; const sp = hv[i].length();
-    if (hs[i].mode !== 'none' || punchCD[i] > 0 || sp < 2.8 || me.lost[i] || (weapon === 'hammer' && weaponHand === i)) continue;
+    if (hs[i].mode !== 'none' || punchCD[i] > 0 || sp < 2.8 || me.lost[i] || wpn[i] === 'hammer') continue;
     let best = null, bd = Infinity;
     for (const p of parts){ if (p.obj.userData.dead) continue; const d = centerW(p).distanceTo(handW[i]) - p.r; if (d < 0.04 && d < bd){ bd = d; best = p; } }
     if (!best) continue;
@@ -1543,6 +1545,14 @@ function makeFlamer(){
   g.pilot = add(new T3.ConeGeometry(0.012,0.04,8), new T3.MeshBasicMaterial({color:0x4aa8ff, fog:false}), 0, -0.375, 0); g.pilot.rotation.x = Math.PI;
   return g;
 }
+function makeMine(){
+  const g = new T3.Group(), add = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
+  add(new T3.CylinderGeometry(0.055,0.062,0.028,18), new T3.MeshLambertMaterial({color:0x3d4a32}), 0, 0, 0);
+  add(new T3.CylinderGeometry(0.04,0.04,0.012,16), new T3.MeshLambertMaterial({color:0x2a3022}), 0, 0.019, 0);
+  for (let k=0;k<6;k++){ const a = k/6*Math.PI*2; add(new T3.BoxGeometry(0.012,0.008,0.012), new T3.MeshLambertMaterial({color:0x8d939a}), Math.cos(a)*0.05, 0.017, Math.sin(a)*0.05); }
+  g.light = add(new T3.SphereGeometry(0.012,10,8), new T3.MeshBasicMaterial({color:0x330606, fog:false}), 0, 0.03, 0);
+  return g;
+}
 function makeHammer(){
   const g = new T3.Group(), add = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
   const wood = new T3.MeshLambertMaterial({color:0x6b4a2b}), head = new T3.MeshLambertMaterial({color:0x50555c}), face = new T3.MeshLambertMaterial({color:0x2b2e33}), wrap = new T3.MeshLambertMaterial({color:0x151515});
@@ -1552,16 +1562,17 @@ function makeHammer(){
   for (const sx of [-1,1]) add(new T3.CylinderGeometry(0.068,0.068,0.03,16), face, sx*0.13, -0.33, 0).rotation.z = Math.PI/2;
   return g;
 }
-let weapon = 'none', weaponHand = 1, sawRun = 0, sawPrevMid = new V(), hammerPrev = new V(), hammerV = new V(), hammerT = -1, cutJob = null;
-const myW = [0,1].map(i => { const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer()}; me.claws[i].add(w.saw, w.hammer, w.flame); return w; });
-const myWm = [0,1].map(i => { const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer()}; meMirror.claws[i].add(w.saw, w.hammer, w.flame); return w; });
+const wpn = ['none', 'none'], sawRun = [0, 0], sawPrevMid = [new V(), new V()], hammerPrev = [new V(), new V()], hammerVs = [new V(), new V()], hammerT = [-1, -1], cutJobs = [null, null], flameOn = [false, false], mineCD = [0, 0], minePrev = [false, false];
+function weaponSet(claw){ const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer(), mine:makeMine()}; w.mine.position.set(0, -0.12, -0.03); claw.add(w.saw, w.hammer, w.flame, w.mine); return w; }
+const myW = [0,1].map(i => weaponSet(me.claws[i]));
+const myWm = [0,1].map(i => weaponSet(meMirror.claws[i]));
 function showWeapons(){
-  for (const i of [0,1]) for (const set of [myW, myWm]){
-    set[i].saw.visible = weapon === 'saw' && weaponHand === i; set[i].hammer.visible = weapon === 'hammer' && weaponHand === i; set[i].flame.visible = weapon === 'flame' && weaponHand === i;
+  for (const i of [0,1]){
+    for (const set of [myW, myWm]){ const w = wpn[i]; set[i].saw.visible = w === 'saw'; set[i].hammer.visible = w === 'hammer'; set[i].flame.visible = w === 'flame'; set[i].mine.visible = w === 'mine' && mineCD[i] <= 0; }
+    myWm[i].saw.bar.scale.y = myW[i].saw.bar.scale.y;
   }
-  myWm[weaponHand].saw.bar.scale.y = myW[weaponHand].saw.bar.scale.y;
 }
-function chooseWeapon(k, hand){ weapon = k; weaponHand = hand; sndBoop(); pulse(hand, 0.8, 90); for (const i of [0,1]){ myW[i].saw.ext = 0.001; myW[i].saw.bar.scale.y = 0.001; } }
+function chooseWeapon(k, hand){ wpn[hand] = k; sndBoop(); pulse(hand, 0.8, 90); myW[hand].saw.ext = 0.001; myW[hand].saw.bar.scale.y = 0.001; }
 let sawOsc = null, sawGain = null;
 function sawSound(level, pitch){
   if (!AC) return;
@@ -1572,30 +1583,99 @@ function sawSound(level, pitch){
 }
 function updateWeapon(dt){
   showWeapons();
-  if (weapon === 'saw' && !me.lost[weaponHand]) updateSaw(dt); else { sawRun = 0; sawSound(0, 0); cutJob = null; }
-  if (weapon === 'hammer' && !me.lost[weaponHand] && mode === 'game') updateHammer(dt);
-  if (weapon === 'flame' && !me.lost[weaponHand]) updateFlamer(dt); else { flameOn = false; flameSound(0); }
+  let sawLvl = 0, sawCut = 0;
+  for (const i of [0,1]){
+    const w = me.lost[i] ? 'none' : wpn[i];
+    if (w === 'saw'){ if (updateSaw(i, dt)) sawCut = 1; sawLvl = Math.max(sawLvl, sawRun[i]); } else { sawRun[i] = 0; if (cutJobs[i]) abortCut(i); }
+    if (w === 'hammer' && mode === 'game') updateHammer(i, dt);
+    if (w === 'flame') updateFlamer(i, dt); else flameOn[i] = false;
+    if (w === 'mine') updateMineHand(i, dt); else minePrev[i] = false;
+  }
+  sawSound(sawLvl, sawCut ? 1 : 0.2); flameSound(flameOn[0] || flameOn[1] ? 1 : 0);
+  // things cool off when the flames aren't on them
+  for (const p of heated){ if (!p.heatT || clock - p.heatT > 0.05){ p.heat = Math.max(0, (p.heat || 0) - dt*0.6); if (!p.heat) heated.delete(p); } }
+  for (const peer of Object.values(NET.peers)) if (peer.heat && clock - (peer.heatT || 0) > 0.05) peer.heat = Math.max(0, peer.heat - dt*0.6);
   updateMyFire(dt);
 }
 
-// ---- chainsaw: the blade grinds through, and the whole robot splits once it reaches the far side ----
-function updateSaw(dt){
-  const i = weaponHand, sw = myW[i].saw;
+// ---- chainsaw: the blade opens a real slit through the robot as it goes, then it falls apart in two ----
+// The cut lives in the robot's own frame: a plane (through P, normal n), the blade's direction d in it,
+// and u = the way the cut travels. Everything the blade has passed through (u < tip, d within the blade's
+// sweep) is clipped away as a thin slab, so you see the gap open up with the motherboard inside.
+const KERF = 0.02, kerfs = new Map();
+function ownMeshes(p){ const out = []; p.obj.traverse(o => { if (!o.isMesh || o.isSprite || o.userData.inside || o.userData.ember || o.userData.kerf) return; let par = o.parent; while (par && par !== p.obj){ if (par.userData && par.userData.part) return; par = par.parent; } out.push(o); }); return out; }
+function kerfStart(root, PL, nL, dL, uL, remote){
+  const j = {root, PL, nL, dL, uL, tip:0, a0:0, a1:0, near:0, far:0.1, planes:[0,1,2,3,4].map(() => new T3.Plane(new V(0,1,0), 1e3)), saved:[], remote, idle:0, sendT:0};
+  j.inside = new T3.MeshBasicMaterial({map:gutsInsideTex, side:T3.BackSide, clippingPlanes:j.planes, clipIntersection:true, color:0xd8d8d8});
+  const nW = nL.clone().applyQuaternion(root.obj.getWorldQuaternion(new Q())), P = root.obj.localToWorld(PL.clone());
+  for (const q of subtree(root)){
+    if (q.planes || q.fire || q.name === 'mine' || Math.abs(nW.dot(centerW(q).sub(P))) > q.r) continue;
+    for (const o of ownMeshes(q)){
+      const ms = Array.isArray(o.material) ? o.material : [o.material];
+      const cl = ms.map(m => { const c = m.clone(); c.clippingPlanes = j.planes; c.clipIntersection = true; return c; });
+      j.saved.push({o, mat:o.material}); o.material = Array.isArray(o.material) ? cl : cl[0];
+      const im = new T3.Mesh(o.geometry, j.inside); im.userData.kerf = true; o.add(im);
+    }
+  }
+  kerfs.set(root, j); kerfPlanes(j);
+  return j;
+}
+function kerfEnd(j){
+  if (!j || kerfs.get(j.root) !== j) return;
+  for (const s of j.saved){ s.o.material = s.mat; for (const c of s.o.children.slice()) if (c.userData.kerf) s.o.remove(c); }
+  kerfs.delete(j.root);
+}
+function kerfFrame(j){
+  const q = j.root.obj.getWorldQuaternion(new Q());
+  return {P:j.root.obj.localToWorld(j.PL.clone()), n:j.nL.clone().applyQuaternion(q), d:j.dL.clone().applyQuaternion(q), u:j.uL.clone().applyQuaternion(q)};
+}
+function kerfPlanes(j){
+  const {P, n, d, u} = kerfFrame(j), c = n.dot(P), dP = d.dot(P);
+  j.planes[0].set(n, -(c + KERF)); j.planes[1].set(n.clone().negate(), c - KERF);
+  j.planes[2].set(u, -(u.dot(P) + j.tip));
+  j.planes[3].set(d.clone().negate(), dP + j.a0); j.planes[4].set(d, -(dP + j.a1));
+}
+function updateKerfs(){
+  for (const j of kerfs.values()){
+    if (j.root.obj.userData.dead || (j.remote && clock - j.seen > 2)){ kerfEnd(j); continue; }
+    kerfPlanes(j);
+    // a glowing hot edge where the blade is biting
+    const {P, d, u} = kerfFrame(j), lo = Math.max(j.a0, j.dLo), hi = Math.min(j.a1, j.dHi);
+    if (hi > lo && j.tip > j.near + 0.01){ const e = P.clone().addScaledVector(u, j.tip); taut.push({a:e.clone().addScaledVector(d, lo), b:e.clone().addScaledVector(d, hi), hot:true}); }
+  }
+}
+// how far the cut has to go: the parts the plane passes through, inside the blade's sweep
+function kerfExtent(j){
+  const {P, n, d, u} = kerfFrame(j); let near = Infinity, far = -Infinity, dLo = Infinity, dHi = -Infinity;
+  for (const q of subtree(j.root)){
+    const c = centerW(q).sub(P), r = q.r*0.8; if (Math.abs(c.dot(n)) > q.r) continue;
+    const a = c.dot(d); if (a < j.a0 - r || a > j.a1 + r) continue;
+    const t = c.dot(u); near = Math.min(near, t - r); far = Math.max(far, t + r); dLo = Math.min(dLo, a - r); dHi = Math.max(dHi, a + r);
+  }
+  if (near < Infinity){ j.near = near; j.far = far; j.dLo = dLo; j.dHi = dHi; }
+}
+function updateSaw(i, dt){
+  const sw = myW[i].saw;
   const on = io.trig[i] > 0.5; poseSaw(sw, on ? 1 : 0, dt);
-  sawRun += ((on ? 1 : 0) - sawRun)*Math.min(1, dt*8);
-  const A = sw.localToWorld(new V(0,-0.05,0)), B = sw.localToWorld(new V(0,-0.03-BLADE*Math.min(1, sw.ext),0)), mid = A.clone().lerp(B, 0.5);
-  const bv = mid.clone().sub(sawPrevMid).divideScalar(Math.max(dt, 1e-3)); sawPrevMid.copy(mid);
+  sawRun[i] += ((on ? 1 : 0) - sawRun[i])*Math.min(1, dt*8);
+  let cutJob = cutJobs[i]; const other = cutJobs[1-i];
+  const A = sw.localToWorld(new V(0,-0.03,0)), B = sw.localToWorld(new V(0,-0.03-BLADE*Math.min(1, sw.ext),0)), mid = A.clone().lerp(B, 0.5);
+  const bv = mid.clone().sub(sawPrevMid[i]).divideScalar(Math.max(dt, 1e-3)); sawPrevMid[i].copy(mid);
   let cutting = 0;
   if (sw.ext > 0.6 && mode === 'game'){
     pulse(i, 0.2, 20);
-    const dir = B.clone().sub(A).normalize();
-    let contact = null, best = Infinity;
-    for (const p of parts){ if (p.obj.userData.dead) continue; const d = segDist(centerW(p), A, B); if (d < p.r*0.9 && d < best){ best = d; contact = p; } }
-    if (contact){
-      const root = rootOf(contact);
-      if (!cutJob || cutJob.root !== root || root.obj.userData.dead) startCut(root, contact, A, B, dir, bv);
-      cutting = advanceCut(dt, A, B, dir, bv) ? 1 : 0.6;
-    } else if (cutJob){ cutJob.idle += dt; if (cutJob.idle > 0.4) cutJob = null; }
+    const dir = B.clone().sub(A).normalize(), nBar = new V(1,0,0).applyQuaternion(sw.bar.getWorldQuaternion(new Q())).normalize();
+    // stick with the robot already being cut as long as the blade is anywhere in it
+    let touching = false;
+    if (cutJob && !cutJob.root.obj.userData.dead) for (const q of subtree(cutJob.root)) if (segDist(centerW(q), A, B) < q.r + 0.06){ touching = true; break; }
+    if (!touching){
+      let contact = null, best = Infinity;
+      for (const p of parts){ if (p.obj.userData.dead || p.dying) continue; const d = segDist(centerW(p), A, B) - p.r; if (d < 0 && d < best){ best = d; contact = p; } }
+      if (contact && contact.name === 'mine'){ mineTrigger(contact); contact = null; }
+      if (contact && other && other.root === rootOf(contact)){ cutting = 1; spawnSparks(mid, 4, 3); contact = null; }   // the other saw is already on it
+      if (contact){ if (cutJob) abortCut(i); startCut(i, rootOf(contact), contact, A, B, dir, nBar, bv); cutJob = cutJobs[i]; touching = true; }
+    }
+    if (cutJob && touching){ cutJob.idle = 0; advanceCut(i, dt, A, B); cutting = 1; }
     for (const t of playerTargets()){
       const peer = NET.peers[t.id]; if (!peer || clock - (peer.sawT || -1) < 0.4) continue;
       let hit = false; for (let k=0;k<=4;k++) if (t.dist(A.clone().lerp(B, k/4)) < 0.02) hit = true;
@@ -1605,47 +1685,65 @@ function updateSaw(dt){
       const k = t.k[0] === 'a' ? t.k : t.k === 'head' ? 'head' : arms.length ? 'arm' + pick(arms) : 'head';
       ripPlayer(t.id, k, -1, bv.clone().multiplyScalar(0.3));
     }
-  } else if (cutJob){ cutJob.idle += dt; if (cutJob.idle > 0.4) cutJob = null; }
-  if (cutting) pulse(i, 0.5 + cutting*0.5, 30);
-  sawSound(sawRun, cutting ? 1 : 0.2);
+  }
+  cutJob = cutJobs[i];
+  if (cutJob && !cutting){
+    cutJob.idle += dt;
+    // pulled out: past halfway it finishes falling apart on its own, otherwise the slit closes up
+    if (cutJob.idle > 0.6){ const j = cutJob; if ((j.tip - j.near)/Math.max(0.01, j.far - j.near) > 0.5) finishCut(j); else abortCut(i); }
+  }
+  if (cutting) pulse(i, 0.6, 30);
+  return cutting;
 }
-function startCut(root, contact, A, B, dir, bv){
-  let n = dir.clone().cross(bv); if (n.lengthSq() < 1e-4) n = dir.clone().cross(new V(0,1,0)); if (n.lengthSq() < 1e-4) n.set(1,0,0); n.normalize();
-  let u = n.clone().cross(dir).normalize(); if (u.dot(bv) < 0) u.negate();          // the direction the blade travels through it
+function startCut(i, root, contact, A, B, dir, nBar, bv){
+  // the cut plane is the plane of the bar; it travels from where the blade went in toward the middle of the robot
+  const n = nBar.clone().addScaledVector(dir, -nBar.dot(dir)).normalize();
   const c = centerW(contact), P = A.clone().addScaledVector(dir, Math.max(0, Math.min(B.distanceTo(A), c.clone().sub(A).dot(dir))));
-  let far = 0, near = 0; for (const q of subtree(root)){ const d = centerW(q).sub(P).dot(u); far = Math.max(far, d + q.r); near = Math.min(near, d - q.r); }
+  const u = n.clone().cross(dir).normalize();
+  const toMid = centerW(root).sub(P); if (toMid.dot(u) < 0 || (Math.abs(toMid.dot(u)) < 0.03 && bv.dot(u) < 0)) u.negate();
   const inv = root.obj.getWorldQuaternion(new Q()).invert();
-  cutJob = {root, entryL:root.obj.worldToLocal(P.clone().addScaledVector(u, near*0.3)), nL:n.applyQuaternion(inv.clone()), uL:u.applyQuaternion(inv.clone()), len:Math.max(0.12, far - near*0.3), prog:0, idle:0};
+  const PL = root.obj.worldToLocal(P.clone()), nL = n.clone().applyQuaternion(inv), dL = dir.clone().applyQuaternion(inv), uL = u.clone().applyQuaternion(inv);
+  const j = kerfStart(root, PL, nL, dL, uL, null);
+  const a0 = A.clone().sub(P).dot(dir), a1 = B.clone().sub(P).dot(dir); j.a0 = Math.min(a0, a1) - 0.01; j.a1 = Math.max(a0, a1) + 0.01;
+  kerfExtent(j); j.tip = j.near;
+  cutJobs[i] = j;
+  if (netGame && root.id) netSend('ev', {t:'kerf', r:root.id, f:r3([...PL.toArray(), ...nL.toArray(), ...dL.toArray(), ...uL.toArray()])});
   const b = root.bot; if (b && !b.dead && root === b.root){ setFace(b, 'scared'); if (R() < 0.5) say(b, pick(['AAAAA','not the saw!','this is so unsafe'])); }
   if (!mine(root) && root.mode !== 'held') claim(root);
 }
-function advanceCut(dt, A, B, dir, bv){
-  const j = cutJob, root = j.root; j.idle = 0;
-  const q = root.obj.getWorldQuaternion(new Q()), entry = root.obj.localToWorld(j.entryL.clone()), u = j.uL.clone().applyQuaternion(q), n = j.nL.clone().applyQuaternion(q);
-  const mid = A.clone().lerp(B, 0.5);
-  j.prog = Math.max(j.prog + dt*0.22, mid.clone().sub(entry).dot(u));    // pushing through is faster; holding still still grinds
-  const k = Math.min(1, j.prog / j.len), tip = entry.clone().addScaledVector(u, j.prog);
-  // the glowing cut line, sparks and a shudder while it goes through
-  for (const o of [-0.05, 0, 0.05]) taut.push({a:entry.clone().addScaledVector(dir, o), b:tip.clone().addScaledVector(dir, o), hot:true});
-  spawnSparks(tip, 5, 3.5);
-  if (root.mode !== 'held' && mine(root)){ root.obj.position.add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.006)); if (root.bot && root === root.bot.root) root.bot.stunT = 0.3; }
-  if (k >= 0.92){ cutJob = null; finishCut(root, n, entry); }
-  return true;
+function abortCut(i){ const j = cutJobs[i]; cutJobs[i] = null; if (!j) return; kerfEnd(j); if (netGame && j.root.id) netSend('ev', {t:'kerfx', r:j.root.id}); }
+function advanceCut(i, dt, A, B){
+  const j = cutJobs[i], root = j.root;
+  const {P, d, u} = kerfFrame(j);
+  // the blade's sweep grows as you move it around; the cut always keeps grinding, and pushing through is faster
+  const a0 = A.clone().sub(P).dot(d), a1 = B.clone().sub(P).dot(d);
+  j.a0 = Math.min(j.a0, a0, a1); j.a1 = Math.max(j.a1, a0, a1); kerfExtent(j);
+  const bladeU = A.clone().lerp(B, 0.5).sub(P).dot(u);
+  j.tip = Math.max(j.tip + dt*0.45, Math.min(bladeU + 0.02, j.tip + dt*1.5));
+  const bite = P.clone().addScaledVector(u, j.tip).addScaledVector(d, Math.max(j.dLo, Math.min(j.dHi, A.clone().lerp(B, 0.5).sub(P).dot(d))));
+  spawnSparks(bite, 6, 3.5); if (R() < 0.5) emitAsh(bite, 1, 0.01);
+  if (root.mode !== 'held' && mine(root)){ root.obj.position.add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.005)); if (root.bot && root === root.bot.root) root.bot.stunT = 0.3; }
+  j.sendT -= dt; if (j.sendT <= 0 && netGame && root.id){ j.sendT = 0.1; netSend('ev', {t:'kerfp', r:root.id, x:r3([j.tip, j.a0, j.a1])}); }
+  if (j.tip >= j.far - 0.01) finishCut(j);
 }
-function finishCut(root, nW, pW){
+function finishCut(j){
+  for (const i of [0,1]) if (cutJobs[i] === j) cutJobs[i] = null;
+  const root = j.root; kerfEnd(j);
   if (root.obj.userData.dead) return;
+  const {P, n, d, u} = kerfFrame(j);
   // which pieces get sliced and which side the rest fall on is decided here and sent as-is
   const info = {cut:{}, A:[], B:[]};
   for (const q of subtree(root)){
     if (!q.id) q.id = NET.id.slice(0,6) + '-p' + (botCounter++), partsById.set(q.id, q);
-    const c = centerW(q), d = nW.dot(c.clone().sub(pW));
-    if (Math.abs(d) < q.r*0.75 && q.r >= 0.04 && !(q.planes && q.planes.length >= 5)){
-      const nL = nW.clone().applyQuaternion(q.obj.getWorldQuaternion(new Q()).invert()).normalize();
-      info.cut[q.id] = [...r3(nL.toArray()), Math.round(nL.dot(q.obj.worldToLocal(pW.clone()))*10000)/10000];
-    } else (d >= 0 ? info.A : info.B).push(q.id);
+    const c = centerW(q).sub(P), dd = n.dot(c), a = c.dot(d);
+    const inBand = a > j.a0 - q.r*0.8 && a < j.a1 + q.r*0.8;
+    if (Math.abs(dd) < q.r*0.8 && inBand && q.r >= 0.035 && q.name !== 'mine' && !(q.planes && q.planes.length >= 5)){
+      const nL = n.clone().applyQuaternion(q.obj.getWorldQuaternion(new Q()).invert()).normalize();
+      info.cut[q.id] = [...r3(nL.toArray()), Math.round(nL.dot(q.obj.worldToLocal(P.clone()))*10000)/10000];
+    } else (dd >= 0 ? info.A : info.B).push(q.id);
   }
-  if (netGame && root.id) netSend('ev', {t:'aslice', r:root.id, n:r3(nW.toArray()), info});
-  sliceAssembly(root, nW, info, NET.id);
+  if (netGame && root.id) netSend('ev', {t:'aslice', r:root.id, n:r3(n.toArray()), info});
+  sliceAssembly(root, n, info, NET.id);
 }
 function sliceAssembly(root, nW, info, owner){
   const all = subtree(root), parentOf = new Map(all.map(q => [q, q.parent]));
@@ -1678,7 +1776,7 @@ fireMesh.frustumCulled = false; fireMesh.setColorAt(0, new T3.Color(0)); scene.a
 const ashMesh = new T3.InstancedMesh(new T3.BoxGeometry(1,1,1), new T3.MeshLambertMaterial({color:0xffffff}), AN);
 ashMesh.frustumCulled = false; ashMesh.setColorAt(0, new T3.Color(0x555555)); scene.add(ashMesh);
 const flames = Array.from({length:FN}, () => ({p:new V(), v:new V(), life:0, max:1, s:0.04})), ashes = Array.from({length:AN}, () => ({p:new V(), v:new V(), life:0, s:0.01, g:0.4, rot:0}));
-let fI = 0, aI = 0, flameOn = false, flameGain = null;
+let fI = 0, aI = 0, flameGain = null;
 function emitFire(pos, vel, size, life){ const f = flames[fI = (fI+1) % FN]; f.p.copy(pos); f.v.copy(vel); f.s = size; f.max = f.life = life; }
 function emitAsh(pos, n, spread){
   for (let k=0;k<n;k++){ const a = ashes[aI = (aI+1) % AN]; a.p.copy(pos).add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(spread*2));
@@ -1716,96 +1814,201 @@ function shootFlames(fl, n){
   for (let k=0;k<n;k++) emitFire(tip.clone(), dir.clone().multiplyScalar(5.5 + R()*1.5).add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.9)), 0.025 + R()*0.02, 0.4 + R()*0.2);
   return [tip, dir];
 }
-function updateFlamer(dt){
-  const i = weaponHand, fl = myW[i].flame; flameOn = io.trig[i] > 0.5;
+function updateFlamer(i, dt){
+  const fl = myW[i].flame; flameOn[i] = io.trig[i] > 0.5;
   fl.pilot.scale.setScalar(0.8 + R()*0.4);
-  flameSound(flameOn ? 1 : 0);
-  if (!flameOn) return;
+  if (!flameOn[i]) return;
   pulse(i, 0.25, 20);
   const [tip, dir] = shootFlames(fl, 3);
   if (mode !== 'game') return;
-  const inCone = (c, extra) => { const t = c.clone().sub(tip).dot(dir); if (t < 0 || t > 2.6) return false; return c.clone().sub(tip).addScaledVector(dir, -t).length() < 0.06 + t*0.17 + extra; };
+  const inCone = (c, extra) => { const t = c.clone().sub(tip).dot(dir); if (t < 0 || t > 2.6) return 0; const r = c.clone().sub(tip).addScaledVector(dir, -t).length(), w = 0.06 + t*0.17 + extra; return r < w ? 1 - 0.5*r/w : 0; };
+  // it takes a second or so of steady flame to catch: the part heats up, smokes and licks flame first
   for (const p of parts){
     if (p.obj.userData.dead || p.fire) continue;
-    if (inCone(centerW(p), p.r*0.6)){ p.heat = (p.heat || 0) + dt*3; if (p.heat > 0.35) ignitePart(p); }
+    const hit = inCone(centerW(p), p.r*0.6); if (!hit) continue;
+    if (p.name === 'mine'){ if (hit > 0 && R() < dt*2) mineTrigger(p); continue; }
+    p.heat = (p.heat || 0) + dt*hit; p.heatT = clock; heated.add(p);
+    if (R() < p.heat*0.6) partFlames(centerW(p), p.r*0.7, 1.4);
+    const b = p.bot; if (b && !b.dead && p.heat > 0.4 && b.face !== 'scared'){ setFace(b, 'scared'); if (R() < 0.3) say(b, pick(['hot hot hot','is it warm in here','ow ow ow'])); }
+    if (p.heat > 1.1) ignitePart(p);
   }
   for (const t of playerTargets()){
-    const peer = NET.peers[t.id]; peer.fireCD = peer.fireCD || {};
-    if (inCone(t.pos, 0.12) && clock - (peer.fireCD[t.k] || -1) > 0.6){ peer.fireCD[t.k] = clock; lastCombat = clock; netSend('ev', {t:'ignite', k:t.k, n:myName}, [t.id]); }
+    const peer = NET.peers[t.id]; const hit = inCone(t.pos, 0.12); if (!hit) continue;
+    lastCombat = clock;
+    if (peer.burnV && peer.burnV.some(v => v >= 0)) continue;           // already burning
+    peer.heat = (peer.heat || 0) + dt*hit*0.5; peer.heatT = clock;      // several body parts are in the cone at once
+    if (R() < peer.heat) partFlames(t.pos, 0.08, 1.4);
+    if (peer.heat > 1.1 && clock - (peer.igT || -9) > 2){ peer.igT = clock; peer.heat = 0; netSend('ev', {t:'ignite', k:t.k, n:myName}, [t.id]); }
   }
 }
+const heated = new Set();
 const SCREAMS = ['AAAAAAH','IT BURNS','I AM ON FIRE','HOT HOT HOT','this is fine'];
 function scream(){ if (!AC) return; const o = AC.createOscillator(), lfo = AC.createOscillator(), lg = AC.createGain(), g = AC.createGain(), t = AC.currentTime;
   o.type = 'square'; o.frequency.value = 1100; lfo.frequency.value = 14; lg.gain.value = 180; lfo.connect(lg); lg.connect(o.frequency);
   g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.7); o.connect(g); g.connect(AC.destination); o.start(t); lfo.start(t); o.stop(t+0.72); lfo.stop(t+0.72); }
+// glowing embers where something has burned through (the inside faces show through the burn line)
+function emberMat(planes){ return new T3.MeshBasicMaterial({color:0xff5a10, side:T3.BackSide, clippingPlanes:planes, fog:false}); }
 function ignitePart(p, remote){
   if (p.fire || p.obj.userData.dead) return;
-  p.fire = {t:0, life:6 + R()*4};
+  for (const i of [0,1]) if (cutJobs[i] && cutJobs[i].root === rootOf(p)) abortCut(i); kerfEnd(kerfs.get(rootOf(p)));
+  p.fire = {t:0, life:7 + R()*4};
   p.fireMats = [];
-  p.obj.traverse(o => { if (!o.isMesh || o.userData.inside) return; let par = o.parent; while (par && par !== p.obj){ if (par.userData && par.userData.part) return; par = par.parent; }
-    const ms = Array.isArray(o.material) ? o.material : [o.material]; const cl = ms.map(m => { const c = m.clone(); if (c.color) p.fireMats.push({m:c, base:c.color.clone()}); return c; });
-    o.material = Array.isArray(o.material) ? cl : cl[0]; o.userData.baseScale = o.scale.clone(); });
+  // a plane sweeps down through the part as it burns: everything above it is gone
+  p.burnPlane = new T3.Plane(new V(0,-1,0), 1e4);
+  const planes = p.clip ? p.clip : [p.burnPlane]; if (p.clip) p.clip.push(p.burnPlane);
+  p.ember = emberMat(planes);
+  p.loose = [];
+  for (const o of ownMeshes(p)){
+    const ms = Array.isArray(o.material) ? o.material : [o.material]; const cl = ms.map(m => { const c = m.clone(); c.clippingPlanes = planes; c.clipIntersection = false; if (c.color) p.fireMats.push({m:c, base:c.color.clone()}); return c; });
+    o.material = Array.isArray(o.material) ? cl : cl[0];
+    if (o.parent === p.obj){ const e = new T3.Mesh(o.geometry, p.ember); e.position.copy(o.position); e.quaternion.copy(o.quaternion); e.scale.copy(o.scale); e.userData.ember = true; p.obj.add(e); }
+    p.loose.push(o);
+  }
   if (!remote && netGame && p.id) netSend('ev', {t:'burn', p:p.id});
   const b = p.bot; if (b && !b.dead){ b.burning = true; setFace(b, 'scared'); if (!b.screamT || clock - b.screamT > 2.5){ b.screamT = clock; say(b, pick(SCREAMS)); scream(); } }
 }
 function ashPart(p, remote){
   if (p.obj.userData.dead) return;
   if (!remote && netGame && p.id) netSend('ev', {t:'ash', p:p.id});
-  const c = centerW(p); emitAsh(c, 40 + Math.round(p.r*200), p.r*0.8);
+  const c = centerW(p); emitAsh(c, 30 + Math.round(p.r*150), p.r*0.8);
   for (const k of p.kids.slice()) detach(k, new V((R()-0.5)*0.5, 0.3, (R()-0.5)*0.5), remote || undefined);
   if (p.parent){ p.parent.kids.splice(p.parent.kids.indexOf(p), 1); p.parent = null; scene.attach(p.obj); }
   const b = p.bot; if (b && !b.dead && (p.name === 'head' || p === b.root)) killBot(b, !!remote);
   removePart(p, true);
 }
+const SWEEP0 = 0.4;     // fraction of a part's burn spent just burning before it starts crumbling away
 function updateBurning(dt){
+  const ec = 0.6 + 0.4*Math.sin(clock*23)*Math.sin(clock*7.3);
   for (const p of parts.slice()){
     const f = p.fire; if (!f || p.obj.userData.dead) continue;
     f.t += dt; const k = Math.min(1, f.t/f.life), c = centerW(p);
-    for (const fm of p.fireMats) fm.m.color.copy(fm.base).multiplyScalar(1 - 0.88*Math.min(1, k*1.6));
-    partFlames(c, p.r, 1.5*dt*30);
-    if (k > 0.7){                                     // crumbling: shrink away while shedding ash
-      const sc = Math.max(0.05, 1 - (k - 0.7)/0.3);
-      p.obj.traverse(o => { if (o.userData.baseScale) o.scale.copy(o.userData.baseScale).multiplyScalar(sc); });
-      if (R() < 0.5) emitAsh(c, 1, p.r*0.7);
-    }
+    for (const fm of p.fireMats) fm.m.color.copy(fm.base).multiplyScalar(1 - 0.85*Math.min(1, k*2.2));
+    p.ember.color.setRGB(1, 0.25 + 0.2*ec, 0.03);
+    const s = Math.max(0, (k - SWEEP0)/(1 - SWEEP0)), top = c.y + p.r*1.05, front = top - s*p.r*2.1;
+    p.burnPlane.constant = s > 0 ? front : 1e4;
+    if (s > 0){
+      // the burn line: flames and embers there, ash falling off it
+      const at = new V(c.x, front, c.z);
+      partFlames(at, p.r*0.8, 2); partFlames(at, p.r*0.8, 2);
+      if (R() < 0.7) emitAsh(at, 1 + (R() < 0.3 ? 1 : 0), p.r*0.6);
+      if (R() < 0.15) spawnSparks(at, 1, 1.2);
+      for (const o of p.loose) if (!o.material.clippingPlanes){ o.updateMatrixWorld(); o.visible = o.getWorldPosition(tmpV).y < front; }
+    } else partFlames(c, p.r, 1.6);
     if (!mine(rootOf(p))) continue;
-    if (f.t > 1.6 && !f.spread){ f.spread = true; for (const q of [p.parent, ...p.kids]) if (q && !q.fire && R() < 0.75) ignitePart(q); }
+    if (f.t > 2.4 && !f.spread){ f.spread = true; for (const q of [p.parent, ...p.kids]) if (q && !q.fire && R() < 0.6) ignitePart(q); }
     if (f.t >= f.life) ashPart(p);
   }
 }
 
-// ---- you on fire: each part burns on its own; a burned-up arm is gone, a burned-up head or body scraps you ----
-const myFire = {head:null, torso:null, arm0:null, arm1:null}; let fireBy = '';
-function fireBits(){ return (myFire.head ? 1 : 0) | (myFire.torso ? 2 : 0) | (myFire.arm0 ? 4 : 0) | (myFire.arm1 ? 8 : 0); }
+// ---- players on fire: the arms always go first, one at a time, crumbling from the claw up to the
+// shoulder (you watch it happen in first person), then the head and body burn down and you're scrapped
+const BURN_IGN = 1.0, BURN_ARM = 3.2, BURN_BODY = 3.4;
+let myBurn = null, fireBy = '';
 function igniteMe(k, by){
-  if (mode !== 'game' || myFire[k]) return; if (k[0] === 'a' && me.lost[+k[3]]) return;
-  myFire[k] = {t:0, life:k === 'head' ? 9 : 8}; fireBy = by || fireBy; lastCombat = clock;
+  if (mode !== 'game' || myBurn) return;
+  fireBy = by || fireBy; lastCombat = clock;
+  const arms = [0,1].filter(i => !me.lost[i]);
+  const first = k && k[0] === 'a' && !me.lost[+k[3]] ? +k[3] : arms.length ? pick(arms) : -1;
+  const order = []; if (first >= 0){ order.push('arm' + first); if (!me.lost[1-first]) order.push('arm' + (1-first)); } order.push('body');
+  myBurn = {order, cur:0, t:0};
+  showMsg("You're on fire!");
+}
+function burnVals(){
+  const v = [-1, -1, -1]; if (!myBurn) return v;
+  const k = myBurn.order[myBurn.cur], idx = k === 'body' ? 2 : +k[3], sweep = k === 'body' ? BURN_BODY : BURN_ARM;
+  v[idx] = myBurn.t < BURN_IGN ? myBurn.t/BURN_IGN : 1 + Math.min(1, (myBurn.t - BURN_IGN)/sweep);
+  return v;
 }
 function updateMyFire(dt){
-  if (mode !== 'game'){ for (const k in myFire) myFire[k] = null; return; }
-  for (const k of Object.keys(myFire)){
-    const f = myFire[k]; if (!f) continue;
-    f.t += dt; lastCombat = clock;
-    const pos = k === 'head' ? loco.headPos().add(new V(0,0.12,0)) : k === 'torso' ? me.torso.position : handW[+k[3]];
-    partFlames(pos, k === 'torso' ? 0.2 : 0.09, 1.5*dt*30);
-    if (k[0] === 'a') pulse(+k[3], 0.3, 20);
-    if (f.t > 2.5 && !f.spread){ f.spread = true; const next = k === 'torso' ? ['head','arm0','arm1'] : k[0] === 'a' ? ['torso'] : ['torso']; for (const n of next) if (R() < 0.7) igniteMe(n); }
-    if (f.t >= f.life){
-      myFire[k] = null; emitAsh(pos.clone(), 60, 0.15); netSend('ev', {t:'pash', k});
-      if (k[0] === 'a'){ const i = +k[3]; me.lost[i] = true; release(i, true); hs[i] = {mode:'none'}; }
-      else { for (const j in myFire) myFire[j] = null; die(fireBy ? fireBy + "'s fire" : 'fire'); return; }
-    }
+  if (mode !== 'game'){ myBurn = null; return; }
+  if (!myBurn) return;
+  lastCombat = clock;
+  const k = myBurn.order[myBurn.cur];
+  if (k[0] === 'a' && me.lost[+k[3]]){ myBurn.cur++; myBurn.t = 0; return; }    // that arm got ripped off meanwhile
+  myBurn.t += dt;
+  if (k[0] === 'a'){ pulse(+k[3], 0.25 + 0.5*R(), 20); }
+  else { pulse(0, 0.3, 20); pulse(1, 0.3, 20); partFlames(loco.headPos().add(new V((R()-0.5)*0.3, 0.05, (R()-0.5)*0.3)), 0.12, 2); }
+  if (myBurn.t >= BURN_IGN + (k === 'body' ? BURN_BODY : BURN_ARM)){
+    netSend('ev', {t:'pash', k: k === 'body' ? 'head' : k});
+    if (k[0] === 'a'){ const i = +k[3]; emitAsh(handW[i].clone(), 40, 0.12); me.lost[i] = true; release(i, true); hs[i] = {mode:'none'}; myBurn.cur++; myBurn.t = 0; sndSnap(); }
+    else { emitAsh(loco.headPos(), 80, 0.25); myBurn = null; die(fireBy ? fireBy + "'s fire" : 'fire'); }
   }
 }
-
+// draws the burning on any scary robot (yours in first person, or another player's) from three values:
+// arm0, arm1, body. -1 = not burning, 0..1 = catching (charring), 1..2 = crumbling away.
+function avBurnGroup(av, key, objs){
+  av.burn = av.burn || {};
+  let g = av.burn[key]; if (g) return g;
+  g = av.burn[key] = {plane:new T3.Plane(new V(0,1,0), 1e4), saved:[], mats:[], extra:[]};
+  g.ember = emberMat([g.plane]);
+  for (const root of objs) root.traverse(o => {
+    if (!o.isMesh || o.userData.ember) return;
+    const ms = Array.isArray(o.material) ? o.material : [o.material];
+    const cl = ms.map(m => { const c = m.clone(); c.clippingPlanes = [g.plane]; if (c.color) g.mats.push({m:c, base:c.color.clone()}); return c; });
+    g.saved.push({o, mat:o.material}); o.material = Array.isArray(o.material) ? cl : cl[0];
+    const e = new T3.Mesh(o.geometry, g.ember); e.userData.ember = true; o.add(e); g.extra.push([o, e]);
+  });
+  return g;
+}
+function avBurnClear(av, key){
+  const g = av.burn && av.burn[key]; if (!g) return;
+  for (const s of g.saved) s.o.material = s.mat; for (const [o, e] of g.extra) o.remove(e);
+  delete av.burn[key];
+}
+function renderBurn(av, P, vals, firstPerson){
+  const ec = 0.6 + 0.4*Math.sin(clock*23 + 1)*Math.sin(clock*6.1);
+  for (const i of [0,1]){
+    const v = vals[i], key = 'arm' + i;
+    if (!(v >= 0) || av.lost[i]){ avBurnClear(av, key + 'c'); avBurnClear(av, key + 'a'); if (firstPerson) av.arms[i].visible = false; continue; }
+    const cl = av.claws[i], arm = av.arms[i];
+    if (firstPerson) arm.visible = true;                 // so you can look down and watch it go
+    const gc = avBurnGroup(av, key + 'c', [cl]), ga = avBurnGroup(av, key + 'a', [arm]);
+    const char = Math.min(1, v*1.3), s = Math.max(0, v - 1);
+    for (const g of [gc, ga]){ for (const fm of g.mats) fm.m.color.copy(fm.base).multiplyScalar(1 - 0.75*char); g.ember.color.setRGB(1, 0.22 + 0.2*ec, 0.02); }
+    // the burn line runs from the claw tips, up the wrist, up the arm to the shoulder
+    const tipP = P.hands[i].clone().add(new V(0,-0.17,0).applyQuaternion(P.handQ[i])), wr = P.hands[i].clone().add(new V(0,0.08,0).applyQuaternion(P.handQ[i]));
+    const sh = av.torso.position.clone().add(new V(i ? 0.27 : -0.27, 0.12, 0).applyQuaternion(P.yawQ));
+    const Lc = wr.distanceTo(tipP), La = sh.distanceTo(wr), nc = wr.clone().sub(tipP).normalize(), na = sh.clone().sub(wr).normalize();
+    const x = s*(Lc + La);
+    let front;
+    if (x <= Lc){ front = tipP.clone().addScaledVector(nc, x); gc.plane.set(nc, -nc.dot(front) + (s > 0 ? 0 : 0.3)); ga.plane.set(na, -na.dot(wr) + 0.3); }
+    else { front = wr.clone().addScaledVector(na, x - Lc); gc.plane.set(nc, -nc.dot(wr) - 0.3); ga.plane.set(na, -na.dot(front)); }
+    if (s > 0){
+      for (let k=0;k<3;k++) partFlames(front, 0.05, 2);
+      if (R() < 0.8) emitAsh(front, 1 + (R() < 0.4 ? 1 : 0), 0.035);
+      if (R() < 0.2) spawnSparks(front, 1, 1.5);
+    } else {
+      // catching: flames all over the claw and up the arm
+      for (let k=0;k<2;k++) partFlames(tipP.clone().lerp(sh, R()*0.6), 0.06, 2);
+    }
+  }
+  const vb = vals[2], burningAny = vals.some(v => v >= 0);
+  if (!(vb >= 0)){ avBurnClear(av, 'body'); }
+  else {
+    const objs = firstPerson ? [] : [av.head, av.torso];
+    const g = avBurnGroup(av, 'body', objs), s = Math.max(0, vb - 1);
+    for (const fm of g.mats) fm.m.color.copy(fm.base).multiplyScalar(1 - 0.75*Math.min(1, vb*1.3)); g.ember.color.setRGB(1, 0.22 + 0.2*ec, 0.02);
+    const top = P.head.y + 0.2, bot = av.torso.position.y - 0.25, fy = top - s*(top - bot);
+    g.plane.set(new V(0,-1,0), s > 0 ? fy : 1e4);
+    if (!firstPerson){
+      const at = new V(P.head.x, Math.max(fy, bot), P.head.z).lerp(av.torso.position.clone().setY(Math.max(fy, bot)), 0.5);
+      for (let k=0;k<3;k++) partFlames(at, 0.2, 2);
+      if (s > 0 && R() < 0.9) emitAsh(at, 2, 0.15);
+    }
+  }
+  // the rest of you smoulders while it waits its turn
+  if (burningAny && !firstPerson && !(vb >= 0)) partFlames(av.torso.position, 0.18, 0.6);
+}
 // ---- hammer: big swings smash pieces into a shower of bits ----
-function updateHammer(dt){
-  const i = weaponHand, hm = myW[i].hammer, head = hm.head.getWorldPosition(new V());
-  hammerV.lerp(head.clone().sub(hammerPrev).divideScalar(Math.max(dt, 1e-3)), 0.6); hammerPrev.copy(head);
-  const sp = hammerV.length(); if (sp < 2.2 || clock - hammerT < 0.15) return;
+function updateHammer(i, dt){
+  const hm = myW[i].hammer, head = hm.head.getWorldPosition(new V()), hammerV = hammerVs[i];
+  hammerV.lerp(head.clone().sub(hammerPrev[i]).divideScalar(Math.max(dt, 1e-3)), 0.6); hammerPrev[i].copy(head);
+  const sp = hammerV.length(); if (sp < 2.2 || clock - hammerT[i] < 0.15) return;
   for (const p of parts){
-    if (p.obj.userData.dead || centerW(p).distanceTo(head) > p.r + 0.1) continue;
-    hammerT = clock; const root = rootOf(p); if (!mine(root) && root.mode !== 'held') claim(root);
+    if (p.obj.userData.dead || centerW(p).distanceTo(head) > p.r + 0.1 || (hs[i].mode === 'hold' && rootOf(p) === hs[i].root)) continue;
+    if (p.parent && hs[i].mode === 'hold' && rootOf(p) === hs[i].root) continue;      // not what this claw is holding
+    if (p.name === 'mine'){ mineTrigger(p); hammerT[i] = clock; return; }
+    hammerT[i] = clock; const root = rootOf(p); if (!mine(root) && root.mode !== 'held') claim(root);
     pulse(i, 1, 110); sndClank(sp*2.2); spawnSparks(head, 20 + sp*6, sp*0.7); flash(head, 0.45);
     if (sp >= 3.5) smash(p, hammerV.clone());
     else if (p.parent) detach(p, hammerV.clone().multiplyScalar(0.5));
@@ -1814,7 +2017,7 @@ function updateHammer(dt){
   }
   for (const t of playerTargets()){
     const peer = NET.peers[t.id]; if (!peer || t.dist(head) > 0.1 || clock - (peer.hitT || -1) < 0.3) continue;
-    hammerT = clock; peer.hitT = clock; lastCombat = clock;
+    hammerT[i] = clock; peer.hitT = clock; lastCombat = clock;
     pulse(i, 1, 110); sndClank(sp*2.2); spawnSparks(head, 30, 4); flash(head, 0.4);
     const imp = hammerV.clone().multiplyScalar(0.5).add(new V(0, 1, 0)); if (imp.length() > 6) imp.setLength(6);
     netSend('ev', {t:'hit', v:r3(imp.toArray())}, [t.id]);
@@ -1823,10 +2026,158 @@ function updateHammer(dt){
   }
 }
 function smash(p, vel){
+  if (p.name === 'mine'){ mineTrigger(p); return; }
   for (const k of p.kids.slice()) detach(k, vel.clone().multiplyScalar(0.4).add(new V(R()-0.5, 1.5, R()-0.5)));
   if (p.parent) detach(p, vel.clone().multiplyScalar(0.5));
   const n = 16 + Math.floor(R()*12);
   shatter(p, null, Array.from({length:n}, (_, k) => ({id:p.id ? p.id + 'h' + (botCounter++) + '_' + k : null, s:0.015 + R()*0.035})), vel);
+}
+
+
+// ================= mines =================
+// A mine sticks to whatever it's pressed onto (floor, a robot, a friend) and counts down 10 s.
+// It only flashes red, silently, until the last second, when it beeps fast, then blows everything apart.
+// Anyone can grab a mine off themselves (or off anything) and put it somewhere else.
+const mines = [], MINE_FUSE = 10, BLAST = 1.7;
+const mineLightOn = new T3.MeshBasicMaterial({color:0xff1a10, fog:false}), mineLightOff = new T3.MeshBasicMaterial({color:0x330606, fog:false});
+function createMine(id, owner, fuse, by){
+  const p = mkPart('mine', 0.07); const m = makeMine(); p.obj.add(m); p.model = m;
+  p.id = id; partsById.set(id, p); p.owner = owner; p.fuse = fuse; p.by = by || ''; p.spec = {type:'mine'};
+  scene.add(p.obj); mines.push(p); return p;
+}
+function updateMineHand(i, dt){
+  mineCD[i] -= dt;
+  const t = io.trig[i] > 0.5;
+  if (t && !minePrev[i] && mineCD[i] <= 0 && mode === 'game'){ placeMine(i); mineCD[i] = 1.2; }
+  minePrev[i] = t;
+}
+function bodyAnchor(v, k){
+  const av = v === NET.id ? me : NET.peers[v] && NET.peers[v].av; if (!av) return null;
+  if (v === NET.id){ if (mode !== 'game') return null; }
+  else { const peer = NET.peers[v]; if (!(peer.g && peer.g === netGame && peer.m === 'game') || (k === 'head' && peer.headless)) return null; }
+  if (k[0] === 'a' && av.lost[+k[3]]) return null;
+  const o = k === 'head' ? av.head : k === 'torso' ? av.torso : av.claws[+k[3]];
+  return new M4().compose(o.position, o.quaternion, ONE);
+}
+function placeMine(i){
+  const m = myW[i].mine, pos = m.getWorldPosition(new V()), q = m.getWorldQuaternion(new Q());
+  const id = NET.id.slice(0,6) + '-m' + (botCounter++), p = createMine(id, NET.id, MINE_FUSE, myName);
+  pulse(i, 0.6, 50); sndTap(0.3);
+  // onto a friend?
+  let bt = null, btd = 0.1; for (const t of playerTargets()){ const d = t.dist(pos); if (d < btd){ btd = d; bt = t; } }
+  if (bt){
+    const A = bodyAnchor(bt.id, bt.k);
+    if (A){ const inv = A.clone().invert(), l = pos.clone().applyMatrix4(inv), lq = new Q().setFromRotationMatrix(inv).multiply(q);
+      stickMine(p, bt.id, bt.k, l, lq); netSend('ev', {t:'mine', id, f:MINE_FUSE, n:myName, at:{k:'player', v:bt.id, b:bt.k, l:r3(l.toArray()), q:r3(lq.toArray())}}); lastCombat = clock; return; }
+  }
+  // onto a robot (or any piece)?
+  let best = null, bd = 0.05; for (const o of parts){ if (o === p || o.obj.userData.dead || o.name === 'mine') continue; const d = centerW(o).distanceTo(pos) - o.r; if (d < bd){ bd = d; best = o; } }
+  if (best){
+    best.obj.updateMatrixWorld(true);
+    const l = best.obj.worldToLocal(pos.clone()), lq = best.obj.getWorldQuaternion(new Q()).invert().multiply(q);
+    attach(best, p, l.x, l.y, l.z); p.obj.quaternion.copy(lq); p.restQ.copy(lq); p.mode = 'free';
+    netSend('ev', {t:'mine', id, f:MINE_FUSE, n:myName, at:{k:'part', pid:best.id, l:r3(l.toArray()), q:r3(lq.toArray())}});
+    const b = best.bot; if (b && !b.dead && R() < 0.4) say(b, pick(['what is this','is that ticking?','a gift for me?']));
+    return;
+  }
+  // otherwise it's dropped (or thrown) wherever the claw is
+  p.obj.position.copy(pos); p.obj.quaternion.copy(q); p.mode = 'free'; p.v.copy(hv[i]).multiplyScalar(0.9); p.w.set(0,0,0);
+  netSend('ev', {t:'mine', id, f:MINE_FUSE, n:myName, at:{k:'free', p:r3(pos.toArray()), q:r3(q.toArray()), v:r3(p.v.toArray())}});
+}
+function stickMine(p, v, k, l, lq){ p.stuck = {v, k, l, q:lq}; p.mode = 'stuck'; p.v.set(0,0,0); }
+function placeRemoteMine(ev, from){
+  if (partsById.has(ev.id)) return;
+  const p = createMine(ev.id, from, ev.f, ev.n), at = ev.at;
+  if (at.k === 'player'){ stickMine(p, at.v, at.b, new V().fromArray(at.l), new Q().fromArray(at.q)); }
+  else if (at.k === 'part' && partsById.get(at.pid)){ const par = partsById.get(at.pid); attach(par, p, at.l[0], at.l[1], at.l[2]); p.obj.quaternion.fromArray(at.q); p.restQ.copy(p.obj.quaternion); p.mode = 'free'; }
+  else if (at.p){ p.obj.position.fromArray(at.p); p.obj.quaternion.fromArray(at.q); p.mode = 'free'; p.v.fromArray(at.v || [0,0,0]); }
+  if (at.v === NET.id && at.k === 'player') lastCombat = clock;
+}
+// taking a mine off whatever it's on (quietly: no wires, no sparks)
+function freeMine(p, remote){
+  if (p.stuck){ p.stuck = null; p.mode = 'free'; }
+  if (p.parent){ p.parent.kids.splice(p.parent.kids.indexOf(p), 1); p.parent = null; scene.attach(p.obj); p.mode = 'free'; p.asleep = false; }
+  if (!remote && netGame) netSend('ev', {t:'munst', m:p.id});
+}
+function mineTrigger(p){ if (p.fuse > 0.12){ p.fuse = 0.12; netSend('ev', {t:'mfuse', m:p.id, f:0.12}); } }
+let beepT = 0;
+function mineBeep(vol){ if (!AC) return; const o = AC.createOscillator(), g = AC.createGain(), t = AC.currentTime; o.type = 'square'; o.frequency.value = 2900;
+  g.gain.setValueAtTime(0.09*vol, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.045); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+0.05); }
+function updateMines(dt){
+  for (let n = mines.length-1; n >= 0; n--){
+    const p = mines[n]; if (p.obj.userData.dead){ mines.splice(n, 1); continue; }
+    if (p.stuck){
+      const A = bodyAnchor(p.stuck.v, p.stuck.k);
+      if (!A) freeMine(p, true);                       // they died or lost that arm: it falls off
+      else { p.obj.position.copy(p.stuck.l).applyMatrix4(A); p.obj.quaternion.setFromRotationMatrix(A).multiply(p.stuck.q); }
+    }
+    p.fuse -= dt;
+    // a red blink that gets faster; silent until the last second, then rapid beeps
+    const per = p.fuse > 1 ? Math.max(0.18, 0.18 + (p.fuse - 1)*0.09) : 0.1;
+    p.model.light.material = (p.fuse % per) < 0.06 ? mineLightOn : mineLightOff;
+    p.model.light.scale.setScalar((p.fuse % per) < 0.06 ? 1.5 : 1);
+    if (p.fuse < 1 && p.fuse > 0){ p.beepT = (p.beepT || 0) - dt; if (p.beepT <= 0){ p.beepT = 0.085; const d = centerW(p).distanceTo(lastPlayer); mineBeep(1/(1 + d*0.6)); } }
+    if (p.fuse <= 0 && (mine(p) || p.fuse < -1.5)){ const pos = centerW(p); netSend('ev', {t:'boom', m:p.id, p:r3(pos.toArray())}); blast(pos, p, NET.id); }
+  }
+}
+// ---- the explosion ----
+const boomMat = new T3.MeshBasicMaterial({color:0xffa040, transparent:true, opacity:0.8, blending:T3.AdditiveBlending, depthWrite:false, fog:false, side:T3.DoubleSide});
+const booms = [];
+function sndBoom(vol){ if (!AC) return; noiseHit(1.4, 180, 0.6, 1.2*vol); noiseHit(0.6, 900, 0.8, 0.7*vol); tone('sine', 90, 25, 0.9, 0.9*vol); for (let i=0;i<8;i++) noiseHit(0.05, 3000 + R()*3000, 2, 0.2*vol, AC.currentTime + 0.1 + R()*0.6); }
+function blast(pos, minePart, by){
+  if (minePart){ if (minePart.obj.userData.dead) return; for (const i of [0,1]) if (hs[i].root === minePart) hs[i] = {mode:'none'}; minePart.stuck = null; removePart(minePart, true); }
+  // the look: a white-hot flash, a fireball shell, fire flung in every direction, sparks and smoke
+  flash(pos, 3.5); flash(pos.clone().add(new V(0,0.2,0)), 2.5);
+  const sh = new T3.Mesh(new T3.SphereGeometry(1, 20, 14), boomMat.clone()); sh.position.copy(pos); sh.scale.setScalar(0.1); scene.add(sh); booms.push({m:sh, t:0});
+  for (let k=0;k<110;k++){ const d = new V(R()-0.5, R()-0.3, R()-0.5).normalize(); emitFire(pos.clone().addScaledVector(d, 0.05), d.multiplyScalar(3 + R()*6), 0.05 + R()*0.08, 0.35 + R()*0.5); }
+  spawnSparks(pos, 220, 9); emitAsh(pos, 70, 0.3);
+  const dist = pos.distanceTo(lastPlayer); sndBoom(Math.min(1, 2.2/(1 + dist*0.5)));
+  if (dist < 5){ const k = 1 - dist/5; pulse(0, k, 250); pulse(1, k, 250); }
+  const remote = by;                                       // everyone applies the same blast; pieces belong to whoever set it off
+  const out = (p, f) => { const c = centerW(p), d = c.clone().sub(pos), L = d.length(); d.y = Math.abs(d.y) + 0.4; return d.normalize().multiplyScalar(f*(1 - Math.min(1, L/BLAST))*(0.8 + R()*0.4)); };
+  const near = parts.filter(p => !p.obj.userData.dead && centerW(p).distanceTo(pos) < BLAST + p.r);
+  const deadBefore = new Set(bots.filter(b => b.dead));
+  // other mines nearby go off too
+  for (const p of near) if (p.name === 'mine' && p.fuse > 0.15) p.fuse = 0.15 + R()*0.1;
+  // the closest pieces are blown to bits, everything else in range is torn off and thrown
+  for (const p of near){
+    if (p.obj.userData.dead || p.name === 'mine') continue;
+    const d = centerW(p).distanceTo(pos);
+    if (d < 0.5 + p.r*0.5 && p.r < 0.3){
+      for (const k of p.kids.slice()) if (k.name === 'mine') freeMine(k, true); else detach(k, out(k, 7), remote);
+      if (p.parent) detach(p, out(p, 7), remote);
+      for (const i of [0,1]) if (hs[i].root === p || hs[i].part === p) hs[i] = {mode:'none'};
+      shatter(p, remote, Array.from({length:7}, (_, k) => ({id:p.id ? p.id + 'x' + k : null, s:0.02 + R()*0.035})), out(p, 9));
+    }
+  }
+  for (const p of near){
+    if (p.obj.userData.dead || p.name === 'mine') continue;
+    if (p.parent && centerW(p).distanceTo(pos) < BLAST*0.8) detach(p, out(p, 8), remote);
+  }
+  for (const p of near){
+    if (p.obj.userData.dead || p.parent || p.name === 'mine') continue;
+    for (const i of [0,1]) if (hs[i].root === p) hs[i] = {mode:'none'};
+    p.owner = remote; p.mode = 'free'; p.asleep = false; p.v.add(out(p, 8)); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(18);
+  }
+  for (const b of bots) if (!b.dead && centerW(b.root).distanceTo(pos) < BLAST*0.7) killBot(b, true);
+  if (by === NET.id) score += bots.filter(b => b.dead && !deadBefore.has(b)).length;
+  // players: each one works out their own damage; everyone sees the debris
+  if (mode === 'game'){
+    const hd = Math.min(loco.headPos().distanceTo(pos), segDist(pos, loco.headPos(), loco.headPos().add(new V(0,-1.1,0))));
+    if (hd < 3.2){ const k = 1 - hd/3.2, push = loco.headPos().sub(pos).setY(0.6).normalize().multiplyScalar(7*k); knockV.copy(push); knockT = 0.22; lastCombat = clock; }
+    for (const i of [0,1]) if (!me.lost[i] && handW[i].distanceTo(pos) < 1.05){ me.lost[i] = true; release(i, true); hs[i] = {mode:'none'}; debris(handW[i], 0x3c4048); }
+    if (hd < 0.95){ debris(loco.headPos(), 0x26292e); die(minePart && minePart.by ? minePart.by + "'s mine" : 'a mine'); }
+  }
+  for (const peer of Object.values(NET.peers)){
+    if (!peer.P || !(peer.g && peer.g === netGame) || mode !== 'game') continue;
+    for (const i of [0,1]) if (!peer.lost[i] && peer.P.hands[i].distanceTo(pos) < 1.05) debris(peer.P.hands[i], 0x3c4048);
+  }
+}
+function debris(at, hex){ for (let k=0;k<6;k++){ const c = makeChunk(null, 0.03 + R()*0.04, hex, NET.id); c.obj.position.copy(at).add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.15)); c.v.set(R()-0.5, R()*0.8, R()-0.5).multiplyScalar(7); c.w.set(R(), R(), R()).multiplyScalar(20); scene.add(c.obj); } spawnSparks(at, 60, 5); }
+function updateBooms(dt){
+  for (let i = booms.length-1; i >= 0; i--){ const b = booms[i]; b.t += dt; const k = b.t/0.35;
+    if (k >= 1){ scene.remove(b.m); b.m.geometry.dispose(); booms.splice(i, 1); continue; }
+    b.m.scale.setScalar(0.15 + Math.sqrt(k)*0.95); b.m.material.opacity = 0.5*(1 - k)*(1 - k); b.m.material.color.setRGB(1, 0.55 - k*0.4, 0.15 - k*0.12); }
 }
 
 // ================= players ripping players =================
@@ -1948,7 +2299,7 @@ const MAX_LOOSE = 110;
 function despawn(dt){
   const loose = [];
   for (const p of parts){
-    if (p.parent || p.obj.userData.dead || p.mode !== 'free' || !mine(p)) continue;
+    if (p.parent || p.obj.userData.dead || p.mode !== 'free' || !mine(p) || p.name === 'mine') continue;
     if (p.bot && !p.bot.dead && p === p.bot.root) continue;
     loose.push(p);
   }
@@ -1995,7 +2346,7 @@ function readXR(frame){
     if (gp){
       const bv = k => gp.buttons[k] ? gp.buttons[k].value : 0, bt = k => !!(gp.buttons[k] && (gp.buttons[k].touched || gp.buttons[k].pressed));
       io.trig[i] = bv(0); io.gripV[i] = bv(1);
-      io.grip[i] = io.gripV[i] > 0.5 || (io.trig[i] > 0.5 && !((weapon === 'saw' || weapon === 'flame') && weaponHand === i));
+      io.grip[i] = io.gripV[i] > 0.5 || (io.trig[i] > 0.5 && (wpn[i] === 'none' || wpn[i] === 'hammer'));
       io.thumb[i] = bt(3) || bt(4) || bt(5);
       if (i === 0) io.yBtn = !!(gp.buttons[5] && gp.buttons[5].pressed);
       if (i === 1) io.stickX = gp.axes.length > 2 ? gp.axes[2] : 0;
@@ -2030,6 +2381,7 @@ function vrStep(dt){
   for (const i of [0,1]) if (!io.pads[i]){ io.gripV[i] = io.trig[i] = io.grip[i] ? 1 : 0; }
   const P = {head, headQ, yawQ, hands:handW, handQ:handQW, grip:io.grip, gripV:io.gripV, trig:io.trig, thumb:io.thumb};
   poseAvatar(me, P); if (mode === 'lobby') poseAvatar(meMirror, P);
+  renderBurn(me, P, mode === 'game' ? burnVals() : [-1, -1, -1], true);
   // lobby button
   if (mode === 'lobby' && !fadeDir){
     let pressed = false;
@@ -2043,7 +2395,7 @@ function vrStep(dt){
       w.caps.forEach(c => c.position.y = w.top + (by >= 0 ? 0.01 : 0.03));
       if (by >= 0 && !w.down && !me.lost[by]) chooseWeapon(w.k, by);
       w.down = by >= 0;
-      const sel = weapon === w.k; w.caps.forEach(c => c.material.emissive.setHex(sel ? 0x553311 : 0x000000));
+      const sel = wpn.includes(w.k); w.caps.forEach(c => c.material.emissive.setHex(sel ? 0x553311 : 0x000000));
       (w.models || []).forEach(m => { m.rotation.y += sel ? 0.03 : 0.008; });
     }
     if (pressed){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); netGame = null; goto('game'); }
@@ -2089,10 +2441,10 @@ function worldStep(dt, player){
   despawn(dt);
   applyRemoteState();
   for (let i = respawnTimers.length-1; i >= 0; i--){ respawnTimers[i] -= dt; if (respawnTimers[i] <= 0){ respawnTimers.splice(i,1); if (mode === 'game' || !netGame){ const b = makeBot(pick(BOT_COLORS), farCell(player)); if (netGame) netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(b.root.obj.position.x), z:r3(b.root.obj.position.z)}); } } }
-  for (let i = bots.length-1; i >= 0; i--) if (bots[i].dead && bots[i].deadT > 6) bots.splice(i,1);
+  for (let i = bots.length-1; i >= 0; i--){ const b = bots[i]; if (b.dead && b.deadT > 6 && (b.chkT = (b.chkT || 0) - dt) <= 0){ b.chkT = 2; if (!parts.some(p => p.bot === b && !p.obj.userData.dead)) bots.splice(i,1); } }
 
   scene.updateMatrixWorld();
-  updateClips();
+  updateClips(); updateKerfs(); updateMines(dt); updateBooms(dt);
   ropes(dt);
   netTick(dt);
   updateBurning(dt); updateFire(dt);
@@ -2104,19 +2456,25 @@ function worldStep(dt, player){
 // directly over WebRTC, which stays on the local network when both headsets share Wi-Fi.
 const NET = {id:'local-' + Math.random().toString(36).slice(2,10), peers:{}, send:null, ready:false};
 const myName = 'Robot-' + (1000 + Math.floor(R()*9000));
-let netGame = null, netT = 0, helloT = 0, poseT = 0;
+let netGame = null, netT = 0, helloT = 0, poseT = 0, gameJoinT = 0, needT = 0, needTries = 0, gotSnap = false;
 const r3 = v => Array.isArray(v) ? v.map(x => Math.round(x*1000)/1000) : Math.round(v*1000)/1000;
 function mine(root){ return !netGame || !root.owner || root.owner === NET.id; }
 function netSend(type, data, target){ if (NET.send) try { NET.send(type, data, target); } catch(e){} }
 function gameMembers(){ return [NET.id].concat(Object.keys(NET.peers).filter(id => NET.peers[id].g === netGame && netGame)); }
-function hostId(){ const m = gameMembers(), creator = netGame ? netGame.split('~')[0] : null; return m.includes(creator) ? creator : m.slice().sort()[0]; }
+// the host is whoever has been in this match the longest (someone who died and came back is the newest)
+function joinedAt(id){ if (id === NET.id) return mode === 'game' && netGame ? gameJoinT/1000 : Infinity; const p = NET.peers[id]; return p && p.gt != null ? p.gt : Infinity; }
+function hostId(){
+  const m = gameMembers(), t0 = Math.min(...m.map(joinedAt));
+  const c = t0 === Infinity ? m : m.filter(id => joinedAt(id) - t0 < 1.5);
+  return c.slice().sort()[0];
+}
 function isHost(){ return !netGame || hostId() === NET.id; }
 function claim(root){ root.owner = NET.id; if (netGame && root.id) netSend('ev', {t:'claim', r:root.id}); }
 function resetWorld(){
   for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead) removePart(p, true);
   bots.length = 0; respawnTimers.length = 0; wires.length = 0;
 }
-function netHello(target){ netSend('hi', {n:myName, m:mode, g:netGame}, target); }
+function netHello(target){ netSend('hi', {n:myName, m:mode, g:netGame, ga:mode === 'game' && netGame ? (performance.now() - gameJoinT)/1000 : -1}, target); }
 function playTogether(){
   const others = Object.entries(NET.peers);
   const live = others.find(([id,p]) => p.g);
@@ -2151,7 +2509,7 @@ function onPose(a, from){
     hands:[new V(a[8],a[9],a[10]), new V(a[15],a[16],a[17])], handQ:[unpackQ(a,11), unpackQ(a,18)],
     trig:[a[22],a[25]], gripV:[a[23],a[26]], thumb:[!!a[24], !!a[27]], grip:[a[23]>0.5, a[26]>0.5]};
   if (!p.P) p.P = tgt; p.T = tgt;
-  p.lost[0] = !!a[28]; p.lost[1] = !!a[29]; p.wHand = a.length > 30 ? a[30] : -1; p.sawExt = a.length > 31 ? a[31] : 0; p.wType = a.length > 32 ? a[32] : 0; p.fireBits = a.length > 33 ? a[33] : 0;
+  p.lost[0] = !!a[28]; p.lost[1] = !!a[29]; p.wType = [a[30] || 0, a[31] || 0]; p.wAct = [a[32] || 0, a[33] || 0]; p.burnV = a.length > 36 ? [a[34], a[35], a[36]] : [-1, -1, -1];
 }
 function updateRemoteAvatars(){
   for (const p of Object.values(NET.peers)){
@@ -2163,19 +2521,16 @@ function updateRemoteAvatars(){
     const here = p.m === mode && (mode === 'lobby' || (p.g && p.g === netGame));
     setAvVisible(p.av, here); setAvVisible(p.avM, here && mode === 'lobby'); p.tag.visible = here && !p.headless;
     if (p.headless){ p.av.head.visible = false; }
-    if (!p.wp) p.wp = [p.av, p.avM].map(av => [0,1].map(i => { const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer()}; av.claws[i].add(w.saw, w.hammer, w.flame); return w; }));
+    if (!p.wp) p.wp = [p.av, p.avM].map(av => [0,1].map(i => weaponSet(av.claws[i])));
     p.wp.forEach((set, mi) => set.forEach((w, i) => {
-      const on = here && (mi === 0 || mode === 'lobby') && p.wHand === i;
-      w.saw.visible = on && p.wType === 2; w.hammer.visible = on && p.wType === 1; w.flame.visible = on && p.wType === 3;
-      if (w.flame.visible && mi === 0 && p.sawExt > 0.5) shootFlames(w.flame, 2);
-      if (w.saw.visible){ w.saw.bar.scale.y = Math.max(0.001, p.sawExt); if (p.sawExt > 0.5) w.saw.chain.map.offset.y -= 0.12; }
+      const on = here && (mi === 0 || mode === 'lobby'), t = p.wType[i], act = p.wAct[i];
+      w.saw.visible = on && t === 2; w.hammer.visible = on && t === 1; w.flame.visible = on && t === 3; w.mine.visible = on && t === 4 && act > 0.5;
+      if (w.flame.visible && mi === 0 && act > 0.5) shootFlames(w.flame, 2);
+      if (w.saw.visible){ w.saw.bar.scale.y = Math.max(0.001, act); if (act > 0.5) w.saw.chain.map.offset.y -= 0.12; }
     }));
-    if (here && p.fireBits){
-      const spots = [[1, P.head, 0.13], [2, p.av.torso.position, 0.2], [4, P.hands[0], 0.08], [8, P.hands[1], 0.08]];
-      for (const [bit, pos, r] of spots) if (p.fireBits & bit) partFlames(pos, r, 1);
-    }
     if (here){
       poseAvatar(p.av, P); if (mode === 'lobby') poseAvatar(p.avM, P); p.tag.position.copy(P.head).add(new V(0, 0.32, 0)); p.head.copy(P.head);
+      renderBurn(p.av, P, mode === 'game' && p.burnV ? p.burnV : [-1, -1, -1], false);
       if (p.pull){
         const jit = new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.012);
         if (p.pull.k === 'head') p.av.head.position.add(p.pull.off).add(jit);
@@ -2189,7 +2544,8 @@ function sendPose(){
   const a = [...head.toArray(), hq.x, hq.y, hq.z, hq.w, io.yaw + io.headYaw];
   for (const i of [0,1]) a.push(...handW[i].toArray(), handQW[i].x, handQW[i].y, handQW[i].z, handQW[i].w);
   for (const i of [0,1]) a.push(io.trig[i], io.gripV[i], io.thumb[i] ? 1 : 0);
-  a.push(me.lost[0] ? 1 : 0, me.lost[1] ? 1 : 0, weapon === 'none' ? -1 : weaponHand, weapon === 'saw' ? myW[weaponHand].saw.ext : weapon === 'flame' && flameOn ? 1 : 0, weapon === 'hammer' ? 1 : weapon === 'saw' ? 2 : weapon === 'flame' ? 3 : 0, fireBits());
+  const WT = {none:0, hammer:1, saw:2, flame:3, mine:4}, act = i => wpn[i] === 'saw' ? myW[i].saw.ext : wpn[i] === 'flame' && flameOn[i] ? 1 : wpn[i] === 'mine' && mineCD[i] > 0 ? 0 : 1;
+  a.push(me.lost[0] ? 1 : 0, me.lost[1] ? 1 : 0, WT[wpn[0]], WT[wpn[1]], act(0), act(1), ...burnVals());
   netSend('pose', r3(a));
 }
 // world state: every root I own is streamed; everyone else eases toward it
@@ -2197,7 +2553,7 @@ const remoteState = new Map();
 function sendState(){
   const list = [];
   for (const p of parts){
-    if (p.parent || !p.id || p.obj.userData.dead || !mine(p)) continue;
+    if (p.parent || !p.id || p.obj.userData.dead || !mine(p) || p.stuck) continue;
     const o = p.obj, e = {i:p.id, p:r3(o.position.toArray()), q:r3(o.quaternion.toArray()), m:p.mode};
     const kids = subtree(p).slice(1); if (kids.length) e.k = kids.map(k => [k.id, ...r3(k.obj.position.toArray()), ...r3(k.obj.quaternion.toArray())]);
     if (p.bot && p === p.bot.root){ e.f = p.bot.face; e.s = p.bot.said || ''; }
@@ -2215,7 +2571,7 @@ function onState(list, from){
 }
 function applyRemoteState(){
   for (const [id, {e}] of remoteState){
-    const p = partsById.get(id); if (!p || p.obj.userData.dead || mine(p) || p.parent){ remoteState.delete(id); continue; }
+    const p = partsById.get(id); if (!p || p.obj.userData.dead || mine(p) || p.parent || p.stuck){ remoteState.delete(id); continue; }
     p.obj.position.lerp(tmpV.fromArray(e.p), 0.35); p.obj.quaternion.slerp(tmpQ.fromArray(e.q), 0.35); p.mode = e.m;
     if (e.k) for (const k of e.k){ const c = partsById.get(k[0]); if (c && c.parent && rootOf(c) === p){ c.obj.position.set(k[1],k[2],k[3]); c.obj.quaternion.set(k[4],k[5],k[6],k[7]); } }
     const b = p.bot;
@@ -2224,7 +2580,7 @@ function applyRemoteState(){
 }
 function onEvent(ev, from){
   const p = ev.p ? partsById.get(ev.p) : null;
-  if (ev.t === 'spawn'){ if (!bots.some(b => b.id === ev.b) && mode === 'game') { const b = makeBot(ev.c, new V(ev.x, STAND, ev.z), ev.b); b.root.owner = from; } }
+  if (ev.t === 'spawn'){ if (!bots.some(b => b.id === ev.b) && mode === 'game' && netGame && (!NET.peers[from] || NET.peers[from].g === netGame)) { const b = makeBot(ev.c, new V(ev.x, STAND, ev.z), ev.b); b.root.owner = from; } }
   else if (ev.t === 'det'){ if (p && p.parent){ detach(p, new V().fromArray(ev.v), from); } if (p) p.owner = from; }
   else if (ev.t === 'claim'){ const r = partsById.get(ev.r); if (r && !r.parent){ for (const i of [0,1]) if (hs[i].root === r) release(i, true); r.owner = from; } }
   else if (ev.t === 'slice'){ if (p && !p.parent) slicePart(p, new V().fromArray(ev.n), ev.d, ev.ids, from, ev.v ? new V().fromArray(ev.v) : null); }
@@ -2232,9 +2588,16 @@ function onEvent(ev, from){
   else if (ev.t === 'burn'){ if (p) ignitePart(p, from); }
   else if (ev.t === 'ash'){ if (p) ashPart(p, from); }
   else if (ev.t === 'ignite'){ igniteMe(ev.k, ev.n); }
-  else if (ev.t === 'pash'){ const peer = NET.peers[from]; if (peer && peer.P){ const pos = ev.k === 'head' ? peer.P.head : ev.k === 'torso' ? peer.av.torso.position : peer.P.hands[+ev.k[3]]; emitAsh(pos.clone(), 50, 0.15); if (ev.k[0] === 'a') peer.lost[+ev.k[3]] = true; } }
-  else if (ev.t === 'aslice'){ const r = partsById.get(ev.r); if (r && !r.obj.userData.dead){ if (r.parent) detach(r, null, from); sliceAssembly(r, new V().fromArray(ev.n), ev.info, from); } }
+  else if (ev.t === 'pash'){ const peer = NET.peers[from]; if (peer && peer.P){ const pos = ev.k === 'head' ? peer.P.head : ev.k === 'torso' ? peer.av.torso.position : peer.P.hands[+ev.k[3]]; emitAsh(pos.clone(), ev.k === 'head' ? 90 : 45, ev.k === 'head' ? 0.25 : 0.12); if (ev.k[0] === 'a') peer.lost[+ev.k[3]] = true; } }
+  else if (ev.t === 'kerf'){ const r = partsById.get(ev.r); if (r && !r.obj.userData.dead && !r.parent){ kerfEnd(kerfs.get(r)); for (const i of [0,1]) if (cutJobs[i] && cutJobs[i].root === r) cutJobs[i] = null; const f = ev.f, v3 = k => new V(f[k], f[k+1], f[k+2]); const j = kerfStart(r, v3(0), v3(3), v3(6), v3(9), from); j.tip = -1; j.a0 = j.a1 = 0; j.seen = clock; } }
+  else if (ev.t === 'kerfp'){ const r = partsById.get(ev.r), j = r && kerfs.get(r); if (j && j.remote){ j.seen = clock; [j.tip, j.a0, j.a1] = ev.x; kerfExtent(j); const {P, u, d} = kerfFrame(j); spawnSparks(P.addScaledVector(u, j.tip).addScaledVector(d, (j.dLo + j.dHi)/2 || 0), 6, 3.5); } }
+  else if (ev.t === 'kerfx'){ const r = partsById.get(ev.r); if (r) kerfEnd(kerfs.get(r)); }
+  else if (ev.t === 'aslice'){ const r = partsById.get(ev.r); if (r){ kerfEnd(kerfs.get(r)); for (const i of [0,1]) if (cutJobs[i] && cutJobs[i].root === r) cutJobs[i] = null; } if (r && !r.obj.userData.dead){ if (r.parent) detach(r, null, from); sliceAssembly(r, new V().fromArray(ev.n), ev.info, from); } }
   else if (ev.t === 'rm'){ if (p) removePart(p, true); }
+  else if (ev.t === 'mine'){ if (mode === 'game' && netGame) placeRemoteMine(ev, from); }
+  else if (ev.t === 'munst'){ const m = partsById.get(ev.m); if (m) freeMine(m, true); }
+  else if (ev.t === 'mfuse'){ const m = partsById.get(ev.m); if (m && m.fuse > ev.f) m.fuse = ev.f; }
+  else if (ev.t === 'boom'){ const m = partsById.get(ev.m); if (mode === 'game') blast(new V().fromArray(ev.p), m && !m.obj.userData.dead ? m : null, from); }
   else if (ev.t === 'prip'){
     const pos = new V().fromArray(ev.p), q = ev.q ? new Q().fromArray(ev.q) : null;
     if (ev.v === NET.id){
@@ -2264,13 +2627,16 @@ function sendSnapshot(to){
   const extras = [];
   for (const p of parts){
     if (p.obj.userData.dead || !p.id || !p.spec) continue;
-    extras.push({id:p.id, spec:p.spec, o:p.owner || NET.id, p:r3(p.obj.position.toArray()), q:r3(p.obj.quaternion.toArray())});
+    const spec = p.name === 'mine' ? {type:'mine', f:r3(p.fuse), n:p.by, st:p.stuck ? {v:p.stuck.v, k:p.stuck.k, l:r3(p.stuck.l.toArray()), q:r3(p.stuck.q.toArray())} : null} : p.spec;
+    extras.push({id:p.id, spec, o:p.owner || NET.id, p:r3(p.obj.position.toArray()), q:r3(p.obj.quaternion.toArray())});
   }
   const tree = parts.filter(p => p.id && !p.obj.userData.dead).map(p => [p.id, p.parent ? p.parent.id : null, r3(p.obj.position.toArray()), r3(p.obj.quaternion.toArray())]);
-  netSend('ev', {t:'snap', bots:list, extras, tree}, [to]);
+  const burn = parts.filter(p => p.fire && p.id && !p.obj.userData.dead).map(p => [p.id, r3(p.fire.t)]);
+  netSend('ev', {t:'snap', bots:list, extras, tree, burn}, [to]);
 }
 function fromSpec(id, spec, owner){
   if (spec.type === 'trophy') return makeTrophy(spec.k, id, new V(), owner);
+  if (spec.type === 'mine'){ const m = createMine(id, owner, spec.f, spec.n); if (spec.st) stickMine(m, spec.st.v, spec.st.k, new V().fromArray(spec.st.l), new Q().fromArray(spec.st.q)); return m; }
   if (spec.type === 'chunk'){ const c = makeChunk(id, spec.s, spec.col, owner); scene.add(c.obj); return c; }
   if (spec.type === 'half'){
     let base = partsById.get(spec.base), temp = null;
@@ -2285,6 +2651,7 @@ function fromSpec(id, spec, owner){
 }
 function loadSnapshot(ev){
   if (mode !== 'game' || !netGame) return;
+  gotSnap = true;
   for (const s of ev.bots){
     if (bots.some(b => b.id === s.b)) continue;
     const b = makeBot(s.c, farCell(SPAWN), s.b); b.root.owner = s.o;
@@ -2295,7 +2662,7 @@ function loadSnapshot(ev){
   for (const e of ev.extras || []){
     if (partsById.has(e.id) || e.spec.type === 'half' && false) continue;
     const p = fromSpec(e.id, e.spec, e.o); if (!p) continue;
-    p.mode = 'free'; p.obj.position.fromArray(e.p); p.obj.quaternion.fromArray(e.q); p.obj.updateMatrixWorld(true);
+    if (!p.stuck) p.mode = 'free'; p.obj.position.fromArray(e.p); p.obj.quaternion.fromArray(e.q); p.obj.updateMatrixWorld(true);
   }
   // rebuild who is attached to what (cut-up robots), then drop originals that no longer exist
   for (const [id, pid, pos, q] of ev.tree || []){
@@ -2305,8 +2672,9 @@ function loadSnapshot(ev){
     if (want && p.parent !== want){ want.obj.add(p.obj); p.parent = want; want.kids.push(p); }
     if (!want && !p.parent && p.obj.parent !== scene) scene.attach(p.obj);
     p.obj.position.fromArray(pos); p.obj.quaternion.fromArray(q);
-    if (want){ p.rest.copy(p.obj.position); p.restQ.copy(p.obj.quaternion); } else p.mode = p.mode === 'bot' ? 'bot' : 'free';
+    if (want){ p.rest.copy(p.obj.position); p.restQ.copy(p.obj.quaternion); } else if (!p.stuck) p.mode = p.mode === 'bot' ? 'bot' : 'free';
   }
+  for (const [id, t] of ev.burn || []){ const q = partsById.get(id); if (q && !q.fire){ ignitePart(q, true); q.fire.t = t; } }
   for (const s of ev.bots) for (const id of s.gone){ const q = partsById.get(id); if (q){ for (const k of q.kids.slice()){ q.kids.splice(q.kids.indexOf(k),1); k.parent = null; scene.attach(k.obj); } if (q.parent){ q.parent.kids.splice(q.parent.kids.indexOf(q),1); q.parent = null; scene.attach(q.obj); } removePart(q, true); } }
 }
 let boardKey = '';
@@ -2331,6 +2699,7 @@ function netTick(dt){
   helloT -= dt; if (helloT <= 0){ helloT = 1; netHello(); adoptOrphans(); for (const [id,p] of Object.entries(NET.peers)) if (performance.now() - p.seen > 6000){ dropAvatar(p); delete NET.peers[id]; } }
   if ((renderer.xr.isPresenting || window.__vr) && inited){ poseT -= dt; if (poseT <= 0){ poseT = 1/20; sendPose(); } }
   if (netGame && mode === 'game'){ netT -= dt; if (netT <= 0){ netT = 1/12; sendState(); } }
+  if (netGame && mode === 'game' && !gotSnap && needTries && needTries < 6){ needT -= dt; if (needT <= 0){ needT = 1.5; needTries++; if (!isHost()) netSend('ev', {t:'need'}); } }
   updateRemoteAvatars(); updateBoard();
 }
 function onHello(d, from){
@@ -2338,6 +2707,7 @@ function onHello(d, from){
   if (p.g !== d.g) p.headless = false;
   const wasMember = netGame && p.g === netGame;
   Object.assign(p, {n:d.n, m:d.m, g:d.g, seen:performance.now()});
+  p.gt = d.g && d.ga != null && d.ga >= 0 ? performance.now()/1000 - d.ga : null;
   if (p.tag && p.tagName !== d.n){ p.tag.parent && p.tag.parent.remove(p.tag); p.tag = nameTag(d.n); scene.add(p.tag); }
   p.tagName = d.n;
   if (!wasMember && netGame && d.g === netGame && mode === 'game' && isHost()) sendSnapshot(from);
@@ -2372,7 +2742,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124022658';
+const BUILD = '20261124032104';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
