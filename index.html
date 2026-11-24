@@ -2541,6 +2541,9 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   // pillars from the floor
   for (const [x, z, r, h] of [[22, 22, 1.8, 3.2], [16, 18, 1.3, 1.6], [27, 15, 1.4, 2.4], [29, 26, 1.5, 4.6], [17, 28, 1.3, 3.8], [12, 23, 1.1, 2.0], [24, 31, 1.2, 5.4], [32, 20, 1.2, 1.4]]){
     B.meshSolid('rock', new T3.CylinderGeometry(r, r*1.15, h, 9), x, h/2, z, 0.25); B.meshSolid('ledge', rockGeo(r*1.6, 0.45, r*1.6, x*3 + z), x, h - 0.07, z, 0.25); }
+  // tall rock spires out in the middle, high enough to stay above the lava
+  for (const [x, z, r, h] of [[15, 13, 1.3, 9.5], [31, 31, 1.4, 11], [13, 31, 1.2, 13.5], [33, 14, 1.3, 8.2], [22, 36, 1.2, 15.5], [22, 7.5, 1.1, 12]]){
+    B.meshSolid('rock', new T3.CylinderGeometry(r*0.85, r*1.3, h, 10), x, h/2, z, 0.25); B.meshSolid('ledge', rockGeo(r*2.4, 0.5, r*2.4, x*5 + z*3), x, h - 0.1, z, 0.25); }
   // rubble
   for (let k=0;k<26;k++){ const a = mr()*6.3, rr = 5 + mr()*13, x = CX + Math.cos(a)*rr, z = CZ + Math.sin(a)*rr, s = 0.25 + mr()*0.45; B.meshSolid('rock', rockGeo(s*2, s*1.1, s*2, x*7 + z), x, s*0.55, z, 0.2); }
   for (const [k, x, z] of [['rock', 20, 14], ['rock', 25, 28], ['crystal', 18, 25], ['crystal', 30, 18], ['stick', 15, 20], ['cone', 26, 22], ['rock', 12, 18], ['barrel', 23, 12]]) B.prop(k, x, 0, z);
@@ -2551,6 +2554,10 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   lg.fillStyle = '#d0380a'; lg.fillRect(0,0,128,128); for (let k=0;k<40;k++){ const x = R()*128, y = R()*128, r = 10 + R()*22, gr = lg.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,220,90,0.8)'); gr.addColorStop(1, 'rgba(255,120,20,0)'); lg.fillStyle = gr; for (const dx of [-128, 0, 128]) for (const dy of [-128, 0, 128]) lg.fillRect(x - r + dx, y - r + dy, r*2, r*2); }
   const lavaT = new T3.CanvasTexture(lavaC); lavaT.wrapS = lavaT.wrapT = T3.RepeatWrapping; lavaT.repeat.set(3, 3); lavaT.anisotropy = 4; lavaT.encoding = T3.sRGBEncoding;
   const lava = new T3.Mesh(new T3.CircleGeometry(RC + 3, 48), new T3.MeshBasicMaterial({map:lavaT, fog:false})); lava.rotation.x = -Math.PI/2; lava.position.set(CX + O.x, -0.5, CZ + O.z); grp.add(lava);
+  // rock rafts: they sit on the floor, and float up on the lava when it rises
+  const rafts = [[19, 17, 2.6, 2.2], [26, 25, 2.4, 2.6], [17, 26, 2.2, 2.2], [28, 18, 2.4, 2.0], [22, 13, 2.0, 2.4], [24, 30, 2.6, 2.0], [11, 17, 2.0, 2.0], [33, 25, 2.2, 2.2]].map(([x, z, w, d], i) => {
+    const mesh = new T3.Mesh(rockGeo(w, 0.6, d, i*13 + 7), new T3.MeshLambertMaterial({map:rockT, color:0x6a4a40, emissive:0x1a0804})); mesh.position.set(x + O.x, 0.3, z + O.z); grp.add(mesh);
+    return {mesh, box:dynBox(), x:x + O.x, z:z + O.z, w, d, ph:i*1.7, y:0.3}; });
   const P = 100, CALM = 55, RUMBLE = 6, RISE = 15, HOLD = 14;
   const levelAt = ph => ph < CALM + RUMBLE ? -0.5 : ph < CALM + RUMBLE + RISE ? -0.5 + (LAVA_TOP + 0.5)*((ph - CALM - RUMBLE)/RISE) : ph < CALM + RUMBLE + RISE + HOLD ? LAVA_TOP : -0.5 + (LAVA_TOP + 0.5)*Math.max(0, 1 - (ph - CALM - RUMBLE - RISE - HOLD)/(P - CALM - RUMBLE - RISE - HOLD));
   let warned = false, rumbleT = 0, bubbleT = 0;
@@ -2560,7 +2567,9 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     sky:{bg:0x2a1410, fog:0x3a1a12, near:18, far:70, hs:0xffc8a0, hg:0x502010, hi:0.9, ac:0xffd8c0, ai:0.3},
     update(dt, inGame){
       const ph = (Date.now()/1000) % P, lv = levelAt(ph), shaking = ph > CALM && ph < CALM + RUMBLE + RISE*0.4;
-      lava.position.y = lv; lavaT.offset.x = (Date.now()/1000)*0.01; lavaT.offset.y = Math.sin(Date.now()/4000)*0.05;
+      lava.position.y = lv;
+      for (const r of rafts){ const want = Math.max(0.3, lv + 0.18 + Math.sin(Date.now()/900 + r.ph)*(lv > 0.3 ? 0.06 : 0)); r.y += (want - r.y)*Math.min(1, dt*3);
+        r.mesh.position.y = r.y; r.mesh.rotation.z = lv > 0.3 ? Math.sin(Date.now()/1300 + r.ph)*0.04 : 0; setDyn(r.box, r.x - r.w/2, r.y - 0.3, r.z - r.d/2, r.x + r.w/2, r.y + 0.3, r.z + r.d/2); } lavaT.offset.x = (Date.now()/1000)*0.01; lavaT.offset.y = Math.sin(Date.now()/4000)*0.05;
       lava.material.color.setRGB(1, 0.85 + 0.15*Math.sin(Date.now()/400), 0.8 + 0.2*Math.sin(Date.now()/700));
       // the whole place shakes while it's rumbling
       grp.position.set(shaking ? (R()-0.5)*0.05 : 0, shaking ? (R()-0.5)*0.03 : 0, shaking ? (R()-0.5)*0.05 : 0);
@@ -2572,7 +2581,9 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
       if (lv > 0){ bubbleT -= dt; if (bubbleT <= 0){ bubbleT = 0.08; const a = R()*6.3, rr = R()*RC, p = new V(CX + Math.cos(a)*rr + O.x, lv + 0.05, CZ + Math.sin(a)*rr + O.z); if (p.distanceTo(lastPlayer) < 14) emitFire(p, new V(0, 1 + R(), 0), 0.12 + R()*0.1, 0.6); } }
       // you in the lava: you catch fire and burn up fast. Pulled out or not, you're toast.
       const head = loco.headPos(), feetY = head.y - 1.0;
-      const dipped = performance.now() - gameJoinT > 1500 && inCrater(head) && (feetY < lv || [0,1].some(i => !me.lost[i] && handW[i].distanceTo(head) < 1.6 && handW[i].y < lv + 0.02));
+      const fy = floorBelow(head);                       // standing on a raft or ledge above the lava is safe
+      const dipped = performance.now() - gameJoinT > 1500 && inCrater(head) && (head.y - 0.25 < lv || (fy < lv - 0.05 && feetY < lv) ||
+        [0,1].some(i => !me.lost[i] && handW[i].distanceTo(head) < 1.6 && handW[i].y < lv + 0.02 && floorBelow(handW[i].clone().setY(handW[i].y + 0.1)) < lv - 0.05));
       if (dipped && lv > 0){ igniteMe('torso', 'the lava', 3); }
       // pieces and robots burn and sink
       for (const p of parts){
@@ -5496,7 +5507,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124170712';
+const BUILD = '20261124171246';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
