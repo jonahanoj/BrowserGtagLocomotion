@@ -669,9 +669,10 @@ const rangeTex = signTex(600, 240, (g,W,Hh) => { g.textAlign = 'center'; g.fillS
   g.font = 'bold 40px VT323, monospace'; [['DUMMIES','#ff9a3a'],['WALK','#5ab4ff'],['CLEAR','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/3, 150); }); g.fillStyle = '#fff8d8'; g.font = '26px Rubik, sans-serif'; g.fillText('push with a claw', W/2, 210); });
 let lobbyMode = (() => { try { return localStorage.getItem('gmode') || 'free'; } catch(e){ return 'free'; } })(), rolePref = (() => { try { return localStorage.getItem('role') || 'random'; } catch(e){ return 'random'; } })();
 const skCaps = [], roleCaps = [];
-const labelCanvas = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 256; const t = new T3.CanvasTexture(c); t.encoding = T3.sRGBEncoding; t.redraw = () => { const g = c.getContext('2d'); g.fillStyle = '#16120a'; g.fillRect(0,0,256,256); g.strokeStyle = '#e2cf72'; g.lineWidth = 8; g.strokeRect(6,6,244,244); g.textAlign = 'center'; draw(g); t.needsUpdate = true; }; t.redraw(); return t; };
-const modeTex = labelCanvas(g => { g.fillStyle = '#c9cdd2'; g.font = 'bold 36px VT323, monospace'; g.fillText('GAME MODE', 128, 62); g.fillStyle = lobbyMode === 'imp' ? '#ff6a5e' : '#7fe07a'; g.font = 'bold 44px VT323, monospace'; g.fillText(lobbyMode === 'imp' ? 'IMPOSTER' : 'FREE PLAY', 128, 140); g.fillStyle = '#fff8d8'; g.font = '26px Rubik, sans-serif'; g.fillText('push to change', 128, 210); });
-const roleTex = labelCanvas(g => { g.fillStyle = '#c9cdd2'; g.font = 'bold 34px VT323, monospace'; g.fillText('I WANT TO BE', 128, 62); g.fillStyle = '#c0a0ff'; g.font = 'bold 48px VT323, monospace'; g.fillText(rolePref.toUpperCase(), 128, 140); g.fillStyle = '#fff8d8'; g.font = '26px Rubik, sans-serif'; g.fillText('(imposter only)', 128, 210); });
+const labelCanvas = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 256; const t = new T3.CanvasTexture(c); t.encoding = T3.sRGBEncoding; t.redraw = () => { const g = c.getContext('2d'); g.fillStyle = '#16120a'; g.fillRect(0,0,256,256); g.strokeStyle = '#e2cf72'; g.lineWidth = 8; g.strokeRect(6,6,244,244); g.textAlign = 'center'; g.fit = (txt, y, px, fam) => { let n = px; do { g.font = fam.replace('#', n); n -= 2; } while (n > 10 && g.measureText(txt).width > 206); g.fillText(txt, 128, y); }; draw(g); t.needsUpdate = true; }; t.redraw(); return t; };
+const modeTex = labelCanvas(g => { g.fillStyle = '#c9cdd2'; g.fit('GAME MODE', 62, 32, 'bold #px VT323, monospace'); g.fillStyle = lobbyMode === 'imp' ? '#ff6a5e' : '#7fe07a'; g.fit(lobbyMode === 'imp' ? 'IMPOSTER' : 'FREE PLAY', 140, 40, 'bold #px VT323, monospace'); g.fillStyle = '#fff8d8'; g.fit('push to change', 210, 24, '#px Rubik, sans-serif'); });
+const roleTex = labelCanvas(g => { g.fillStyle = '#c9cdd2'; g.fit('I WANT TO BE', 62, 32, 'bold #px VT323, monospace'); g.fillStyle = '#c0a0ff'; g.fit(rolePref.toUpperCase(), 140, 44, 'bold #px VT323, monospace'); g.fillStyle = '#fff8d8'; g.fit('(imposter only)', 210, 24, '#px Rubik, sans-serif'); });
+try { document.fonts.ready.then(() => { modeTex.redraw(); roleTex.redraw(); }); } catch(e){}
 const mapTex = signTex(1900, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK A MAP', W/2, 62);
   g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('then RED = play solo,  BLUE = play online', W/2, 108);
@@ -5647,13 +5648,13 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124182619';
+const BUILD 20261124182910= '__BUILD__';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
   try {
     const t = await (await fetch(location.pathname + '?u=' + Date.now(), {cache:'no-store'})).text();
-    const m = t.match(/const BUILD = '([^']+)'/); if (m && m[1] !== BUILD) updateReady = true;
+    const m = t.match(/const BUILD 20261124182910= '([^']+)'/); if (m && m[1] !== BUILD) updateReady = true;
   } catch(e){}
 }
 setInterval(checkUpdate, 30000);
