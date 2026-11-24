@@ -9,6 +9,7 @@ A WebXR VR game for Meta Quest. You're a scary robot in the Backrooms, moving wi
 - **Grip** to grab a bot or any part. Grab a second part with your other hand and pull to rip it off.
 - Swing fast to punch parts off. Throw bots and parts into walls to smash them.
 - Right thumbstick snap-turns. **Y** returns to the lobby. Score and time are on your left wrist.
+- **Multiplayer:** open the page on another headset (same Wi-Fi works best). The lobby board shows who's online; push the blue **PLAY TOGETHER** button to start or join a shared game. Players find each other through [Trystero](https://github.com/dmotz/trystero) and then connect directly with WebRTC.
 
 ## Credits
 Locomotion is a JavaScript port of [Another Axiom's GorillaLocomotion](https://github.com/Another-Axiom/GorillaLocomotion) (`Player.cs`), MIT License — see `LICENSE-GorillaLocomotion`. Rendering uses three.js r128.

@@ -50,8 +50,10 @@ li{margin:3px 0}
     <li>Hold grip to grab a bot. Grab another part with your other hand and pull to rip it off.</li>
     <li>Swing fast to punch parts off. Throw bots and parts at walls to smash them.</li>
     <li>Right thumbstick snap-turns. Y goes back to the lobby.</li>
+    <li>Multiplayer: open this page on another headset on the same Wi-Fi, then push the blue PLAY TOGETHER button in the lobby.</li>
   </ul>
   <div class="st" id="st">Drag to look around in the preview.</div>
+  <div class="st" id="net">Connecting to multiplayer...</div>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
@@ -331,6 +333,7 @@ const MIR = LB.x0 + TW/2;                          // mirror plane = inner face 
 const WIN = {z0:1.1, z1:5.9, y1:2.5};              // mirror opening
 const PED = {x:-18.9, z:2.3, top:0.55, cap:0.2};    // PLAY button pedestal (front-right of spawn)
 const LOBBY_SPAWN = new V(-17.9, 0, 3.6), LOBBY_YAW = Math.PI/2;
+const PED2 = {x:-18.9, z:4.9, top:0.55, cap:0.2};   // PLAY TOGETHER (front-left of spawn)
 addBox([LB.x0-1,-1,LB.z0-1],[LB.x1+1,0,LB.z1+1]); addBox([LB.x0-1,H,LB.z0-1],[LB.x1+1,H+1,LB.z1+1]);
 addBox([LB.x0-TW/2,0,LB.z0-TW/2],[LB.x0+TW/2,H,LB.z1+TW/2]);
 addBox([LB.x1-TW/2,0,LB.z0-TW/2],[LB.x1+TW/2,H,LB.z1+TW/2]);
@@ -338,6 +341,8 @@ addBox([LB.x0,0,LB.z0-TW/2],[LB.x1,H,LB.z0+TW/2]);
 addBox([LB.x0,0,LB.z1-TW/2],[LB.x1,H,LB.z1+TW/2]);
 addBox([PED.x-0.25,0,PED.z-0.25],[PED.x+0.25,PED.top,PED.z+0.25]);
 addBox([PED.x-PED.cap,PED.top,PED.z-PED.cap],[PED.x+PED.cap,PED.top+0.08,PED.z+PED.cap]);
+addBox([PED2.x-0.25,0,PED2.z-0.25],[PED2.x+0.25,PED2.top,PED2.z+0.25]);
+addBox([PED2.x-PED2.cap,PED2.top,PED2.z-PED2.cap],[PED2.x+PED2.cap,PED2.top+0.08,PED2.z+PED2.cap]);
 
 // ================= renderer / scene =================
 const canvas = $('c');
@@ -438,6 +443,17 @@ const helpTex = signTex(640, 400, (g,W,Hh) => {
   ['HOLD GRIP  grab a bot or any part','GRAB WITH BOTH HANDS  pull to rip it apart','SWING FAST  punch parts off','THROW  smash parts on the walls','PRESS Y  come back to this lobby','PUSH THE RED BUTTON  play']
     .forEach((s,i) => g.fillText(s, 34, 36 + i*58));
 });
+const boardCanvas = document.createElement('canvas'); boardCanvas.width = 512; boardCanvas.height = 300;
+const boardTex = new T3.CanvasTexture(boardCanvas); boardTex.encoding = T3.sRGBEncoding;
+function drawBoard(lines){
+  const g = boardCanvas.getContext('2d'), W = 512, Hh = 300;
+  g.fillStyle = '#0b1220'; g.fillRect(0,0,W,Hh); g.strokeStyle = '#3aa0ff'; g.lineWidth = 10; g.strokeRect(5,5,W-10,Hh-10);
+  g.fillStyle = '#3aa0ff'; g.font = 'bold 64px VT323, monospace'; g.textAlign = 'center'; g.fillText('PLAY TOGETHER', W/2, 66);
+  g.font = '30px Rubik, sans-serif'; g.fillStyle = '#e8f2ff';
+  lines.slice(0,5).forEach((l,i) => g.fillText(l, W/2, 120 + i*40));
+  boardTex.needsUpdate = true;
+}
+drawBoard(['Looking for players on the network...']);
 function plane(parent, tex, w, h, x, y, z, ry){ const m = new T3.Mesh(new T3.PlaneGeometry(w,h), new T3.MeshBasicMaterial({map:tex})); m.position.set(x,y,z); m.rotation.y = ry; parent.add(m); return m; }
 function buildLobby(parent, real){
   const walls = [
@@ -453,6 +469,10 @@ function buildLobby(parent, real){
   for (const [x,z] of [[-17.8,1.9],[-17.8,5.1],[-14.2,1.9],[-14.2,5.1]]){ const m = new T3.Mesh(panelGeo, lightMat); m.position.set(x,H-0.004,z); parent.add(m); }
   const cap = new T3.Mesh(new T3.CylinderGeometry(PED.cap, PED.cap, 0.08, 32), new T3.MeshLambertMaterial({color:0xe8261b, emissive:0x5a0500}));
   cap.position.set(PED.x, PED.top+0.04, PED.z); parent.add(cap);
+  parent.add(Object.assign(wallMesh([{min:[PED2.x-0.25,0,PED2.z-0.25], max:[PED2.x+0.25,PED2.top,PED2.z+0.25]}])));
+  const cap2 = new T3.Mesh(new T3.CylinderGeometry(PED2.cap, PED2.cap, 0.08, 32), new T3.MeshLambertMaterial({color:0x1f7bff, emissive:0x05204a}));
+  cap2.position.set(PED2.x, PED2.top+0.04, PED2.z); parent.add(cap2); caps2.push(cap2);
+  const board = plane(parent, boardTex, 1.1, 0.645, PED2.x - 0.35, 1.25, PED2.z, Math.PI/2);
   plane(parent, playTex, 1.3, 0.51, PED.x, 1.25, LB.z0+TW/2+0.006, 0);
   const arrow = new T3.Mesh(new T3.ConeGeometry(0.12,0.25,4), new T3.MeshBasicMaterial({color:0xff3b2f})); arrow.rotation.x = Math.PI; arrow.position.set(PED.x, 1.05, PED.z); arrow.userData.bob = true; parent.add(arrow);
   plane(parent, helpTex, 1.9, 1.19, -14.6, 1.25, LB.z1-TW/2-0.006, Math.PI);
@@ -466,6 +486,7 @@ function buildLobby(parent, real){
   }
   return cap;
 }
+const caps2 = [];
 const mirrorWorld = new T3.Group(); mirrorWorld.scale.x = -1; mirrorWorld.position.x = 2*MIR; scene.add(mirrorWorld);
 const caps = [buildLobby(scene, true), buildLobby(mirrorWorld, false)];
 
@@ -523,31 +544,63 @@ function addWires(obj, local, count, outDir){
     for (let i=0;i<6;i++){ const p = a.clone().addScaledVector(dir, i*segL); pts.push(p); prev.push(p.clone()); }
     wires.push({obj, local:local.clone().add(new V(R()-0.5,R()-0.5,R()-0.5).multiplyScalar(0.03)), pts, prev, segL, col:WCOL[Math.floor(R()*WCOL.length)]});
   }
-  if (wires.length > 600) wires.splice(0, wires.length - 600);
 }
+function trimWires(){ if (wires.length > 450) wires.splice(0, wires.length - 450); }
 // tethers: wires still joining two ripped pieces; they stretch, then snap one by one
 function addTethers(objA, localA, objB, localB, count){
   const a = objA.localToWorld(localA.clone()), b = objB.localToWorld(localB.clone());
   for (let k=0;k<count;k++){
     const pts = [], prev = [], n = 9, jit = () => new V(R()-0.5,R()-0.5,R()-0.5).multiplyScalar(0.03);
     for (let i=0;i<n;i++){ const p = a.clone().lerp(b, i/(n-1)); pts.push(p); prev.push(p.clone()); }
-    wires.push({obj:objA, local:localA.clone().add(jit()), obj2:objB, local2:localB.clone().add(jit()), pts, prev, segL:0.03, maxLen:0.35 + R()*0.7, col:WCOL[Math.floor(R()*WCOL.length)]});
+    const rope = 0.16 + R()*0.22;
+    wires.push({obj:objA, local:localA.clone().add(jit()), obj2:objB, local2:localB.clone().add(jit()), pts, prev, segL:rope/(n-1), rope, maxLen:rope + 0.3 + R()*0.45, col:WCOL[Math.floor(R()*WCOL.length)]});
   }
 }
 const taut = [];
+// Wires still joining two pieces after the joint broke act like ropes: the loose piece hangs,
+// swings and gets dragged. Held or running pieces are fixed; free pieces get pulled.
+const massOf = root => subtree(root).reduce((m,p) => m + p.r**3, 0);
+function ropes(dt){
+  const best = new Map();
+  for (const w of wires){
+    if (!w.obj2 || w.obj.userData.dead || w.obj2.userData.dead) continue;
+    const a = w.obj.userData.part ? rootOf(w.obj.userData.part) : null, b = w.obj2.userData.part ? rootOf(w.obj2.userData.part) : null;
+    if (!a || !b || a === b) continue;
+    const key = a.obj.id + ':' + b.obj.id, cur = best.get(key);
+    if (!cur || w.rope < cur.w.rope) best.set(key, {w, a, b});
+  }
+  for (const {w, a, b} of best.values()){
+    const pA = w.obj.localToWorld(w.local.clone()), pB = w.obj2.localToWorld(w.local2.clone());
+    const d = pB.clone().sub(pA), L = d.length(); if (L <= w.rope) continue;
+    const kA = a.mode !== 'free' || !mine(a), kB = b.mode !== 'free' || !mine(b); if (kA && kB) continue;
+    const n = d.divideScalar(L), ex = L - w.rope;
+    let fa, fb; if (!kA && !kB){ const ma = massOf(a), mb = massOf(b); fa = mb/(ma+mb); fb = ma/(ma+mb); } else { fa = kA ? 0 : 1; fb = kB ? 0 : 1; }
+    const vrel = b.v.clone().sub(a.v).dot(n);
+    if (vrel > 7.5){ w.yank = true; continue; }
+    for (const [r, f, sgn, p] of [[a, fa, 1, pA], [b, fb, -1, pB]]){
+      if (!f) continue;
+      r.obj.position.addScaledVector(n, sgn*ex*f);
+      if (vrel > 0) r.v.addScaledVector(n, sgn*vrel*f*1.02);
+      const c = centerW(r); r.w.add(p.clone().sub(c).cross(n.clone().multiplyScalar(sgn)).multiplyScalar(ex*90*f)); r.w.multiplyScalar(0.97);
+      r.grounded = false; r.still = 0; r.asleep = false; r.obj.updateMatrixWorld(true);
+    }
+  }
+}
 function updateWires(dt){
   segN = 0;
+  const snapped = [];
   for (let i = wires.length-1; i >= 0; i--){
     const w = wires[i];
+    if (!w) continue;
     if (w.obj.userData.dead || (w.obj2 && w.obj2.userData.dead)){ wires.splice(i,1); continue; }
     w.obj.localToWorld(w.pts[0].copy(w.local));
     const last = w.pts.length-1;
     if (w.obj2){
       w.obj2.localToWorld(w.pts[last].copy(w.local2));
-      if (w.pts[0].distanceTo(w.pts[last]) > w.maxLen){
+      if (w.pts[0].distanceTo(w.pts[last]) > w.maxLen || w.yank){
         wires.splice(i,1); const mid = w.pts[last >> 1];
         spawnSparks(mid, 18, 2.5); flash(mid, 0.18); if (AC){ noiseHit(0.06, 5000, 3, 0.18); tone('sawtooth', 1800, 300, 0.07, 0.04); }
-        addWires(w.obj, w.local, 1); addWires(w.obj2, w.local2, 1);
+        snapped.push(w);
         continue;
       }
     }
@@ -570,6 +623,8 @@ function updateWires(dt){
     seg(tmpV2.copy(t.a).add(o).clone(), t.b.clone().add(o), WCOL[k], 0.009);
   }
   taut.length = 0;
+  for (const w of snapped){ addWires(w.obj, w.local, 1); addWires(w.obj2, w.local2, 1); }
+  trimWires();
   wireMesh.count = segN; wireMesh.instanceMatrix.needsUpdate = true; if (wireMesh.instanceColor) wireMesh.instanceColor.needsUpdate = true;
 }
 
@@ -646,6 +701,7 @@ const STAND = 0.36;
 
 const parts = [];
 let clock = 0;
+const partsById = new Map();
 function mkPart(name, r, c){ const obj = new T3.Group(); const p = {obj, name, r, c:c || new V(), parent:null, kids:[], rest:new V(), restQ:new Q(), mode:'free', v:new V(), w:new V(), holdHand:-1, bot:null, still:0, born:clock}; obj.userData.part = p; parts.push(p); return p; }
 function mesh(p, geo, mat, x, y, z){ const m = new T3.Mesh(geo, mat); m.position.set(x||0, y||0, z||0); p.obj.add(m); return m; }
 function attach(parent, child, x, y, z){ parent.obj.add(child.obj); child.obj.position.set(x,y,z); child.rest.set(x,y,z); child.restQ.copy(child.obj.quaternion); child.parent = parent; parent.kids.push(child); }
@@ -655,7 +711,9 @@ const isAnc = (a, b) => { for (let q=b; q; q=q.parent) if (q === a) return true;
 const subtree = (p, out=[]) => { out.push(p); for (const k of p.kids) subtree(k, out); return out; };
 
 const bots = [];
-function makeBot(color, pos){
+let botCounter = 0;
+function makeBot(color, pos, id){
+  id = id || (NET.id.slice(0,6) + '-' + (botCounter++));
   const accent = new T3.MeshBasicMaterial({color});
   const bot = {color, dead:false, t:R()*10, sayT:3+R()*6, blinkT:R()*3, sp:null, spT:0, speed:2.3+R()*0.5, prev:null, face:'idle', deadT:0};
   const body = mkPart('body', 0.22); mesh(body, G.body, white); mesh(body, G.guts, gutsMat, 0, 0.01, 0.1605);
@@ -672,8 +730,9 @@ function makeBot(color, pos){
     const ft = mkPart('foot', 0.06, new V(0,-0.025,0.02)); mesh(ft, G.foot, white, 0, -0.025, 0.02); attach(lg, ft, 0, -0.12, 0);
     bot.ups.push(up); bot.legs.push(lg);
   }
-  Object.assign(bot, {root:body, head, faceP:face});
-  for (const p of subtree(body)) p.bot = bot;
+  Object.assign(bot, {root:body, head, faceP:face, id});
+  subtree(body).forEach((p, n) => { p.bot = bot; p.id = id + '.' + n; partsById.set(p.id, p); });
+  body.owner = NET.id;
   body.mode = 'bot'; body.obj.position.set(pos.x, STAND, pos.z); scene.add(body.obj);
   const c = cellOf(pos); bot.cell = c; bot.target = cellPos(c[0], c[1]);
   bots.push(bot); return bot;
@@ -695,6 +754,7 @@ function bubble(text){
   const sp = new T3.Sprite(new T3.SpriteMaterial({map:t, depthTest:false, transparent:true})); sp.scale.set(0.9, 0.28, 1); sp.renderOrder = 10; return sp;
 }
 function say(bot, text){
+  bot.said = text || '';
   if (bot.dead && text) return; if (bot.sp){ bot.sp.parent && bot.sp.parent.remove(bot.sp); bot.sp = null; }
   if (!text) return; bot.sp = bubble(text); bot.sp.position.set(0, 0.66, 0); bot.head.obj.add(bot.sp); bot.spT = 2.4;
 }
@@ -703,19 +763,20 @@ const cellOf = p => [Math.min(N-1,Math.max(0,Math.floor(p.x/C))), Math.min(N-1,M
 const cellPos = (x,y) => new V((x+0.5)*C, STAND, (y+0.5)*C);
 function farCell(from){ for (let i=0;i<200;i++){ const x = Math.floor(R()*N), y = Math.floor(R()*N); if (cellPos(x,y).distanceTo(new V(from.x,STAND,from.z)) > 13) return cellPos(x,y); } return cellPos(0,0); }
 const BOT_COLORS = [0xff7a66, 0x7dffb0, 0xc6a3ff, 0xffd23d, 0x6fd3ff, 0xff8fd6];
-for (let i=0;i<4;i++) makeBot(BOT_COLORS[i], farCell(SPAWN));
 let score = 0, respawnTimers = [];
 
-function killBot(bot){
-  if (bot.dead) return; bot.dead = true; say(bot, null); setFace(bot, 'dead'); bot.deadT = 0; score++;
+function killBot(bot, remote){
+  if (bot.dead) return; bot.dead = true; say(bot, null); setFace(bot, 'dead'); bot.deadT = 0; if (!remote) score++;
   if (bot.root.mode === 'bot'){ bot.root.mode = 'free'; bot.root.v.set(0,0,0); }
-  respawnTimers.push(3);
+  if (!netGame || isHost()) respawnTimers.push(3);
 }
-function detach(p, vel){
+function detach(p, vel, remote){
   const parent = p.parent; if (!parent) return;
+  if (!remote && netGame && p.id) netSend('ev', {t:'det', p:p.id, v:vel ? r3(vel.toArray()) : [0,0,0]});
+  p.owner = remote || NET.id;
   const S = parent.obj.localToWorld(p.rest.clone());
   parent.kids.splice(parent.kids.indexOf(p), 1); p.parent = null;
-  scene.attach(p.obj); p.mode = 'free'; p.holdHand = -1;
+  scene.attach(p.obj); p.mode = 'free'; p.holdHand = -1; p.born = clock; p.asleep = false;
   p.v.copy(vel || new V()); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(8);
   const out = S.clone().sub(centerW(parent)).normalize();
   addWires(parent.obj, p.rest.clone(), 3 + Math.floor(R()*3), out);
@@ -724,18 +785,20 @@ function detach(p, vel){
   spawnSparks(S, 70, 3.5); flash(S, 0.5); sndSnap();
   const bot = p.bot;
   if (bot && !bot.dead){
-    if (p.name === 'head' || (p.name === 'face' && R() < 0.5)) killBot(bot);
+    if (p.name === 'head' || (p.name === 'face' && !remote && R() < 0.5)) killBot(bot, !!remote);
     else { setFace(bot, 'dizzy'); bot.faceT = 0.8; say(bot, pick(OW)); }
   }
   return S;
 }
-function removePart(root){
-  for (const p of subtree(root)){ p.obj.userData.dead = true; const i = parts.indexOf(p); if (i >= 0) parts.splice(i,1); }
+function removePart(root, quiet){
+  if (!quiet && netGame && root.id) netSend('ev', {t:'rm', p:root.id});
+  for (const p of subtree(root)){ p.obj.userData.dead = true; const i = parts.indexOf(p); if (i >= 0) parts.splice(i,1); if (p.id) partsById.delete(p.id); }
   root.obj.parent && root.obj.parent.remove(root.obj);
   for (const i of [0,1]) if (hs[i].root === root) hs[i] = {mode:'none'};
 }
 const chunkGeo = new T3.BoxGeometry(1,1,1);
-function shatter(p){
+function shatter(p, remote){
+  if (!remote && netGame && p.id) netSend('ev', {t:'shat', p:p.id});
   const c = centerW(p), mat = (p.obj.children.find(o => o.isMesh) || {}).material || grey;
   const n = 4 + Math.floor(R()*3);
   for (let k=0;k<n;k++){
@@ -744,7 +807,7 @@ function shatter(p){
     ch.v.copy(p.v).multiplyScalar(0.3).add(new V(R()-0.5, R()*0.8, R()-0.5).multiplyScalar(4)); ch.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(20);
     scene.add(ch.obj);
   }
-  spawnSparks(c, 90, 4.5); flash(c, 0.7); sndSnap(); removePart(p);
+  spawnSparks(c, 90, 4.5); flash(c, 0.7); sndSnap(); removePart(p, true);
 }
 
 // ================= player: scary robot avatar =================
@@ -773,18 +836,24 @@ function makeScary(parent, full){
   for (let i=0;i<4;i++) tm(new T3.BoxGeometry(0.36,0.015,0.01), dk2, 0, -0.08-i*0.035, -0.172);
   parent.add(torso); av.torso = torso;
   av.arms = [0,1].map(() => { const m = new T3.Mesh(new T3.CylinderGeometry(0.04,0.05,1,8), dk2); parent.add(m); return m; });
+  // WebXR gripSpace: palm faces -X (right hand) / +X (left hand), fingers point -Y, thumb points -Z, +Y runs up the arm
   av.claws = [0,1].map(i => {
-    const g = new T3.Group(), cm = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
-    cm(new T3.BoxGeometry(0.085,0.035,0.095), dk, 0, 0, 0.005);
-    cm(new T3.BoxGeometry(0.06,0.04,0.06), dk2, 0, 0.005, 0.07);
+    const side = i ? 1 : -1;                       // which way the BACK of the hand faces (+X right, -X left)
+    const g = new T3.Group(), cm = (geo, mat, x, y, z, par) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); (par || g).add(m); return m; };
+    cm(new T3.BoxGeometry(0.035,0.09,0.085), dk, 0, 0.0, 0);
+    cm(new T3.BoxGeometry(0.05,0.05,0.065), dk2, side*0.004, 0.065, 0);
+    for (let k=0;k<3;k++) cm(new T3.ConeGeometry(0.008,0.03,4), dk2, side*0.02, 0.0+k*0.025-0.02, 0.0).rotation.z = -side*Math.PI/2;
     g.fingers = [];
-    for (let f=0; f<4; f++){
-      const piv = new T3.Group(); piv.position.set(f === 3 ? (i ? -0.05 : 0.05) : -0.03+f*0.03, 0, f === 3 ? -0.0 : -0.045);
-      if (f === 3) piv.rotation.y = i ? 0.9 : -0.9;
-      const cone = new T3.Mesh(new T3.ConeGeometry(0.013,0.1,6), dk2); cone.rotation.x = -Math.PI/2; cone.position.z = -0.05; piv.add(cone);
-      const tip = new T3.Mesh(new T3.ConeGeometry(0.007,0.03,5), redGlow); tip.rotation.x = -Math.PI/2; tip.position.z = -0.1; piv.add(tip);
+    for (let f=0; f<3; f++){                       // f=0 index (thumb side, -Z) ... f=2 pinky
+      const piv = new T3.Group(); piv.position.set(-side*0.006, -0.045, -0.026 + f*0.026);
+      const cone = cm(new T3.ConeGeometry(0.013,0.1,6), dk2, 0, -0.05, 0, piv); cone.rotation.x = Math.PI;
+      const tip = cm(new T3.ConeGeometry(0.007,0.03,5), redGlow, 0, -0.105, 0, piv); tip.rotation.x = Math.PI;
       g.add(piv); g.fingers.push(piv);
     }
+    const th = new T3.Group(); th.position.set(-side*0.012, -0.005, -0.045);
+    const tc = cm(new T3.ConeGeometry(0.014,0.085,6), dk2, 0, 0, -0.042, th); tc.rotation.x = -Math.PI/2;
+    const tt = cm(new T3.ConeGeometry(0.007,0.028,5), redGlow, 0, 0, -0.092, th); tt.rotation.x = -Math.PI/2;
+    g.add(th); g.thumb = th; g.side = side; g.curl = [0.3,0.3,0.3]; g.thumbAmt = 0;
     parent.add(g); return g;
   });
   return av;
@@ -797,11 +866,14 @@ function poseAvatar(av, P){
   av.torso.position.copy(P.head).add(new V(0,-0.34,0.1).applyQuaternion(P.yawQ)); av.torso.quaternion.copy(P.yawQ);
   for (const i of [0,1]){
     const sh = av.torso.position.clone().add(new V(i ? 0.27 : -0.27, 0.12, 0).applyQuaternion(P.yawQ));
-    const wr = P.hands[i].clone().add(new V(0,0,0.08).applyQuaternion(P.handQ[i]));
+    const wr = P.hands[i].clone().add(new V(0,0.08,0).applyQuaternion(P.handQ[i]));
     const d = wr.clone().sub(sh), L = Math.max(0.01, d.length());
     av.arms[i].position.copy(sh).add(wr).multiplyScalar(0.5); av.arms[i].quaternion.setFromUnitVectors(UP, d.divideScalar(L)); av.arms[i].scale.set(1, L, 1);
     const cl = av.claws[i]; cl.position.copy(P.hands[i]); cl.quaternion.copy(P.handQ[i]);
-    const curl = P.grip[i] ? -1.0 : -0.25; cl.fingers.forEach((f,k) => f.rotation.x = k === 3 ? curl*0.6 : curl);
+    const tgt = [P.trig[i], P.gripV[i], P.gripV[i]];
+    cl.fingers.forEach((f,k) => { cl.curl[k] += ((0.25 + tgt[k]*1.25) - cl.curl[k])*0.5; f.rotation.z = -cl.side*cl.curl[k]; });
+    cl.thumbAmt += ((P.thumb[i] ? 1 : 0) - cl.thumbAmt)*0.4;
+    cl.thumb.rotation.x = -cl.thumbAmt*1.15; cl.thumb.rotation.y = -cl.side*(0.25 + cl.thumbAmt*0.35);
   }
 }
 
@@ -809,7 +881,7 @@ function poseAvatar(av, P){
 const wristCanvas = document.createElement('canvas'); wristCanvas.width = 256; wristCanvas.height = 128;
 const wristTex = new T3.CanvasTexture(wristCanvas); wristTex.encoding = T3.sRGBEncoding;
 const wrist = new T3.Mesh(new T3.PlaneGeometry(0.11, 0.055), new T3.MeshBasicMaterial({map:wristTex}));
-wrist.position.set(0, 0.03, 0.1); wrist.rotation.x = -Math.PI/2 + 0.5; me.claws[0].add(wrist);
+wrist.position.set(-0.027, 0.062, 0); wrist.rotation.y = -Math.PI/2; wrist.rotation.z = Math.PI/2; me.claws[0].add(wrist);
 let startT = performance.now(), lastWrist = '';
 function drawWrist(){
   const s = Math.floor((performance.now()-startT)/1000), txt = `SCRAPPED ${score}|${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
@@ -827,7 +899,7 @@ fadeMesh.renderOrder = 999; scene.add(fadeMesh);
 // ================= player state =================
 const io = {pos:rig.position, yaw:0, headYaw:0, headLocal:new V(0,1.6,0), headQuat:new Q(),
   handLocal:[new V(-0.2,0.9,-0.25), new V(0.2,0.9,-0.25)], handQuat:[new Q(), new Q()], pads:[null,null],
-  grip:[false,false], yBtn:false, stickX:0};
+  grip:[false,false], gripV:[0,0], trig:[0,0], thumb:[false,false], yBtn:false, stickX:0};
 const loco = makeLoco(T3, boxes, io);
 let hs = [{mode:'none'},{mode:'none'}];
 const handW = [new V(), new V()], handQW = [new Q(), new Q()], handPrev = [new V(), new V()], hv = [new V(), new V()];
@@ -847,8 +919,14 @@ function goto(m){
   if (fadeDir) return; fadeDir = 1;
   fadeAction = () => {
     mode = m;
-    if (m === 'game'){ teleport(SPAWN, io.yaw); startT = performance.now(); score = 0; lastWrist = ''; }
-    else teleport(LOBBY_SPAWN, LOBBY_YAW);
+    if (m === 'game'){
+      resetWorld(); teleport(SPAWN, io.yaw); startT = performance.now(); score = 0; lastWrist = '';
+      if (!netGame) for (let k=0;k<4;k++) makeBot(BOT_COLORS[k], farCell(SPAWN));
+      else if (isHost() && !bots.length) for (let k=0;k<4;k++){ const b = makeBot(BOT_COLORS[k], farCell(SPAWN)); netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(b.root.obj.position.x), z:r3(b.root.obj.position.z)}); }
+      else if (netGame) netSend('ev', {t:'need'});
+    }
+    else { netGame = null; teleport(LOBBY_SPAWN, LOBBY_YAW); }
+    netHello();
     meMirror.head.visible = meMirror.torso.visible = m === 'lobby';
     meMirror.arms.forEach(a => a.visible = m === 'lobby'); meMirror.claws.forEach(a => a.visible = m === 'lobby');
   };
@@ -862,12 +940,19 @@ function nearestPart(i){
   return best;
 }
 function startHold(i, root, part){
-  root.mode = 'held'; root.holdHand = i;
+  root.mode = 'held'; root.holdHand = i; root.asleep = false;
+  if (root.dying){ root.dying = 0; root.born = clock; root.obj.scale.setScalar(1); }
   hs[i] = {mode:'hold', part, root, mat:handMat(i).invert().multiply(root.obj.matrixWorld)};
 }
 function grab(i){
   const p = nearestPart(i); if (!p) return;
-  const root = rootOf(p), o = hs[1-i];
+  let root = rootOf(p); const o = hs[1-i];
+  if (!mine(root)){
+    if (root.mode === 'held' && p !== root){            // someone else is holding it: rip this piece off them
+      detach(p, hv[i].clone()); p.obj.updateMatrixWorld(true); startHold(i, p, p); pulse(i, 1, 120); return;
+    }
+    claim(root); root.mode = 'free';
+  }
   if (root.mode === 'held'){
     if (!(o.mode === 'hold' && o.root === root) || p === o.part) return;
     let k = p, side = 'mine';
@@ -946,6 +1031,7 @@ function punches(dt){
     if (!best) continue;
     punchCD[i] = 0.25; const hit = centerW(best), imp = hv[i].clone().multiplyScalar(0.9).add(new V(0, 1, 0));
     pulse(i, 1, 90); sndClank(sp*2); spawnSparks(hit, 25, 3);
+    if (!mine(rootOf(best))) claim(rootOf(best));
     if (best.parent){ detach(best, imp); }
     else if (best.mode !== 'held'){
       best.mode = 'free'; best.v.copy(imp).multiplyScalar(1.2); best.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(14);
@@ -958,6 +1044,7 @@ function punches(dt){
 function updateBot(bot, dt, player){
   bot.t += dt;
   const root = bot.root;
+  if (!mine(root) && !bot.dead){ if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); } return; }
   if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); }
   if (bot.dead){
     bot.deadT += dt;
@@ -1047,6 +1134,7 @@ function physics(root, dt){
     }
   }
   if (root.grounded){ root.w.multiplyScalar(Math.pow(0.05, dt)); if (root.v.length() < 0.06) root.v.set(0,0,0); }
+  if (root.grounded && root.v.lengthSq() < 0.01 && root.w.lengthSq() < 0.05){ root.sleepT = (root.sleepT || 0) + dt; if (root.sleepT > 0.6) root.asleep = true; } else root.sleepT = 0;
   if (bestImpact > 2.5){ spawnSparks(bestPt, Math.min(60, bestImpact*6), bestImpact*0.5); sndClank(bestImpact); }
   if (bestImpact > 5.5){
     if (root.kids.length){ const k = pick(root.kids); detach(k, root.v.clone().add(new V(R()-0.5, 1, R()-0.5).multiplyScalar(2))); }
@@ -1055,6 +1143,26 @@ function physics(root, dt){
   if (root.obj.position.y < -5) removePart(root);
 }
 
+// Loose wreckage despawns so the piece count can't grow forever: chunks after 15 s, other
+// loose pieces after 60 s, and the oldest go first whenever there are more than 110.
+const MAX_LOOSE = 110;
+function despawn(dt){
+  const loose = [];
+  for (const p of parts){
+    if (p.parent || p.obj.userData.dead || p.mode !== 'free' || !mine(p)) continue;
+    if (p.bot && !p.bot.dead && p === p.bot.root) continue;
+    loose.push(p);
+  }
+  if (loose.length > MAX_LOOSE){ loose.sort((a,b) => a.born - b.born); for (let i=0;i<loose.length-MAX_LOOSE;i++) if (!loose[i].dying) loose[i].dying = 0.4; }
+  for (const p of loose){
+    const age = clock - p.born;
+    if (!p.dying && age > (p.name === 'chunk' ? 15 : 60)) p.dying = 1;
+    if (p.dying){
+      p.dying -= dt; p.obj.scale.setScalar(Math.max(0.001, Math.min(1, p.dying)));
+      if (p.dying <= 0) removePart(p);
+    }
+  }
+}
 // ================= VR session =================
 const btn = $('vr'), st = $('st');
 function setStatus(html){ st.innerHTML = html; }
@@ -1074,7 +1182,7 @@ btn.addEventListener('click', async () => {
   } catch(e){ setStatus('Could not start VR: ' + e.message); }
 });
 function showAvatar(on){
-  me.torso.visible = on; me.arms.forEach(a => a.visible = on); me.claws.forEach(a => a.visible = on);
+  me.torso.visible = false; me.arms.forEach(a => a.visible = false); me.claws.forEach(a => a.visible = on);
   const m = on && mode === 'lobby'; meMirror.head.visible = meMirror.torso.visible = m; meMirror.arms.forEach(a => a.visible = m); meMirror.claws.forEach(a => a.visible = m);
 }
 function readXR(frame){
@@ -1086,7 +1194,10 @@ function readXR(frame){
     if (pose){ const p = pose.transform.position, o = pose.transform.orientation; io.handLocal[i].set(p.x,p.y,p.z); io.handQuat[i].set(o.x,o.y,o.z,o.w); }
     const gp = io.pads[i] = src.gamepad || null;
     if (gp){
-      io.grip[i] = !!((gp.buttons[1] && gp.buttons[1].value > 0.5) || (gp.buttons[0] && gp.buttons[0].value > 0.5));
+      const bv = k => gp.buttons[k] ? gp.buttons[k].value : 0, bt = k => !!(gp.buttons[k] && (gp.buttons[k].touched || gp.buttons[k].pressed));
+      io.trig[i] = bv(0); io.gripV[i] = bv(1);
+      io.grip[i] = io.gripV[i] > 0.5 || io.trig[i] > 0.5;
+      io.thumb[i] = bt(3) || bt(4) || bt(5);
       if (i === 0) io.yBtn = !!(gp.buttons[5] && gp.buttons[5].pressed);
       if (i === 1) io.stickX = gp.axes.length > 2 ? gp.axes[2] : 0;
     }
@@ -1109,14 +1220,19 @@ function vrStep(dt){
     const inst = handW[i].clone().sub(handPrev[i]).divideScalar(dt); hv[i].lerp(inst, 0.5); handPrev[i].copy(handW[i]);
   }
   const head = loco.headPos(), headQ = rq.clone().multiply(io.headQuat), yawQ = new Q().setFromAxisAngle(UP, io.yaw + io.headYaw);
-  const P = {head, headQ, yawQ, hands:handW, handQ:handQW, grip:io.grip};
+  for (const i of [0,1]) if (!io.pads[i]){ io.gripV[i] = io.trig[i] = io.grip[i] ? 1 : 0; }
+  const P = {head, headQ, yawQ, hands:handW, handQ:handQW, grip:io.grip, gripV:io.gripV, trig:io.trig, thumb:io.thumb};
   poseAvatar(me, P); if (mode === 'lobby') poseAvatar(meMirror, P);
   // lobby button
   if (mode === 'lobby' && !fadeDir){
     let pressed = false;
     for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-PED.x, h.z-PED.z) < PED.cap+0.04 && h.y < PED.top+0.08+0.05+0.02) pressed = true; }
     caps.forEach(c => c.position.y = PED.top + (pressed ? 0.015 : 0.04));
-    if (pressed){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); goto('game'); }
+    let pressed2 = false;
+    for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-PED2.x, h.z-PED2.z) < PED2.cap+0.04 && h.y < PED2.top+0.08+0.05+0.02) pressed2 = true; }
+    caps2.forEach(c => c.position.y = PED2.top + (pressed2 ? 0.015 : 0.04));
+    if (pressed){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); netGame = null; goto('game'); }
+    else if (pressed2){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); playTogether(); }
   }
   if (mode === 'game' && io.yBtn && !yPrev) goto('lobby');
   yPrev = io.yBtn;
@@ -1139,15 +1255,207 @@ function vrStep(dt){
 function worldStep(dt, player){
   clock += dt;
   scene.updateMatrixWorld();
-  for (const b of bots) updateBot(b, dt, player);
-  for (const p of parts.slice()) if (!p.parent && p.mode === 'free' && !p.obj.userData.dead) physics(p, dt);
-  for (let i = respawnTimers.length-1; i >= 0; i--){ respawnTimers[i] -= dt; if (respawnTimers[i] <= 0){ respawnTimers.splice(i,1); makeBot(pick(BOT_COLORS), farCell(player)); } }
+  const flee = nearestPlayerFn(player);
+  for (const b of bots) updateBot(b, dt, flee(b.root.obj.position));
+  for (const p of parts.slice()){
+    if (p.parent || p.obj.userData.dead) continue;
+    if (p.mode !== 'free' || p.v.lengthSq() > 0.0001){ p.asleep = false; }
+    if (p.mode === 'free' && !p.asleep && mine(p)){
+      try { physics(p, dt); } catch(e){ console.warn('removed broken piece', e); removePart(p); }
+    }
+  }
+  despawn(dt);
+  applyRemoteState();
+  for (let i = respawnTimers.length-1; i >= 0; i--){ respawnTimers[i] -= dt; if (respawnTimers[i] <= 0){ respawnTimers.splice(i,1); if (mode === 'game' || !netGame){ const b = makeBot(pick(BOT_COLORS), farCell(player)); if (netGame) netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(b.root.obj.position.x), z:r3(b.root.obj.position.z)}); } } }
   for (let i = bots.length-1; i >= 0; i--) if (bots[i].dead && bots[i].deadT > 6) bots.splice(i,1);
-  const loose = parts.filter(p => !p.parent && p.mode === 'free' && !(p.bot && !p.bot.dead && p === p.bot.root));
-  if (parts.length > 260 && loose.length) removePart(loose.sort((a,b) => a.born - b.born)[0]);
+
   scene.updateMatrixWorld();
+  ropes(dt);
+  netTick(dt);
   updateWires(dt); updateSparks(dt); updateFlashes(dt);
 }
+
+// ================= multiplayer (same Wi-Fi) =================
+// Peers find each other through Trystero (public Nostr relays for the handshake) and then talk
+// directly over WebRTC, which stays on the local network when both headsets share Wi-Fi.
+const NET = {id:'local-' + Math.random().toString(36).slice(2,10), peers:{}, send:null, ready:false};
+const myName = 'Robot-' + (1000 + Math.floor(R()*9000));
+let netGame = null, netT = 0, helloT = 0, poseT = 0;
+const r3 = v => Array.isArray(v) ? v.map(x => Math.round(x*1000)/1000) : Math.round(v*1000)/1000;
+function mine(root){ return !netGame || !root.owner || root.owner === NET.id; }
+function netSend(type, data, target){ if (NET.send) try { NET.send(type, data, target); } catch(e){} }
+function gameMembers(){ return [NET.id].concat(Object.keys(NET.peers).filter(id => NET.peers[id].g === netGame && netGame)); }
+function hostId(){ const m = gameMembers(), creator = netGame ? netGame.split('~')[0] : null; return m.includes(creator) ? creator : m.slice().sort()[0]; }
+function isHost(){ return !netGame || hostId() === NET.id; }
+function claim(root){ root.owner = NET.id; if (netGame && root.id) netSend('ev', {t:'claim', r:root.id}); }
+function resetWorld(){
+  for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead) removePart(p, true);
+  bots.length = 0; respawnTimers.length = 0; wires.length = 0;
+}
+function netHello(target){ netSend('hi', {n:myName, m:mode, g:netGame}, target); }
+function playTogether(){
+  const others = Object.entries(NET.peers);
+  const live = others.find(([id,p]) => p.g);
+  netGame = live ? live[1].g : NET.id + '~' + Date.now().toString(36);
+  goto('game');
+}
+function nearestPlayerFn(me){
+  const ps = [me]; for (const p of Object.values(NET.peers)) if (p.g && p.g === netGame && mode === 'game' && p.av) ps.push(p.head);
+  return pos => ps.reduce((b, q) => q.distanceTo(pos) < b.distanceTo(pos) ? q : b, ps[0]);
+}
+// remote players: a full scary robot each (plus a mirror twin in the lobby) with a name tag
+function nameTag(text){
+  const t = canvasTex(256, 64, (g) => { g.fillStyle = 'rgba(10,10,10,.7)'; g.fillRect(0,0,256,64); g.fillStyle = '#ff6b5e'; g.font = 'bold 40px VT323, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(text, 128, 34); });
+  const s = new T3.Sprite(new T3.SpriteMaterial({map:t, transparent:true})); s.scale.set(0.4, 0.1, 1); return s;
+}
+function ensureAvatar(p){
+  if (p.av) return;
+  p.av = makeScary(scene, true); p.avM = makeScary(mirrorWorld, true);
+  p.tag = nameTag(p.n || 'Robot'); scene.add(p.tag);
+  p.head = new V(); p.P = null;
+}
+function setAvVisible(av, on){ av.head.visible = av.torso.visible = on; av.arms.forEach(a => a.visible = on); av.claws.forEach(a => a.visible = on); }
+function dropAvatar(p){
+  if (!p.av) return;
+  for (const av of [p.av, p.avM]) for (const o of [av.head, av.torso, ...av.arms, ...av.claws]) o.parent && o.parent.remove(o);
+  p.tag.parent && p.tag.parent.remove(p.tag); p.av = null;
+}
+const unpackQ = (a, i) => new Q(a[i], a[i+1], a[i+2], a[i+3]);
+function onPose(a, from){
+  const p = NET.peers[from]; if (!p) return; ensureAvatar(p);
+  const tgt = {head:new V(a[0],a[1],a[2]), headQ:unpackQ(a,3), yawQ:new Q().setFromAxisAngle(UP, a[7]),
+    hands:[new V(a[8],a[9],a[10]), new V(a[15],a[16],a[17])], handQ:[unpackQ(a,11), unpackQ(a,18)],
+    trig:[a[22],a[25]], gripV:[a[23],a[26]], thumb:[!!a[24], !!a[27]], grip:[a[23]>0.5, a[26]>0.5]};
+  if (!p.P) p.P = tgt; p.T = tgt;
+}
+function updateRemoteAvatars(){
+  for (const p of Object.values(NET.peers)){
+    if (!p.av || !p.P || !p.T) continue;
+    const P = p.P, T = p.T;
+    P.head.lerp(T.head, 0.4); P.headQ.slerp(T.headQ, 0.4); P.yawQ.slerp(T.yawQ, 0.4);
+    for (const i of [0,1]){ P.hands[i].lerp(T.hands[i], 0.45); P.handQ[i].slerp(T.handQ[i], 0.45); }
+    P.trig = T.trig; P.gripV = T.gripV; P.thumb = T.thumb; P.grip = T.grip;
+    const here = p.m === mode && (mode === 'lobby' || (p.g && p.g === netGame));
+    setAvVisible(p.av, here); setAvVisible(p.avM, here && mode === 'lobby'); p.tag.visible = here;
+    if (here){ poseAvatar(p.av, P); if (mode === 'lobby') poseAvatar(p.avM, P); p.tag.position.copy(P.head).add(new V(0, 0.32, 0)); p.head.copy(P.head); }
+  }
+}
+function sendPose(){
+  const head = loco.headPos(), rq = new Q().setFromAxisAngle(UP, io.yaw), hq = rq.clone().multiply(io.headQuat);
+  const a = [...head.toArray(), hq.x, hq.y, hq.z, hq.w, io.yaw + io.headYaw];
+  for (const i of [0,1]) a.push(...handW[i].toArray(), handQW[i].x, handQW[i].y, handQW[i].z, handQW[i].w);
+  for (const i of [0,1]) a.push(io.trig[i], io.gripV[i], io.thumb[i] ? 1 : 0);
+  netSend('pose', r3(a));
+}
+// world state: every root I own is streamed; everyone else eases toward it
+const remoteState = new Map();
+function sendState(){
+  const list = [];
+  for (const p of parts){
+    if (p.parent || !p.id || p.obj.userData.dead || !mine(p)) continue;
+    const o = p.obj, e = {i:p.id, p:r3(o.position.toArray()), q:r3(o.quaternion.toArray()), m:p.mode};
+    const kids = subtree(p).slice(1); if (kids.length) e.k = kids.map(k => [k.id, ...r3(k.obj.position.toArray()), ...r3(k.obj.quaternion.toArray())]);
+    if (p.bot && p === p.bot.root){ e.f = p.bot.face; e.s = p.bot.said || ''; }
+    list.push(e);
+  }
+  if (list.length) netSend('st', list, gameMembers().filter(id => id !== NET.id));
+}
+function onState(list, from){
+  for (const e of list){
+    const p = partsById.get(e.i); if (!p || p.obj.userData.dead) continue;
+    if (p.parent) detach(p, null, from);                // we missed a rip: catch up
+    if (p.owner === NET.id && from > NET.id) continue;   // ownership race: lower id wins
+    p.owner = from; remoteState.set(e.i, {e, from});
+  }
+}
+function applyRemoteState(){
+  for (const [id, {e}] of remoteState){
+    const p = partsById.get(id); if (!p || p.obj.userData.dead || mine(p) || p.parent){ remoteState.delete(id); continue; }
+    p.obj.position.lerp(tmpV.fromArray(e.p), 0.35); p.obj.quaternion.slerp(tmpQ.fromArray(e.q), 0.35); p.mode = e.m;
+    if (e.k) for (const k of e.k){ const c = partsById.get(k[0]); if (c && c.parent && rootOf(c) === p){ c.obj.position.set(k[1],k[2],k[3]); c.obj.quaternion.set(k[4],k[5],k[6],k[7]); } }
+    const b = p.bot;
+    if (b && p === b.root && !b.dead){ if (e.f) setFace(b, e.f); if ((e.s || '') !== (b.said || '')) say(b, e.s || null); }
+  }
+}
+function onEvent(ev, from){
+  const p = ev.p ? partsById.get(ev.p) : null;
+  if (ev.t === 'spawn'){ if (!bots.some(b => b.id === ev.b) && mode === 'game') { const b = makeBot(ev.c, new V(ev.x, STAND, ev.z), ev.b); b.root.owner = from; } }
+  else if (ev.t === 'det'){ if (p && p.parent){ detach(p, new V().fromArray(ev.v), from); } if (p) p.owner = from; }
+  else if (ev.t === 'claim'){ const r = partsById.get(ev.r); if (r && !r.parent){ for (const i of [0,1]) if (hs[i].root === r) release(i, true); r.owner = from; } }
+  else if (ev.t === 'shat'){ if (p) shatter(p, true); }
+  else if (ev.t === 'rm'){ if (p) removePart(p, true); }
+  else if (ev.t === 'need'){ if (isHost()) sendSnapshot(from); }
+  else if (ev.t === 'snap'){ loadSnapshot(ev, from); }
+}
+function sendSnapshot(to){
+  const list = bots.map(b => {
+    const all = []; for (let n=0;n<15;n++) all.push(b.id + '.' + n);
+    return {b:b.id, c:b.color, dead:b.dead, gone:all.filter(id => !partsById.has(id)),
+      det:all.filter(id => { const q = partsById.get(id); return q && !q.parent && q !== b.root; }).map(id => [id, partsById.get(id).owner || NET.id]),
+      o:b.root.owner || NET.id};
+  });
+  netSend('ev', {t:'snap', bots:list}, [to]);
+}
+function loadSnapshot(ev){
+  if (mode !== 'game' || !netGame) return;
+  for (const s of ev.bots){
+    if (bots.some(b => b.id === s.b)) continue;
+    const b = makeBot(s.c, farCell(SPAWN), s.b); b.root.owner = s.o;
+    for (const [id, o] of s.det){ const q = partsById.get(id); if (q && q.parent){ const par = q.parent; par.kids.splice(par.kids.indexOf(q),1); q.parent = null; scene.attach(q.obj); q.mode = 'free'; q.owner = o; } }
+    for (const id of s.gone){ const q = partsById.get(id); if (q){ if (q.parent){ q.parent.kids.splice(q.parent.kids.indexOf(q),1); q.parent = null; scene.attach(q.obj); } removePart(q, true); } }
+    if (s.dead) killBot(b, true);
+  }
+}
+let boardKey = '';
+function updateBoard(){
+  const others = Object.values(NET.peers);
+  const lines = !NET.ready ? ['Connecting...'] : !others.length ? ['Nobody else online yet.', 'Open this page on another headset', 'on the same Wi-Fi.'] :
+    others.map(p => `${p.n || 'Robot'}  ${p.g ? 'is PLAYING' : 'is in the lobby'}`).concat([others.some(p => p.g) ? 'Push the blue button to JOIN' : 'Push the blue button to START']);
+  const key = lines.join('|'); if (key === boardKey) return; boardKey = key; drawBoard(lines);
+  const html = !NET.ready ? 'Connecting to multiplayer...' : others.length ? `<b>${others.length + 1}</b> players online: ${[myName].concat(others.map(p => p.n)).join(', ')}` : `Multiplayer ready. You are ${myName}.`;
+  const el = $('net'); if (el) el.innerHTML = html;
+}
+function netTick(dt){
+  helloT -= dt; if (helloT <= 0){ helloT = 1; netHello(); for (const [id,p] of Object.entries(NET.peers)) if (performance.now() - p.seen > 6000){ dropAvatar(p); delete NET.peers[id]; } }
+  if ((renderer.xr.isPresenting || window.__vr) && inited){ poseT -= dt; if (poseT <= 0){ poseT = 1/20; sendPose(); } }
+  if (netGame && mode === 'game'){ netT -= dt; if (netT <= 0){ netT = 1/12; sendState(); } }
+  updateRemoteAvatars(); updateBoard();
+}
+function onHello(d, from){
+  const p = NET.peers[from] || (NET.peers[from] = {});
+  const wasMember = netGame && p.g === netGame;
+  Object.assign(p, {n:d.n, m:d.m, g:d.g, seen:performance.now()});
+  if (p.tag && p.tagName !== d.n){ p.tag.parent && p.tag.parent.remove(p.tag); p.tag = nameTag(d.n); scene.add(p.tag); }
+  p.tagName = d.n;
+  if (!wasMember && netGame && d.g === netGame && mode === 'game' && isHost()) sendSnapshot(from);
+}
+function onLeave(id){ const p = NET.peers[id]; if (!p) return; dropAvatar(p); delete NET.peers[id];
+  for (const q of parts) if (!q.parent && q.owner === id && isHost()) q.owner = NET.id; }
+function wireTransport(t){
+  NET.id = t.id; NET.send = t.send; NET.ready = true;
+  for (const p of parts) if (!p.owner || p.owner.startsWith('local-')) p.owner = NET.id;
+  t.on('hi', onHello); t.on('pose', onPose); t.on('st', onState); t.on('ev', onEvent);
+  t.onJoin(id => netHello([id])); t.onLeave(onLeave);
+}
+// Transport 1: Trystero (real multiplayer). Transport 2: BroadcastChannel (two tabs, for testing).
+if (location.hash.includes('bc')){
+  const id = 'bc-' + Math.random().toString(36).slice(2,10), ch = new BroadcastChannel('bbs'), hs_ = {};
+  ch.onmessage = e => { const m = e.data; if (m.from === id || (m.to && !m.to.includes(id))) return; if (m.type === '_join'){ ch.postMessage({type:'_ack', from:id}); joinH && joinH(m.from); return; } if (m.type === '_ack'){ joinH && joinH(m.from); return; } hs_[m.type] && hs_[m.type](m.data, m.from); };
+  let joinH = null;
+  wireTransport({id, send:(type, data, to) => ch.postMessage({type, data, to, from:id}), on:(type, f) => hs_[type] = f, onJoin:f => joinH = f, onLeave:() => {}});
+  ch.postMessage({type:'_join', from:id});
+} else {
+  import('https://cdn.jsdelivr.net/npm/trystero@0.26.0/+esm').then(({joinRoom, selfId}) => {
+    const room = joinRoom({appId:'jonahanoj.github.io/BrowserGtagLocomotion'}, 'backrooms-bot-scrap');
+    const acts = {};
+    const get = type => acts[type] || (acts[type] = room.makeAction(type));
+    wireTransport({id:selfId, send:(type, data, to) => get(type).send(data, to ? {target:to} : undefined),
+      on:(type, f) => { get(type).onMessage = (data, ctx) => f(data, ctx.peerId); },
+      onJoin:f => room.onPeerJoin = f, onLeave:f => room.onPeerLeave = f});
+  }).catch(e => { const el = $('net'); if (el) el.textContent = 'Multiplayer unavailable here (' + e.message + ').'; });
+}
+for (let k=0;k<4;k++) makeBot(BOT_COLORS[k], farCell(SPAWN));   // bots for the desktop preview
+if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netGame(){return netGame}, set netGame(v){netGame = v}, get mode(){return mode}, bots, parts, partsById, playTogether, goto, isHost, hostId};
 
 // ================= desktop preview =================
 let pYaw = 0.6, pPitch = 0, drag = null, auto = true;
@@ -1164,9 +1472,9 @@ let last = performance.now(), flickT = 0;
 renderer.setAnimationLoop((t, frame) => {
   const now = performance.now(), dt = Math.min(1/30, Math.max(1/500, (now-last)/1000)); last = now;
   let player;
-  if (frame && renderer.xr.isPresenting){ readXR(frame); player = vrStep(dt); }
+  if (frame && renderer.xr.isPresenting){ try { readXR(frame); player = vrStep(dt); } catch(e){ console.error(e); player = loco.headPos(); } }
   else { if (auto) pYaw += dt*0.12; camera.rotation.set(pPitch, pYaw, 0, 'YXZ'); player = rig.position.clone().add(camera.position); }
-  worldStep(dt, player);
+  try { worldStep(dt, player); } catch(e){ console.error(e); }
   flickT -= dt; if (flickT < 0){ flickT = 0.05 + R()*0.4; for (const f of flickers) f.material.color.setHex(R() < 0.3 ? 0x6e6a52 : 0xfffbe2); }
   renderer.render(scene, camera);
 });
