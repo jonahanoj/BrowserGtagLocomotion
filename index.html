@@ -394,14 +394,19 @@ const PED2 = {x:-18.9, z:4.9, top:0.55, cap:0.2};   // PLAY TOGETHER (front-left
 const WPN = ['none','hammer','saw','flame','mine','laser','hook','freeze','glue','boomer'].map((k, i) => ({k, x:-14.2 - i*0.44, col:[0x9aa0a6,0xff9a2a,0xff3b2f,0x3aa0ff,0x5fd35a,0xff3050,0xb0905a,0x8fe0ff,0xe8e070,0xd0d6de][i]})).map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
 addBox([LB.x0-1,-1,LB.z0-1],[LB.x1+1,0,LB.z1+1]); addBox([LB.x0-1,H,LB.z0-1],[LB.x1+1,H+1,LB.z1+1]);
 addBox([LB.x0-TW/2,0,LB.z0-TW/2],[LB.x0+TW/2,H,LB.z1+TW/2]);
-addBox([LB.x1-TW/2,0,LB.z0-TW/2],[LB.x1+TW/2,H,LB.z1+TW/2]);
+const RG = {x0:LB.x1, x1:-1, z0:LB.z0, z1:LB.z1, dz0:5.0, dz1:6.5, dh:2.35};   // target range, through a door in the lobby's east wall
+addBox([LB.x1-TW/2,0,LB.z0-TW/2],[LB.x1+TW/2,H,RG.dz0]); addBox([LB.x1-TW/2,0,RG.dz1],[LB.x1+TW/2,H,LB.z1+TW/2]); addBox([LB.x1-TW/2,RG.dh,RG.dz0],[LB.x1+TW/2,H,RG.dz1]);
+addBox([RG.x0,-1,RG.z0-1],[RG.x1+1,0,RG.z1+1]); addBox([RG.x0,H,RG.z0-1],[RG.x1+1,H+1,RG.z1+1]);
+addBox([RG.x0,0,RG.z0-TW/2],[RG.x1,H,RG.z0+TW/2]); addBox([RG.x0,0,RG.z1-TW/2],[RG.x1,H,RG.z1+TW/2]); addBox([RG.x1-TW/2,0,RG.z0-TW/2],[RG.x1+TW/2,H,RG.z1+TW/2]);
+const RBTN = [{k:'dummy', z:1.3, col:0xff8a1f}, {k:'move', z:2.0, col:0x3aa0ff}, {k:'clear', z:2.7, col:0x9aa0a6}].map(w => Object.assign(w, {x:-11.35, top:0.75, cap:0.15}));
+for (const w of RBTN){ addBox([w.x-0.2,0,w.z-0.2],[w.x+0.2,w.top,w.z+0.2]); addBox([w.x-w.cap,w.top,w.z-w.cap],[w.x+w.cap,w.top+0.06,w.z+w.cap]); }
 addBox([LB.x0,0,LB.z0-TW/2],[LB.x1,H,LB.z0+TW/2]);
 addBox([LB.x0,0,LB.z1-TW/2],[LB.x1,H,LB.z1+TW/2]);
 addBox([PED.x-0.25,0,PED.z-0.25],[PED.x+0.25,PED.top,PED.z+0.25]);
 addBox([PED.x-PED.cap,PED.top,PED.z-PED.cap],[PED.x+PED.cap,PED.top+0.08,PED.z+PED.cap]);
 addBox([PED2.x-0.25,0,PED2.z-0.25],[PED2.x+0.25,PED2.top,PED2.z+0.25]);
 // map buttons along the south wall: pick where PLAY / PLAY TOGETHER takes you
-const MAPBTN = [{k:'backrooms', x:-19.6, col:0xe2cf72}, {k:'forest', x:-19.0, col:0x4caf50}, {k:'city', x:-18.4, col:0x9aa7b8}, {k:'cave', x:-17.8, col:0xb0703c}, {k:'house', x:-17.2, col:0xe08a5a}, {k:'sewer', x:-16.6, col:0x6a8a4a}, {k:'market', x:-16.0, col:0x3a9ad8}, {k:'station', col:0x6ad0ff}, {k:'factory', col:0xf2c230}, {k:'ship', col:0x8a5a32}, {k:'mansion', col:0x8a6ab8}].map((w, i) => Object.assign(w, {x:-19.6 + i*0.44, z:6.35, top:0.55, cap:0.15}));
+const MAPBTN = [{k:'backrooms', x:-19.6, col:0xe2cf72}, {k:'forest', x:-19.0, col:0x4caf50}, {k:'city', x:-18.4, col:0x9aa7b8}, {k:'cave', x:-17.8, col:0xb0703c}, {k:'house', x:-17.2, col:0xe08a5a}, {k:'sewer', x:-16.6, col:0x6a8a4a}, {k:'market', x:-16.0, col:0x3a9ad8}, {k:'station', col:0x6ad0ff}, {k:'factory', col:0xf2c230}, {k:'mansion', col:0x8a6ab8}].map((w, i) => Object.assign(w, {x:-19.6 + i*0.44, z:6.35, top:0.55, cap:0.15}));
 for (const w of WPN.concat(MAPBTN)){ addBox([w.x-0.2,0,w.z-0.2],[w.x+0.2,w.top,w.z+0.2]); addBox([w.x-w.cap,w.top,w.z-w.cap],[w.x+w.cap,w.top+0.06,w.z+w.cap]); }
 addBox([PED2.x-PED2.cap,PED2.top,PED2.z-PED2.cap],[PED2.x+PED2.cap,PED2.top+0.08,PED2.z+PED2.cap]);
 
@@ -583,10 +588,10 @@ function mergeGeos(list){
   };
   const cabinet = () => { const p = [piece('beige', new T3.BoxGeometry(0.46,1.25,0.6), 0,0.625,0, 0,0,0, true)];
     for (let k=0;k<4;k++){ p.push(piece('black', new T3.BoxGeometry(0.4,0.008,0.01), 0,0.32+k*0.3,0.301), piece('metal', new T3.BoxGeometry(0.12,0.02,0.02), 0,0.25+k*0.3,0.31)); } return p; };
-  const cooler = () => [piece('white', new T3.BoxGeometry(0.34,0.95,0.34), 0,0.475,0, 0,0,0, true), piece('blue', new T3.CylinderGeometry(0.15,0.15,0.42,14), 0,1.16,0, 0,0,0, true), piece('black', new T3.BoxGeometry(0.1,0.06,0.05), 0,0.75,0.19)];
+  const cooler = () => [piece('white', new T3.BoxGeometry(0.34,0.95,0.34), 0,0.475,0, 0,0,0, true), Object.assign(piece('blue', new T3.CylinderGeometry(0.15,0.15,0.42,14), 0,1.16,0, 0,0,0, false), {hidden:true, jug:true}), piece('black', new T3.BoxGeometry(0.1,0.06,0.05), 0,0.75,0.19)];
   // col = [half width x, half depth z, height] of a tight box; only used when the thing stands upright on a floor
   const place = (parts, pos, rot, col) => { const T = new M4().compose(pos, new Q().setFromEuler(rot), new V(1,1,1));
-    for (const p of parts){ const m = T.clone().multiply(p.m); if (!p.hidden) bins[p.mat].push({geo:p.geo, m}); }
+    for (const p of parts){ const m = T.clone().multiply(p.m); if (!p.hidden) bins[p.mat].push({geo:p.geo, m}); if (p.jug) (window.JUGS = window.JUGS || []).push(m); }
     const upright = Math.abs(rot.x) < 0.05 && Math.abs(rot.z) < 0.2 && (pos.y < 0.01 || Math.abs(pos.y - BAL.y1) < 0.01);
     if (col && upright){ const q = Math.abs(Math.sin(rot.y)) > 0.7, hx = q ? col[1] : col[0], hz = q ? col[0] : col[1]; addBox([pos.x-hx, pos.y, pos.z-hz], [pos.x+hx, pos.y+col[2], pos.z+hz]); return; }
     // tilted / stuck in a wall: fill each solid piece with small cubes that follow its angle
@@ -600,7 +605,7 @@ function mergeGeos(list){
       }
     }
   };
-  const CHAIR = [0.2, 0.2, 0.52], CAB = [0.23, 0.3, 1.25], COOL = [0.17, 0.17, 1.37];
+  const CHAIR = [0.2, 0.2, 0.52], CAB = [0.23, 0.3, 1.25], COOL = [0.17, 0.17, 0.95];
   const snap = a => Math.round(a/(Math.PI/2))*(Math.PI/2);
   const walls = mazeWalls.filter(b => b.max[1] <= H + 0.01 && (b.max[0]-b.min[0] > 1 || b.max[2]-b.min[2] > 1));
   for (let i=0;i<34;i++){
@@ -657,10 +662,12 @@ function drawBoard(lines){
   boardTex.needsUpdate = true;
 }
 drawBoard(['Looking for players on the network...']);
+const rangeTex = signTex(600, 240, (g,W,Hh) => { g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 60px VT323, monospace'; g.fillText('TARGET RANGE', W/2, 66);
+  g.font = 'bold 40px VT323, monospace'; [['DUMMIES','#ff9a3a'],['WALK','#5ab4ff'],['CLEAR','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/3, 150); }); g.fillStyle = '#fff8d8'; g.font = '26px Rubik, sans-serif'; g.fillText('push with a claw', W/2, 210); });
 const mapTex = signTex(1900, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK A MAP', W/2, 62);
   g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('then RED = play solo,  BLUE = play online', W/2, 108);
-  g.font = 'bold 32px VT323, monospace'; [['MANSION','#c0a0ff'],['SHIP','#d8a070'],['FACTORY','#f2d040'],['STATION','#8fe0ff'],['MARKET','#8fd0ff'],['SEWERS','#a8d08a'],['HOUSE','#ffb08a'],['CAVE','#e0a070'],['CITY','#c9d3e0'],['FOREST','#7fe07a'],['BACKROOMS','#e2cf72']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/11, 168); });
+  g.font = 'bold 32px VT323, monospace'; [['MANSION','#c0a0ff'],['FACTORY','#f2d040'],['STATION','#8fe0ff'],['MARKET','#8fd0ff'],['SEWERS','#a8d08a'],['HOUSE','#ffb08a'],['CAVE','#e0a070'],['CITY','#c9d3e0'],['FOREST','#7fe07a'],['BACKROOMS','#e2cf72']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/10, 168); });
 });
 const weaponTex = signTex(1900, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK YOUR WEAPON', W/2, 62);
@@ -677,7 +684,7 @@ function mapIcon(k){
   if (k === 'market'){ add(new T3.BoxGeometry(0.2, 0.12, 0.14), 0xefe9da, 0, -0.02, 0); add(new T3.BoxGeometry(0.21, 0.04, 0.15), 0xd8302a, 0, 0.06, 0); add(new T3.SphereGeometry(0.03, 8, 6), 0x3f9a4a, 0.07, -0.06, 0.1); }
   if (k === 'station'){ add(new T3.CylinderGeometry(0.1, 0.1, 0.04, 16), 0xc8d0d8, 0, 0, 0); add(new T3.BoxGeometry(0.3, 0.015, 0.06), 0x2f62c8, 0, 0, 0); add(new T3.SphereGeometry(0.035, 8, 6), 0x6ad0ff, 0, 0.04, 0); }
   if (k === 'factory'){ add(new T3.BoxGeometry(0.2, 0.12, 0.14), 0x8a929b, 0, -0.02, 0); add(new T3.BoxGeometry(0.04, 0.12, 0.04), 0x6a6e72, 0.06, 0.1, 0); add(new T3.BoxGeometry(0.22, 0.02, 0.06), 0xf2c230, 0, -0.08, 0.1); }
-  if (k === 'ship'){ add(new T3.BoxGeometry(0.22, 0.06, 0.09), 0x7a4a2a, 0, -0.04, 0); add(new T3.CylinderGeometry(0.008, 0.008, 0.2, 5), 0x5a3a1e, 0, 0.07, 0); add(new T3.BoxGeometry(0.1, 0.09, 0.005), 0xf4f0e0, 0, 0.08, 0.01); add(new T3.BoxGeometry(0.04, 0.025, 0.02), 0x111111, 0, 0.17, 0); }
+  if (k === 'ship_'){ add(new T3.BoxGeometry(0.22, 0.06, 0.09), 0x7a4a2a, 0, -0.04, 0); add(new T3.CylinderGeometry(0.008, 0.008, 0.2, 5), 0x5a3a1e, 0, 0.07, 0); add(new T3.BoxGeometry(0.1, 0.09, 0.005), 0xf4f0e0, 0, 0.08, 0.01); add(new T3.BoxGeometry(0.04, 0.025, 0.02), 0x111111, 0, 0.17, 0); }
   if (k === 'mansion'){ add(new T3.BoxGeometry(0.18, 0.13, 0.12), 0x4a3a5a, 0, -0.02, 0); const r = add(new T3.ConeGeometry(0.14, 0.1, 4), 0x2a2030, 0, 0.09, 0); r.rotation.y = Math.PI/4; add(new T3.SphereGeometry(0.03, 8, 6), 0xe8ecff, 0.07, 0.12, 0.05).material = new T3.MeshBasicMaterial({color:0xe8ecff}); }
   if (k === 'house'){ add(new T3.BoxGeometry(0.18,0.12,0.14), 0xf1e3c8, 0, -0.02, 0); const r = add(new T3.ConeGeometry(0.15,0.1,4), 0xb5452f, 0, 0.09, 0); r.rotation.y = Math.PI/4; add(new T3.BoxGeometry(0.04,0.07,0.01), 0x6b4a2b, 0, -0.045, 0.071); }
   return g;
@@ -685,7 +692,9 @@ function mapIcon(k){
 function plane(parent, tex, w, h, x, y, z, ry){ const m = new T3.Mesh(new T3.PlaneGeometry(w,h), new T3.MeshBasicMaterial({map:tex})); m.position.set(x,y,z); m.rotation.y = ry; parent.add(m); return m; }
 function buildLobby(parent, real){
   const walls = [
-    {min:[LB.x1-TW/2,0,LB.z0-TW/2], max:[LB.x1+TW/2,H,LB.z1+TW/2]},
+    {min:[LB.x1-TW/2,0,LB.z0-TW/2], max:[LB.x1+TW/2,H,RG.dz0]}, {min:[LB.x1-TW/2,0,RG.dz1], max:[LB.x1+TW/2,H,LB.z1+TW/2]}, {min:[LB.x1-TW/2,RG.dh,RG.dz0], max:[LB.x1+TW/2,H,RG.dz1]},
+    {min:[RG.x0,0,RG.z0-TW/2], max:[RG.x1,H,RG.z0+TW/2]}, {min:[RG.x0,0,RG.z1-TW/2], max:[RG.x1,H,RG.z1+TW/2]}, {min:[RG.x1-TW/2,0,RG.z0-TW/2], max:[RG.x1+TW/2,H,RG.z1+TW/2]},
+    ...RBTN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]})),
     {min:[MIR,0,LB.z0-TW/2], max:[LB.x1,H,LB.z0+TW/2]},
     {min:[MIR,0,LB.z1-TW/2], max:[LB.x1,H,LB.z1+TW/2]},
     {min:[PED.x-0.25,0,PED.z-0.25], max:[PED.x+0.25,PED.top,PED.z+0.25]}];
@@ -694,6 +703,13 @@ function buildLobby(parent, real){
     {min:[LB.x0-TW/2,WIN.y1,WIN.z0], max:[MIR,H,WIN.z1]});
   parent.add(wallMesh(walls));
   floorCeil(parent, MIR, LB.z0, LB.x1-MIR, LB.z1-LB.z0);
+  floorCeil(parent, RG.x0, RG.z0, RG.x1-RG.x0, RG.z1-RG.z0);
+  { const yel = new T3.MeshBasicMaterial({color:0xf2c230}), m = new T3.Mesh(new T3.BoxGeometry(0.08, 0.01, RG.z1-RG.z0-0.3), yel); m.position.set(-9.6, 0.006, (RG.z0+RG.z1)/2); parent.add(m);
+    for (const z of [1.5, 3.5, 5.5]){ const t = new T3.Group(); for (const [r, c] of [[0.42, 0xffffff], [0.33, 0xd8302a], [0.24, 0xffffff], [0.15, 0xd8302a], [0.06, 0xffd23d]]){ const d = new T3.Mesh(new T3.CircleGeometry(r, 28), new T3.MeshBasicMaterial({color:c})); d.position.z = (0.5 - r)*0.01; t.add(d); }
+      t.rotation.y = -Math.PI/2; t.position.set(RG.x1 - TW/2 - 0.02, 1.4, z); parent.add(t); }
+    for (const x of [-9, -5]) for (const z of [1.9, 5.1]){ const m2 = new T3.Mesh(panelGeo, lightMat); m2.position.set(x, H-0.004, z); parent.add(m2); }
+    plane(parent, rangeTex, 1.5, 0.6, RG.x0+TW/2+0.006, 1.6, 2.0, Math.PI/2);
+    for (const w of RBTN){ const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000})); cap.position.set(w.x, w.top+0.03, w.z); parent.add(cap); (w.caps = w.caps || []).push(cap); } }
   for (const [x,z] of [[-17.8,1.9],[-17.8,5.1],[-14.2,1.9],[-14.2,5.1]]){ const m = new T3.Mesh(panelGeo, lightMat); m.position.set(x,H-0.004,z); parent.add(m); }
   const cap = new T3.Mesh(new T3.CylinderGeometry(PED.cap, PED.cap, 0.08, 32), new T3.MeshLambertMaterial({color:0xe8261b, emissive:0x5a0500}));
   cap.position.set(PED.x, PED.top+0.04, PED.z); parent.add(cap);
@@ -703,7 +719,7 @@ function buildLobby(parent, real){
   const board = plane(parent, boardTex, 1.1, 0.645, PED2.x - 0.35, 1.25, PED2.z, Math.PI/2);
   parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
   plane(parent, weaponTex, 4.5, 0.58, -16.18, 1.45, LB.z0+TW/2+0.006, 0);
-  plane(parent, mapTex, 4.84, 0.55, -17.4, 1.45, LB.z1-TW/2-0.006, Math.PI);
+  plane(parent, mapTex, 4.4, 0.55, -17.62, 1.45, LB.z1-TW/2-0.006, Math.PI);
   parent.add(wallMesh(MAPBTN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
   for (const w of MAPBTN){
     const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
@@ -1051,10 +1067,10 @@ function updateWindows(dt){
   for (const w of WINS){
     if (w.map !== curMap) continue;
     if (w.st === 'gone'){ w.t -= dt; if (w.t <= 0 && !bodies.some(b => windowDist(w, b) < 0.4)){ w.st = 'fade'; w.f = 0; w.box.off = false; w.mesh.visible = true; } }
-    else if (w.st === 'fade'){ w.f += dt; w.mesh.material.opacity = glassBase*Math.min(1, w.f/1.5); if (w.f >= 1.5) w.st = 'ok'; }
+    else if (w.st === 'fade'){ w.f += dt; w.mesh.material.opacity = (w.base || glassBase)*Math.min(1, w.f/1.5); if (w.f >= 1.5) w.st = 'ok'; }
   }
 }
-function resetWindows(){ for (const w of WINS){ w.st = 'ok'; w.box.off = false; w.mesh.visible = true; w.mesh.material.opacity = glassBase; } shards.length = 0; }
+function resetWindows(){ for (const w of WINS){ w.st = 'ok'; w.box.off = false; w.mesh.visible = true; w.mesh.material.opacity = w.base || glassBase; } shards.length = 0; }
 
 // ---- props: loose things in every map to pick up, throw, smash and cut ----
 const PROPK = {};
@@ -1722,6 +1738,12 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     if (thinX) addWindow('backrooms', brGroup, [cx - 0.02, b.max[1], b.min[2] + 0.02], [cx + 0.02, H - 0.02, b.max[2] - 0.02]);
     else addWindow('backrooms', brGroup, [b.min[0] + 0.02, b.max[1], cz - 0.02], [b.max[0] - 0.02, H - 0.02, cz + 0.02]);
   }
+  // the water-cooler jugs are glass too: smash them
+  const jugGeo = new T3.CylinderGeometry(0.15, 0.15, 0.42, 14);
+  for (const M of window.JUGS || []){ const c = new V().setFromMatrixPosition(M), q = new Q().setFromRotationMatrix(M), hx = 0.15, hy = 0.21, e = new V();
+    const box = new T3.Box3().setFromCenterAndSize(new V(), new V(hx*2, hy*2, hx*2)).applyMatrix4(new M4().makeRotationFromQuaternion(q)), sz = box.getSize(e).multiplyScalar(0.45);
+    const w = addWindow('backrooms', brGroup, [c.x - sz.x, c.y - sz.y, c.z - sz.z], [c.x + sz.x, c.y + sz.y, c.z + sz.z]);
+    w.mesh.geometry.dispose(); w.mesh.geometry = jugGeo; w.mesh.quaternion.copy(q); w.mesh.position.copy(c); w.mesh.material.color.setHex(0x7fb6e0); w.mesh.material.emissive.setHex(0x10304a); w.base = 0.7; w.mesh.material.opacity = 0.7; w.jug = true; }
   const props = [];
   for (let k=0;k<16;k++){ const p = new V((Math.floor(mr()*N) + 0.5)*C, 0, (Math.floor(mr()*N) + 0.5)*C); props.push([['box','bottle','box','cone'][k % 4], p.x + (mr()-0.5)*1.5, 0, p.z + (mr()-0.5)*1.5]); }
   MAPS.backrooms.props = props;
@@ -2100,6 +2122,10 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   // moving parts: crusher head, robot arms, the assembler's counter
   const head = new T3.Mesh(new T3.BoxGeometry(CW*2 - 0.1, 1.0, 1.7), lam(0x50555c)); grp.add(head); const plate = new T3.Mesh(new T3.BoxGeometry(CW*2 - 0.05, 0.12, 1.75), lam(0x2a2c30)); plate.position.y = -0.5; head.add(plate);
   const headBox = dynBox();
+  const siren = new T3.Mesh(new T3.CylinderGeometry(0.18, 0.2, 0.3, 12), new T3.MeshBasicMaterial({color:0x400404})); siren.position.set(CX + O.x, 5.55, 22 + O.z); grp.add(siren);
+  const sirenL = new T3.Mesh(new T3.ConeGeometry(0.9, 3, 12, 1, true), new T3.MeshBasicMaterial({color:0xff2010, transparent:true, opacity:0.18, depthWrite:false, side:T3.DoubleSide})); sirenL.geometry.translate(0, -1.5, 0); sirenL.rotation.z = 0; sirenL.position.copy(siren.position); sirenL.visible = false;
+  const beam = new T3.Group(); beam.position.copy(siren.position); grp.add(beam); sirenL.position.set(0, 0, 0); sirenL.rotation.x = Math.PI/2.6; beam.add(sirenL); Object.defineProperty(sirenL, '_b', {value:beam});
+  let sirenWas = false;
   const scrC = document.createElement('canvas'); scrC.width = 256; scrC.height = 96; const scrT = new T3.CanvasTexture(scrC); scrT.encoding = T3.sRGBEncoding;
   const scr = new T3.Mesh(new T3.PlaneGeometry(1.6, 0.6), new T3.MeshBasicMaterial({map:scrT})); scr.position.set(22.5 + O.x, 2.2, 7.5 + O.z); scr.rotation.y = -Math.PI/2; grp.add(scr);
   const scr2 = scr.clone(); scr2.position.set(27.5 + O.x, 1.4, AS[2] - 0.03 + O.z); scr2.rotation.y = Math.PI; grp.add(scr2);
@@ -2131,19 +2157,25 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     sky:{bg:0x2a2c30, fog:0x3a3c40, near:16, far:55, hs:0xfff4e0, hg:0x4a4a50, hi:0.8, ac:0xffffff, ai:0.3},
     onEv(ev){ if (ev.k === 'scrap' && isHost()) addScrap(ev.n || 1); else if (ev.k === 'n'){ scrap = ev.n; drawScr(); } },
     update(dt, inGame){
-      const t = Date.now()/1000, ph = t % 4;
+      const t = Date.now()/1000, ph = (t % 9) - 5;          // 5 s up, siren for the last 2, then it drops
       const hy = ph < 2.6 ? 3.05 : ph < 2.78 ? 3.05 - (ph - 2.6)/0.18*2.4 : ph < 3.3 ? 0.65 : 0.65 + (ph - 3.3)/0.7*2.4;
+      const warn = ph > 0.6 && ph < 3.3, on = warn && (t*3) % 1 < 0.5;
+      siren.material.color.setHex(warn ? (on ? 0xff1a10 : 0x400404) : 0x400404); sirenL.visible = warn; beam.rotation.y = t*7;
+      if (warn && on !== sirenWas && on && inGame && lastPlayer.distanceTo(head.position) < 18 && AC) tone('square', 760, 560, 0.25, 0.05); sirenWas = on;
       head.position.set(CX + O.x, hy + 0.5, 22 + O.z); setDyn(headBox, CX - CW + 0.05 + O.x, hy, 21.15 + O.z, CX + CW - 0.05 + O.x, hy + 1.0, 22.85 + O.z);
       const slam = ph >= 2.72 && ph < 3.3;
       if (slam && !slamWas){ const d = lastPlayer.distanceTo(head.position); sndBang(Math.min(1, 4/(1 + d))); spawnSparks(new V(CX + O.x, BT + 0.1, 22 + O.z), 30, 3); }
-      if (ph > 3.3 && ph < 3.35) sndHiss();
+      if (ph > 3.3 && ph < 3.36) sndHiss();
       slamWas = slam;
       for (const a of arms){ const k = t*1.3 + a.ph; a.base.rotation.y = Math.sin(k*0.7)*1.2; a.sh.rotation.z = a.s*(0.5 + Math.sin(k)*0.35); a.el.rotation.z = a.s*(0.9 + Math.sin(k*1.4)*0.4); }
       if (!inGame) return;
       if (lastPlayer.distanceTo(new V(42 + O.x, 0.5, 22 + O.z)) < 16 && R() < 0.8) emitFire(new V(41 + R()*2.2 + O.x, 0.1, 20.6 + R()*2.8 + O.z), new V((R()-0.5)*0.3, 1 + R()*0.8, (R()-0.5)*0.3), 0.1 + R()*0.08, 0.5 + R()*0.3);
       const hd = loco.headPos(), fy = floorBelow(hd), feet = hd.clone().setY(fy);
       // you ride the belts
-      for (const bt of belts) if (onBelt(feet, bt, -0.1) && Math.abs(fy - BT) < 0.12 && hd.y - fy < 2.4){ rig.position.x += bt.d*1.3*dt; break; }
+      let carried = false;
+      for (const bt of belts){ if (onBelt(feet, bt, -0.1) && Math.abs(fy - BT) < 0.12 && hd.y - fy < 2.4) carried = bt;
+        for (const i of [0,1]) if (!carried && !me.lost[i] && onBelt(handW[i], bt, 0.05) && handW[i].y > BT - 0.15 && handW[i].y < BT + 0.1) carried = bt; if (carried) break; }
+      if (carried){ const dx = carried.d*1.3*dt; rig.position.x += dx; for (const i of [0,1]) if (onBelt(loco.S.lastHand[i], carried, 0.1) && Math.abs(loco.S.lastHand[i].y - BT) < 0.25) loco.S.lastHand[i].x += dx; }
       if (slam && hy < 1.6 && crushZone(hd) && hd.y < hy + 2.2 && hd.y > -1) die('the crusher');
       if (feet.x > 40.7 + O.x && feet.x < 43.3 + O.x && feet.z > 20.3 + O.z && feet.z < 23.7 + O.z && hd.y < 2.2) igniteMe('torso', 'the furnace');
       for (const p of parts.slice()){
@@ -2164,133 +2196,6 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
           if (bt.k === 'loop' && c.x < bt.x0 + O.x + 0.4 && p.name === 'prop'){ p.obj.position.x += 37; p.v.set(0, 0, 0); }
           break;
         }
-      }
-    }};
-}
-
-// ======================= PIRATE SHIP =======================
-// A pirate ship on the open sea. The deck ROCKS (the sea and sky roll; loose things slide), the CANNONS fire
-// whatever you load into them (drop a robot part in the back of the barrel), and there's a PLANK to walk.
-// Over the side is the sea: the sharks get you.
-{
-  const O = new V(0, 0, 900), B = mapBuilder(O, 'ship'); mapSeed = 9191;
-  const plankT = tex(128, 128, (g,w,h) => { for (let y=0;y<h;y+=16){ g.fillStyle = `hsl(${25+R()*6},${38+R()*10}%,${30+R()*8}%)`; g.fillRect(0, y, w, 15); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, y+15, w, 1); g.fillRect((R()*w)|0, y, 1, 15); } noiseFill(g, w, h, 900, 'rgba(20,10,0,A)', 0.2, 2); });
-  const hullT = tex(128, 128, (g,w,h) => { for (let y=0;y<h;y+=12){ g.fillStyle = `hsl(${22+R()*5},${35+R()*8}%,${18+R()*6}%)`; g.fillRect(0, y, w, 11); g.fillStyle = 'rgba(0,0,0,.4)'; g.fillRect(0, y+11, w, 1); } });
-  const sailT = tex(128, 128, (g,w,h) => { g.fillStyle = '#efe6cf'; g.fillRect(0,0,w,h); for (let x=0;x<w;x+=32){ g.fillStyle = 'rgba(120,100,70,.25)'; g.fillRect(x, 0, 2, h); } noiseFill(g, w, h, 500, 'rgba(120,100,60,A)', 0.15, 3); });
-  const flagT = canvasTex(128, 80, (g,w,h) => { g.fillStyle = '#111'; g.fillRect(0,0,w,h); g.fillStyle = '#eee'; g.beginPath(); g.arc(64, 34, 16, 0, 7); g.fill(); g.fillRect(52, 40, 24, 12); g.fillStyle = '#111'; g.fillRect(56, 30, 6, 6); g.fillRect(66, 30, 6, 6);
-    g.strokeStyle = '#eee'; g.lineWidth = 6; g.beginPath(); g.moveTo(34, 52); g.lineTo(94, 72); g.moveTo(94, 52); g.lineTo(34, 72); g.stroke(); });
-  B.mat('deck', lam(0xffffff, {map:plankT, vertexColors:true})).mat('hull', lam(0xffffff, {map:hullT, vertexColors:true})).mat('sail', lam(0xffffff, {map:sailT, vertexColors:true, side:T3.DoubleSide}))
-   .mat('wood', lam(0x6b4a2b, {vertexColors:true})).mat('dark', lam(0x2a1e14, {vertexColors:true})).mat('iron', lam(0x2a2c30, {vertexColors:true})).mat('gold', lam(0xd8a830, {vertexColors:true}))
-   .mat('rope', lam(0xb09a70, {vertexColors:true})).mat('red', lam(0xa8241e, {vertexColors:true})).mat('flag', new T3.MeshBasicMaterial({map:flagT, side:T3.DoubleSide})).mat('lamp', new T3.MeshBasicMaterial({color:0xffd890}));
-  const X0 = 6, X1 = 37, Z0 = 18, Z1 = 26, ZC = 22, HOLD = -3, BW = 1.0, T = 0.3;
-  // hull: sides, stern, the bow, the bottom of the hold
-  B.box('hull', [X0, HOLD - 0.4, Z0 - T], [X1, BW, Z0], {us:2}); B.box('hull', [X0, HOLD - 0.4, Z1], [X1, BW, Z1 + T], {us:2});
-  B.box('hull', [X0 - T, HOLD - 0.4, Z0 - T], [X0, 3.2, Z1 + T], {us:2});
-  B.box('hull', [X1, HOLD - 0.4, Z0 - T], [X1 + 1.6, BW, Z0 + 1.2]); B.box('hull', [X1, HOLD - 0.4, Z1 - 1.2], [X1 + 1.6, BW, Z1 + T]);
-  B.box('hull', [X1 + 1.6, HOLD - 0.4, Z0 + 0.8], [X1 + 3, BW, Z0 + 2.4]); B.box('hull', [X1 + 1.6, HOLD - 0.4, Z1 - 2.4], [X1 + 3, BW, Z1 - 0.8]);
-  B.box('hull', [X1 + 3, HOLD - 0.4, Z0 + 2.4], [X1 + 4.2, BW + 0.4, Z1 - 2.4]);
-  B.box('deck', [X1, -0.3, Z0 + 1.2], [X1 + 1.6, 0, Z1 - 1.2], {us:2}); B.box('deck', [X1 + 1.6, -0.3, Z0 + 2.4], [X1 + 3, 0, Z1 - 2.4], {us:2});
-  B.box('dark', [X0, HOLD - 0.3, Z0], [X1 + 3, HOLD, Z1], {us:2});
-  B.geo('wood', new T3.CylinderGeometry(0.12, 0.18, 7, 8), X1 + 6, 2.4, ZC, 0, 0, -1.2);
-  // the deck, with a hatch down to the hold
-  const HX0 = 17, HX1 = 23, HZ0 = 21, HZ1 = 23;
-  B.box('deck', [X0, -0.3, Z0], [X1, 0, HZ0], {us:2}); B.box('deck', [X0, -0.3, HZ1], [X1, 0, Z1], {us:2}); B.box('deck', [X0, -0.3, HZ0], [HX0, 0, HZ1], {us:2}); B.box('deck', [HX1, -0.3, HZ0], [X1, 0, HZ1], {us:2});
-  for (const [a, b] of [[[HX0 - 0.1, 0, HZ0 - 0.1], [HX1 + 0.1, 0.25, HZ0]], [[HX0 - 0.1, 0, HZ1], [HX1 + 0.1, 0.25, HZ1 + 0.1]], [[HX0 - 0.1, 0, HZ0], [HX0, 0.25, HZ1]]]) B.box('dark', a, b);
-  for (let i=0;i<10;i++) B.box('wood', [HX1 - 0.6*(i + 1), HOLD, HZ0], [HX1 - 0.6*i, -0.3*(i + 1), HZ1]);
-  // bulwarks with gunports, and a gap for the plank
-  const CAN = [15, 21, 27], PX = 31;
-  for (const [z0, z1, side] of [[Z0, Z0 + 0.2, -1], [Z1 - 0.2, Z1, 1]]){
-    const holes = CAN.map(x => [x - 0.4, x + 0.4, 0.25, 0.85]); if (side > 0) holes.push([PX - 0.45, PX + 0.45, 0, BW + 0.01]);
-    B.wallRun(['hull'], 'x', X0, X1, z0, z1, 0, BW, holes, 2); B.box('wood', [X0, BW, z0 - 0.05], [X1, BW + 0.08, z1 + 0.05]); }
-  B.box('deck', [PX - 0.25, -0.06, Z1], [PX + 0.25, 0.04, Z1 + 3.2]); B.box('wood', [PX - 0.3, -0.5, Z1 + 0.25], [PX + 0.3, -0.06, Z1 + 0.6]);
-  // quarterdeck over the captain's cabin at the stern, with stairs
-  const QY = 2.4, QX = 12.5;
-  B.box('deck', [X0, QY - 0.2, Z0], [QX, QY, Z1], {us:2}); B.box('hull', [X0, QY, Z0 - T], [QX, QY + 0.9, Z0], {us:2}); B.box('hull', [X0, QY, Z1], [QX, QY + 0.9, Z1 + T], {us:2});
-  B.wallRun(['hull'], 'z', Z0, Z1, QX - 0.2, QX, 0, QY - 0.2, [[21, 23, 0, 2.0]], 2);
-  for (const zc of [19.1, 24.9]) for (let i=0;i<8;i++) B.box('wood', [QX + 2.4 - 0.3*(i + 1), 0, zc - 0.5], [QX + 2.4 - 0.3*i, (i + 1)*QY/8, zc + 0.5]);
-  B.box('wood', [QX, QY - 0.2, Z0], [QX + 0.1, QY + 0.9, 18.6]); B.box('wood', [QX, QY - 0.2, 19.6], [QX + 0.1, QY + 0.9, 24.4]); B.box('wood', [QX, QY - 0.2, 25.4], [QX + 0.1, QY + 0.9, Z1]);
-  B.box('dark', [7, 0, 20.5], [10, 0.8, 23.5]); B.box('gold', [7.5, 0.8, 21], [8.5, 0.82, 22.6], {solid:false});
-  B.box('red', [6.3, 0, 19], [7.3, 0.7, 20]); B.box('gold', [6.3, 0.7, 19], [7.3, 0.8, 20]);
-  for (const z of [18.5, 25.5]) B.box('lamp', [11.8, 1.7, z - 0.1], [12.0, 1.9, z + 0.1], {solid:false});
-  // the wheel
-  B.cyl('wood', 0.08, 0.08, 1.0, 9.5, QY, ZC, 8); B.geo('wood', new T3.TorusGeometry(0.5, 0.04, 6, 16), 9.6, QY + 1.0, ZC, 0, Math.PI/2, 0);
-  for (let k=0;k<4;k++) B.geo('wood', new T3.BoxGeometry(0.04, 1.2, 0.04), 9.6, QY + 1.0, ZC, k*Math.PI/4, 0, 0);
-  // masts, yards, sails, crow's nest with rungs up the main mast
-  for (const [x, y0, h, nest] of [[24, 0, 15, true], [33, 0, 12, false], [9, QY, 10, false]]){
-    B.cyl('wood', 0.28, 0.22, h, x, y0, ZC, 12);
-    for (const [yy, w] of [[y0 + h*0.45, 3.6], [y0 + h*0.75, 2.8]]){ B.geo('wood', new T3.CylinderGeometry(0.09, 0.09, w*2, 8), x, yy, ZC, Math.PI/2); B.geo('sail', new T3.PlaneGeometry(w*1.8, h*0.27, 6, 2), x + 0.35, yy - h*0.14, ZC, 0, Math.PI/2, 0); }
-    if (nest){ B.cyl('wood', 1.1, 1.1, 0.15, x, 9, ZC, 16); for (let k=0;k<12;k++){ const a = k/12*Math.PI*2; B.box('wood', [x + Math.cos(a)*1.05 - 0.05, 9.15, ZC + Math.sin(a)*1.05 - 0.05], [x + Math.cos(a)*1.05 + 0.05, 10.1, ZC + Math.sin(a)*1.05 + 0.05]); }
-      B.geo('wood', new T3.TorusGeometry(1.05, 0.05, 6, 20), x, 10.1, ZC, Math.PI/2);
-      for (let k=0;k<22;k++) B.box('rope', [x - 0.45, 0.5 + k*0.4, ZC - 0.25], [x - 0.3, 0.55 + k*0.4, ZC + 0.25]); }
-    B.geo('flag', new T3.PlaneGeometry(1.4, 0.9), x + 0.75, y0 + h - 0.5, ZC, 0, Math.PI/2, 0);
-  }
-  for (const s of [-1, 1]) for (const x of [24, 33]) for (let k=0;k<4;k++) B.geo('rope', new T3.CylinderGeometry(0.02, 0.02, 9, 4), x - 1.5 + k, 5, ZC + s*2.5, s*0.47, 0, 0);
-  // the cannons (on carriages, pointing out of the gunports)
-  const cannons = [];
-  for (const x of CAN) for (const s of [-1, 1]){
-    const zb = ZC + s*2.6; B.box('wood', [x - 0.35, 0, zb - 0.5], [x + 0.35, 0.35, zb + 0.5]); 
-    B.geo('iron', new T3.CylinderGeometry(0.16, 0.2, 1.7, 12), x, 0.55, zb + s*0.6, Math.PI/2); B.geo('iron', new T3.SphereGeometry(0.2, 10, 8), x, 0.55, zb - s*0.25);
-    for (const sx of [-0.3, 0.3]) B.geo('dark', new T3.CylinderGeometry(0.15, 0.15, 0.08, 10), x + sx, 0.15, zb, 0, 0, Math.PI/2);
-    cannons.push({x, s, load:new V(x + O.x, 0.75, zb - s*0.35 + O.z), muzzle:new V(x + O.x, 0.55, zb + s*1.5 + O.z), dir:new V(0, 0.18, s).normalize(), p:null, fuse:0});
-  }
-  // the hold: crates, barrels, hammocks, cannonballs, treasure
-  for (const [x, z, n] of [[9, 19, 2], [11, 19, 1], [27, 24, 2], [30, 19, 1], [34, 19, 2], [34, 23.5, 1]]) for (let k=0;k<n;k++) B.box('wood', [x, HOLD + k*1.0, z], [x + 1.6, HOLD + k*1.0 + 0.95, z + 1.6]);
-  for (const x of [26, 28.5]) B.box('rope', [x, HOLD + 1.6, 19.2], [x + 2, HOLD + 1.7, 20.2], {solid:false});
-  for (let k=0;k<6;k++) B.geo('iron', new T3.SphereGeometry(0.16, 8, 6), 13 + (k % 3)*0.34, HOLD + 0.16 + Math.floor(k/3)*0.28, 24.5 + Math.floor(k/3)*0.15);
-  B.box('red', [31, HOLD, 23.8], [32.4, HOLD + 0.7, 24.8]); B.box('gold', [31.1, HOLD + 0.7, 23.9], [32.3, HOLD + 0.85, 24.7], {solid:false});
-  for (const [x, z] of [[14, 19.5], [20, 19.5], [26, 21.5], [32, 21.5]]) B.box('lamp', [x - 0.1, HOLD + 2.3, z - 0.1], [x + 0.1, HOLD + 2.5, z + 0.1], {solid:false});
-  for (const [k, x, y, z] of [['barrel', 20, 0, 19.2], ['barrel', 26, 0, 24.8], ['barrel', 14, HOLD, 22], ['barrel', 16, HOLD, 19.5], ['box', 29, 0, 19.3], ['box', 18, 0, 24.7], ['bottle', 8, 0.8, 21.5], ['bottle', 25, HOLD, 22.5],
-    ['ball', 12.6, HOLD, 23], ['ball', 13.2, HOLD, 23], ['stick', 22, 0, 24.6], ['mug', 9, 0.8, 22.5], ['book', 8.5, 0.8, 22.9], ['duck', 30, 0, 20]]) B.prop(k, x, y, z);
-  const lamps = [[11.9, 1.8, 18.5], [11.9, 1.8, 25.5], [14, HOLD + 2.4, 19.5], [20, HOLD + 2.4, 19.5], [26, HOLD + 2.4, 21.5], [32, HOLD + 2.4, 21.5], [8.5, 1.8, 22]];
-  const light = (x, y, z) => { x -= O.x; z -= O.z; let r = 1, g = 0.95, b = 0.86;
-    if (y < -0.1 || (x < QX && y < QY - 0.1)){ r = 0.22; g = 0.18; b = 0.14; for (const [lx, ly, lz] of lamps){ const d = Math.hypot(x - lx, y - ly, z - lz), k = 1.2*Math.exp(-d/2.6); r += k; g += k*0.75; b += k*0.4; } }
-    return [r, g, b]; };
-  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0, HOLD]);
-  // the sea, the sky and the sharks: they roll around the ship
-  const sea = new T3.Group(); sea.position.set(22 + O.x, 0, ZC + O.z); grp.add(sea);
-  const waveT = canvasTex(128, 128, (g,w,h) => { g.fillStyle = '#1d6a9a'; g.fillRect(0,0,w,h); for (let i=0;i<260;i++){ g.fillStyle = `rgba(${150+R()*100|0},${200+R()*55|0},255,${0.1+R()*0.25})`; g.fillRect(R()*w, R()*h, 6 + R()*16, 2); } }, true); waveT.repeat.set(40, 40);
-  const water = new T3.Mesh(new T3.PlaneGeometry(220, 220), new T3.MeshLambertMaterial({map:waveT, emissive:0x0a2a40})); water.rotation.x = -Math.PI/2; water.position.y = -1.2; sea.add(water);
-  for (const [x, z, r] of [[-60, -40, 9], [55, 50, 12], [70, -25, 6]]){ const isl = new T3.Mesh(new T3.SphereGeometry(r, 14, 8, 0, 6.3, 0, 1.4), lam(0x3f8a3a)); isl.position.set(x, -1.6, z); sea.add(isl);
-    const sand = new T3.Mesh(new T3.CylinderGeometry(r*1.05, r*1.15, 0.6, 18), lam(0xe2d2a0)); sand.position.set(x, -1.3, z); sea.add(sand); }
-  const sun = new T3.Mesh(new T3.SphereGeometry(4, 16, 10), new T3.MeshBasicMaterial({color:0xfff2c0, fog:false})); sun.position.set(-40, 26, 55); sea.add(sun);
-  for (let k=0;k<8;k++){ const c = new T3.Mesh(new T3.SphereGeometry(4 + R()*3, 10, 6), new T3.MeshBasicMaterial({color:0xffffff, fog:false, transparent:true, opacity:0.85})); c.scale.set(2.5, 0.6, 1.4); const a = R()*6.3; c.position.set(Math.cos(a)*65, 25 + R()*10, Math.sin(a)*65); sea.add(c); }
-  const fins = [0, 1].map(k => { const f = new T3.Mesh(new T3.ConeGeometry(0.35, 0.8, 4), lam(0x5a6670)); f.scale.z = 0.25; sea.add(f); return {f, a:k*3, r:11 + k*3}; });
-  const splashes = [];
-  const splash = (pos) => { for (let k=0;k<20;k++) frostPuff(pos.clone().add(new V((R()-0.5)*0.6, 0, (R()-0.5)*0.6))); if (AC && pos.distanceTo(lastPlayer) < 25) noiseHit(0.6, 900, 0.6, 0.4); };
-  const sndCannon = (v) => { if (!AC) return; noiseHit(1.0, 220, 0.6, 1.0*v); tone('sine', 70, 30, 0.6, 0.7*v); noiseHit(0.2, 1500, 1, 0.5*v); };
-  const fuseS = () => { if (!AC) return; noiseHit(1.0, 5000, 2, 0.08); };
-  const fire = (c, local) => { const pos = c.muzzle.clone(); flash(pos, 1.4); spawnSparks(pos, 50, 6); emitAsh(pos, 20, 0.3); for (let k=0;k<12;k++) emitFire(pos.clone(), c.dir.clone().multiplyScalar(4 + R()*4).add(new V(R()-0.5, R()-0.5, R()-0.5)), 0.12, 0.3);
-    sndCannon(Math.min(1, 6/(1 + pos.distanceTo(lastPlayer)))); if (local && netGame) netSend('ev', {t:'mapev', m:'ship', k:'boom', c:cannons.indexOf(c)}); };
-  const onShip = p => p.x > X0 - 0.3 + O.x && p.x < X1 + 4.2 + O.x && p.z > Z0 - 0.3 + O.z && p.z < Z1 + 0.3 + O.z;
-  let roll = 0;
-  MAPS.ship = {name:'PIRATE SHIP', group:grp, spawn:new V(28, 0, 21).add(O), yaw:Math.PI/2, nav, yMin:-8, yMax:20, props:B.props,
-    sky:{bg:0x8fc6ea, fog:0xa8d0ea, near:30, far:78, hs:0xfff6e0, hg:0x2a5a7a, hi:1.05, ac:0xffffff, ai:0.3},
-    onEv(ev){ if (ev.k === 'boom' && cannons[ev.c]) fire(cannons[ev.c], false); },
-    update(dt, inGame){
-      const t = Date.now()/1000; roll = Math.sin(t*0.85)*0.055; const pitch = Math.sin(t*0.53 + 1)*0.02;
-      sea.rotation.set(roll, 0, pitch); sea.position.y = Math.sin(t*0.7)*0.15; waveT.offset.x = t*0.01; waveT.offset.y = t*0.006;
-      for (const f of fins){ f.a += dt*0.25; f.f.position.set(Math.cos(f.a)*f.r, -1.0, Math.sin(f.a)*f.r*1.6); f.f.rotation.y = -f.a; }
-      if (!inGame) return;
-      // you: the deck tilts under you a little, and the sea is deadly
-      const h = loco.headPos(), feet = h.clone().setY(floorBelow(h));
-      if (onShip(h) && feet.y > -0.6 && loco.S.wasTouching.some(t2 => t2)){ loco.S.velocity.z += Math.sin(roll)*6*dt; }
-      if (!onShip(h) && h.y < -0.7){ splash(feet.clone().setY(-1.1)); die(feet.z > Z1 + O.z && Math.abs(feet.x - PX - O.x) < 2 ? 'walking the plank' : 'the sharks'); return; }
-      for (const c of cannons){
-        if (c.p){ c.fuse -= dt; const p = c.p;
-          if (p.obj.userData.dead){ c.p = null; continue; }
-          p.obj.position.copy(c.load).addScaledVector(c.dir, 0.4); p.v.set(0, 0, 0); p.mode = 'free'; p.asleep = false;
-          if (R() < 0.4) spawnSparks(c.load.clone().add(new V(0, 0.25, 0)), 2, 1);
-          if (c.fuse <= 0){ p.obj.position.copy(c.muzzle).addScaledVector(c.dir, 0.4); p.v.copy(c.dir).multiplyScalar(24); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(15); fire(c, true); c.p = null; p.calmT = clock + 0.4; p.noLoad = clock + 1.5; p.obj.updateMatrixWorld(true); }
-        }
-      }
-      for (const p of parts.slice()){
-        if (p.parent || p.obj.userData.dead || !mine(p) || p.mode === 'held' || p.stuck) continue;
-        const c = centerW(p);
-        if (!onShip(c) && c.y < -1.1){ splash(c.clone().setY(-1.1)); removePart(p); continue; }
-        if (p.bot && !p.bot.dead && p === p.bot.root && p.mode === 'bot') continue;
-        if (onShip(c) && c.y > -0.2 && c.y < 1.5){ p.v.z += Math.sin(roll)*9.81*dt*0.7; if (Math.abs(roll) > 0.03) p.asleep = false; }
-        if (p.name === 'mine' || p.noLoad > clock || cannons.some(k => k.p === p)) continue;
-        for (const k of cannons) if (!k.p && c.distanceTo(k.load) < 0.32 + p.r*0.5){ k.p = p; k.fuse = 1.2; fuseS(); const b = p.bot; if (b && !b.dead && R() < 0.7) say(b, pick(['wait what','not the cannon','FIRE IN THE HOLE'])); break; }
       }
     }};
 }
@@ -2645,6 +2550,7 @@ function killBot(bot, remote){
   if (bot.dead) return; bot.dead = true; say(bot, null); setFace(bot, 'dead'); bot.deadT = 0; if (!remote) score++;
   if (bot.root.mode === 'bot'){ bot.root.mode = 'free'; bot.root.v.set(0,0,0); }
   if (bot.social) endSocial(bot);
+  if (bot.dummy) return;
   if (bot.mon){ say(bot, pick(['noooo','ow ow ow :(','i just wanted a hug'])); if (MAPS.backrooms.monsterDone) MAPS.backrooms.monsterDone('killed'); return; }
   if (!netGame || isHost()) respawnTimers.push(3);
 }
@@ -3070,7 +2976,16 @@ function punches(dt){
 
 // ================= bot AI & free-body physics =================
 function updateBot(bot, dt, player){
+  if (bot.root.parent && !bot.dead){                 // glued onto something: it's stuck there, it can only wriggle
+    bot.t += dt; if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); }
+    if (bot.root.mode === 'bot') bot.root.mode = 'free';
+    bot.ups.forEach((u, j) => { if (u.parent === bot.root && !isStretched(u)) u.obj.rotation.z = (j ? 1 : -1)*(1.6 + Math.sin(bot.t*14 + j)*0.8); });
+    bot.legs.forEach((l, j) => { if (l.parent === bot.root && !isStretched(l)) l.obj.rotation.x = Math.sin(bot.t*12 + j*3)*0.7; });
+    if (!bot.mon && R() < dt*0.08) say(bot, pick(['I am stuck!','who glued me','help I am part of something now']));
+    return;
+  }
   if (bot.mon) return updateMonster(bot, dt);
+  if (bot.dummy) return updateDummy(bot, dt);
   if (bot.socialCD > 0) bot.socialCD -= dt;
   bot.t += dt;
   const root = bot.root;
@@ -3279,7 +3194,7 @@ function updateWeapon(dt){
   for (const i of [0,1]){
     const w = me.lost[i] ? 'none' : wpn[i];
     if (w === 'saw'){ if (updateSaw(i, dt)) sawCut = 1; sawLvl = Math.max(sawLvl, sawRun[i]); } else { sawRun[i] = 0; if (cutJobs[i]) abortCut(i); }
-    if (w === 'hammer' && mode === 'game') updateHammer(i, dt);
+    if (w === 'hammer' && armed()) updateHammer(i, dt);
     if (w === 'flame') updateFlamer(i, dt); else flameOn[i] = false;
     if (w === 'mine') updateMineHand(i, dt); else minePrev[i] = false;
     if (w === 'laser') updateLaser(i, dt); else { laserOn[i] = false; myBeams[i].visible = false; }
@@ -3360,7 +3275,7 @@ function updateSaw(i, dt){
   const A = sw.localToWorld(new V(0,-0.03,0)), B = sw.localToWorld(new V(0,-0.03-BLADE*Math.min(1, sw.ext),0)), mid = A.clone().lerp(B, 0.5);
   const bv = mid.clone().sub(sawPrevMid[i]).divideScalar(Math.max(dt, 1e-3)); sawPrevMid[i].copy(mid);
   let cutting = 0;
-  if (sw.ext > 0.6 && mode === 'game'){
+  if (sw.ext > 0.6 && armed()){
     pulse(i, 0.2, 20);
     const dir = B.clone().sub(A).normalize(), nBar = new V(1,0,0).applyQuaternion(sw.bar.getWorldQuaternion(new Q())).normalize();
     // stick with the robot already being cut as long as the blade is anywhere in it
@@ -3518,7 +3433,7 @@ function updateFlamer(i, dt){
   if (!flameOn[i]) return;
   pulse(i, 0.25, 20);
   const [tip, dir] = shootFlames(fl, 3);
-  if (mode !== 'game') return;
+  if (!armed()) return;
   const inCone = (c, extra) => { const t = c.clone().sub(tip).dot(dir); if (t < 0 || t > 2.6) return 0; const r = c.clone().sub(tip).addScaledVector(dir, -t).length(), w = 0.06 + t*0.17 + extra; return r < w ? 1 - 0.5*r/w : 0; };
   // it takes a second or so of steady flame to catch: the part heats up, smokes and licks flame first
   for (const p of parts){
@@ -3751,7 +3666,7 @@ function createMine(id, owner, fuse, by){
 function updateMineHand(i, dt){
   mineCD[i] -= dt;
   const t = io.trig[i] > 0.5;
-  if (t && !minePrev[i] && mineCD[i] <= 0 && mode === 'game'){ placeMine(i); mineCD[i] = 1.2; }
+  if (t && !minePrev[i] && mineCD[i] <= 0 && armed()){ placeMine(i); mineCD[i] = 1.2; }
   minePrev[i] = t;
 }
 function bodyAnchor(v, k){
@@ -3932,7 +3847,7 @@ function updateLaser(i, dt){
   if (!laserOn[i]){ myBeams[i].visible = false; return; }
   pulse(i, 0.1, 20);
   const [tip, dir] = weaponRay(lz, -0.25); let len = worldRayLen(tip, dir, LASER_LEN), hp = null, hpl = null;
-  if (mode === 'game'){ hp = rayPart(tip, dir, len, hs[i].mode === 'hold' ? hs[i].root : null); if (hp) len = hp.t; hpl = rayPlayer(tip, dir, len); if (hpl){ len = hpl.t; hp = null; } }
+  if (armed()){ hp = rayPart(tip, dir, len, hs[i].mode === 'hold' ? hs[i].root : null); if (hp) len = hp.t; hpl = rayPlayer(tip, dir, len); if (hpl){ len = hpl.t; hp = null; } }
   const end = tip.clone().addScaledVector(dir, len); aimBeam(myBeams[i], tip, end, 0.006);
   if (len < LASER_LEN - 0.01){ if (R() < 0.6) spawnSparks(end, 1, 1.2); if (R() < 0.2) emitAsh(end, 1, 0.01); }
   if (hp){
@@ -3985,7 +3900,7 @@ function sndHook(){ if (!AC) return; noiseHit(0.12, 1800, 2, 0.25); tone('square
 function updateHook(i, dt){
   const hk = myW[i].hook, trig = io.trig[i] > 0.5, [tip, dir] = weaponRay(hk, -0.2);
   let h = hooks[i];
-  if (trig && !hookPrev[i] && !h && mode === 'game'){ h = hooks[i] = {st:'fly', p:tip.clone(), d:dir.clone(), dist:0}; sndHook(); pulse(i, 0.5, 40); }
+  if (trig && !hookPrev[i] && !h && armed()){ h = hooks[i] = {st:'fly', p:tip.clone(), d:dir.clone(), dist:0}; sndHook(); pulse(i, 0.5, 40); }
   hookPrev[i] = trig;
   if (h && !trig){ hooks[i] = h = null; }
   hk.head.visible = !h;
@@ -4135,27 +4050,48 @@ function updateIce(dt){
     }
   }
 }
+// the spray: soft puffs of cold mist that billow out and fade, with glittering ice bits
+const mistTex = canvasTex(64, 64, (g,w,h) => { const gr = g.createRadialGradient(32,32,0,32,32,32); gr.addColorStop(0,'rgba(255,255,255,0.9)'); gr.addColorStop(0.45,'rgba(200,240,255,0.45)'); gr.addColorStop(1,'rgba(180,230,255,0)'); g.fillStyle = gr; g.fillRect(0,0,w,h); });
+const MISTN = 140, mist = [];
+for (let k=0;k<MISTN;k++){ const sp = new T3.Sprite(new T3.SpriteMaterial({map:mistTex, color:0xd8f4ff, transparent:true, depthWrite:false, opacity:0})); sp.visible = false; sp.renderOrder = 6; scene.add(sp); mist.push({sp, life:0, max:1, v:new V(), d:0, L:0}); }
+let mistI = 0;
+function emitMist(tip, dir, L, n){
+  for (let k=0;k<n;k++){ const m = mist[mistI = (mistI + 1) % MISTN]; const spread = new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(1.6);
+    m.sp.position.copy(tip).addScaledVector(dir, 0.05 + R()*0.1); m.v.copy(dir).multiplyScalar(4.5 + R()*2.5).add(spread); m.life = m.max = 0.55 + R()*0.35; m.d = 0; m.L = L; m.sp.visible = true; m.s0 = 0.04 + R()*0.04; }
+  if (R() < 0.5) frostPuff(tip.clone().addScaledVector(dir, R()*L*0.8).add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.25)));
+}
+function updateMist(dt){
+  for (const m of mist){ if (m.life <= 0) continue; m.life -= dt; if (m.life <= 0){ m.sp.visible = false; continue; }
+    const step = m.v.length()*dt; if (m.d + step < m.L){ m.sp.position.addScaledVector(m.v, dt); m.d += step; } else m.v.multiplyScalar(0.5);
+    m.v.multiplyScalar(1 - 2.2*dt); m.v.y -= 0.4*dt; const k = 1 - m.life/m.max;
+    m.sp.scale.setScalar(m.s0 + k*0.55); m.sp.material.opacity = 0.5*Math.min(1, k*5)*(1 - k); }
+}
 let freezeHissT = 0;
 function updateFreezer(i, dt){
   const fz = myW[i].freeze; freezeOn[i] = io.trig[i] > 0.5; fz.tip.material.color.setHex(freezeOn[i] ? 0xe4faff : 0x2a6a80);
-  if (!freezeOn[i]){ myFrost[i].visible = false; return; }
+  myFrost[i].visible = false;
+  if (!freezeOn[i]) return;
   pulse(i, 0.08, 15);
-  if (AC && clock > freezeHissT){ freezeHissT = clock + 0.07; noiseHit(0.12, 7000, 0.9, 0.05); }
-  const [tip, dir] = weaponRay(fz, -0.24); let len = worldRayLen(tip, dir, FREEZE_LEN), hp = null, hpl = null;
-  if (mode === 'game'){ hp = rayPart(tip, dir, len, hs[i].mode === 'hold' ? hs[i].root : null); if (hp) len = hp.t; hpl = rayPlayer(tip, dir, len); if (hpl){ len = hpl.t; hp = null; } }
-  const end = tip.clone().addScaledVector(dir, len); aimBeam(myFrost[i], tip, end, 0.016 + 0.005*Math.sin(clock*40));
-  for (let k=0;k<2;k++) if (R() < 0.7) frostPuff(tip.clone().addScaledVector(dir, len*R()));
-  if (len < FREEZE_LEN - 0.01 && R() < 0.6) frostPuff(end);
-  if (hp && hp.p.name !== 'mine'){
-    const root = rootOf(hp.p), isBot = root.bot && root.bot.root === root;
-    if (!root.ice){
-      if (root.fire || hp.p.fire){ hp.p.heat = 0; }            // the frost knocks the heat out of it
-      setFreeze(root, (root.frz || 0) + dt/(isBot ? 2.4 : 1.3)); lastCombat = clock;
-      const b = root.bot; if (b && !b.dead && R() < dt*0.8) say(b, pick(['s-s-so cold','brrrrr','my joints!','I c-cant feel my wheels']));
-    }
+  if (AC && clock > freezeHissT){ freezeHissT = clock + 0.07; noiseHit(0.14, 2500 + R()*1500, 0.5, 0.06); }
+  const [tip, dir] = weaponRay(fz, -0.24), L = worldRayLen(tip, dir, FREEZE_LEN);
+  emitMist(tip, dir, L, 3);
+  if (!armed()) return;
+  // everything in the cold cone (not just one point) gets colder
+  const inCone = (c, extra) => { const t = c.clone().sub(tip).dot(dir); if (t < 0 || t > L) return 0; const r = c.clone().sub(tip).addScaledVector(dir, -t).length(), w = 0.08 + t*0.2 + extra; return r < w ? 1 - 0.5*r/w : 0; };
+  const held = hs[i].mode === 'hold' ? hs[i].root : null, done = new Set();
+  for (const p of parts){
+    if (p.obj.userData.dead || p.name === 'mine') continue; const root = rootOf(p); if (root === held || done.has(root)) continue;
+    const hit = inCone(centerW(p), p.r*0.6); if (!hit) continue; done.add(root);
+    if (root.ice) continue;
+    const isBot = root.bot && root.bot.root === root;
+    if (root.fire || p.fire) p.heat = 0;
+    setFreeze(root, (root.frz || 0) + dt*hit*1.3/(isBot ? 2.4 : 1.3)); lastCombat = clock;
+    const b = root.bot; if (b && !b.dead && !b.mon && R() < dt*0.8) say(b, pick(['s-s-so cold','brrrrr','my joints!','I c-cant feel my wheels']));
   }
-  if (hpl){ const peer = NET.peers[hpl.x.id]; lastCombat = clock; peer.fzAcc = (peer.fzAcc || 0) + dt;
-    if (clock - (peer.fzT || 0) > 0.12){ peer.fzT = clock; netSend('ev', {t:'pfrz', a:r3(peer.fzAcc)}, [hpl.x.id]); peer.fzAcc = 0; } }
+  const hitP = new Set();
+  for (const t of playerTargets()){ if (hitP.has(t.id) || !inCone(t.pos, 0.12)) continue; hitP.add(t.id);
+    const peer = NET.peers[t.id]; lastCombat = clock; peer.fzAcc = (peer.fzAcc || 0) + dt;
+    if (clock - (peer.fzT || 0) > 0.12){ peer.fzT = clock; netSend('ev', {t:'pfrz', a:r3(peer.fzAcc)}, [t.id]); peer.fzAcc = 0; } }
 }
 // someone's freeze ray is on me: my hands get slower and slower, then I'm an ice cube
 let myFrzT = -9;
@@ -4212,7 +4148,7 @@ function shoulderW(i){ return me.torso.position.clone().add(new V(i ? 0.27 : -0.
 function updateGlue(i, dt){
   const trig = io.trig[i] > 0.5, press = trig && !gluePrev[i]; gluePrev[i] = trig;
   const gg = myW[i].glue; gg.drip.visible = trig;
-  if (!press || mode !== 'game') return;
+  if (!press || !armed()) return;
   sndGlue(); pulse(i, 0.4, 40);
   const j = hs[i].mode === 'hold' ? i : hs[1-i].mode === 'hold' ? 1-i : -1;
   if (j < 0) return;
@@ -4326,7 +4262,7 @@ function updateBoomer(i, dt){
   const bw = myW[i].boomer, trig = io.trig[i] > 0.5, press = trig && !boomPrev[i]; boomPrev[i] = trig;
   let b = booms_[i];
   bw.blade.visible = !b; if (!b) bw.blade.rotation.y += dt*4;
-  if (press && !b && mode === 'game'){
+  if (press && !b && armed()){
     const [tip, dir] = weaponRay(bw, -0.13), sp = hv[i].length();
     const v = sp > 2.5 ? hv[i].clone().setLength(Math.min(17, 8 + sp*1.2)) : dir.clone().multiplyScalar(11);
     b = booms_[i] = {p:tip.clone(), v, t:0, cut:new Set(), hit:new Set(), back:false, turn:(R() < 0.5 ? -1 : 1)*0.7};
@@ -4341,7 +4277,7 @@ function updateBoomer(i, dt){
   const sp = b.v.length(), step = sp*dt, dirn = b.v.clone().divideScalar(sp || 1);
   if (!b.back){ const L = worldRayLen(b.p, dirn, step + 0.12); if (L < step + 0.12 - 1e-4){ b.back = true; b.v.multiplyScalar(-0.5); spawnSparks(b.p.clone().addScaledVector(dirn, L), 25, 3); sndClank(3); } }
   const from = b.p.clone(); b.p.addScaledVector(b.v, dt);
-  if (mode === 'game'){
+  if (armed()){
     const held = hs[0].root, held1 = hs[1].root;
     for (const p of parts.slice()){
       if (p.obj.userData.dead || p.name === 'mine') continue;
@@ -4430,6 +4366,62 @@ function buttonPokes(){
     const btn = subtree(b.root).find(q => q.name === 'button' && q.press); if (!btn) continue; const c = centerW(btn);
     for (const i of [0,1]) if (!me.lost[i] && handW[i].distanceTo(c) < 0.07 && hv[i].length() < 2.5 && clock - (b.pokeT || 0) > 1.5){ b.pokeT = clock; pulse(i, 0.3, 30); if (AC) tone('square', 1200, 1600, 0.12, 0.08);
       say(b, pick(['beep boop!','do not press that','*happy noises*','ACTIVATE DANCE MODE','that tickles'])); b.spin = 1.2; if (!mine(b.root)) {} } }
+}
+
+// ================= target range (off the lobby) =================
+// DUMMIES: three robot dummies stand at the far end (and come back 3 s after you scrap them).
+// WALK: they march back and forth. CLEAR: sweeps up the pieces. Every weapon works in here.
+const range = {on:false, move:false, slots:[1.5, 3.5, 5.5].map(z => ({z, b:null, t:3}))};
+const inRange = () => mode === 'lobby' && loco.headPos().x > LB.x1 + 0.05;
+const armed = () => mode === 'game' || inRange();
+function removeBot(b){ if (!b) return; if (b.root && !b.root.obj.userData.dead) removePart(b.root, true); const i = bots.indexOf(b); if (i >= 0) bots.splice(i, 1); }
+function rangeClear(){ for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead && !(p.bot && p.bot.dummy && !p.bot.dead && p === p.bot.root)){ const c = centerW(p); if (c.x > RG.x0 && c.x < RG.x1 + 1 && c.z > RG.z0 - 1 && c.z < RG.z1 + 1 && c.y < H + 1) removePart(p, true); } }
+function spawnDummy(sl){
+  const b = makeBot(0xff8a1f, new V(-5.5, STAND, sl.z)); b.dummy = true; b.slot = sl; b.root.obj.rotation.y = -Math.PI/2; b.dir = sl.z < 3 ? 1 : -1; b.sayT = 8 + R()*10;
+  spawnSparks(new V(-5.5, 0.6, sl.z), 30, 2); sl.b = b; sl.t = 0;
+}
+function updateRange(dt){
+  if (mode !== 'lobby') return;
+  for (const w of RBTN){
+    let by = -1; for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-w.x, h.z-w.z) < w.cap+0.04 && h.y < w.top+0.06+0.05+0.02) by = i; }
+    w.caps.forEach(c => c.position.y = w.top + (by >= 0 ? 0.01 : 0.03));
+    if (by >= 0 && !w.down){ sndBoop(); pulse(by, 0.8, 90);
+      if (w.k === 'dummy'){ range.on = !range.on; if (!range.on) for (const sl of range.slots){ removeBot(sl.b); sl.b = null; sl.t = 3; } }
+      if (w.k === 'move') range.move = !range.move;
+      if (w.k === 'clear'){ rangeClear(); for (const sl of range.slots) if (sl.b && sl.b.dead){ removeBot(sl.b); sl.b = null; sl.t = 3; } } }
+    w.down = by >= 0;
+    const lit = w.k === 'dummy' ? range.on : w.k === 'move' ? range.move : false; w.caps.forEach(c => c.material.emissive.setHex(lit ? 0x553311 : 0x000000));
+  }
+  if (!range.on) return;
+  for (const sl of range.slots){
+    const b = sl.b, gone = !b || b.dead || b.root.obj.userData.dead || !bots.includes(b) || b.root.obj.position.distanceTo(new V(-5.5, 0, sl.z)) > 25;
+    if (!gone){ sl.t = 0; continue; }
+    sl.t += dt; if (sl.t > 3){ if (b && bots.includes(b) && !b.root.obj.userData.dead && !b.dead) removeBot(b); else if (b){ const i = bots.indexOf(b); if (i >= 0) bots.splice(i, 1); } spawnDummy(sl); }
+  }
+}
+function updateDummy(bot, dt){
+  const root = bot.root; bot.t += dt;
+  if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); }
+  if (bot.dead){ bot.deadT += dt; if (bot.deadT > 4 && bot.face !== 'off'){ bot.face = 'off'; if (!bot.faceP.obj.userData.dead) bot.screen.material = FACES.off; } return; }
+  if (root.obj.userData.dead){ killBot(bot); return; }
+  if (root.mode === 'held'){ bot.ups.forEach((u, j) => { if (u.parent === root && !isStretched(u)) u.obj.rotation.z = (j ? 1 : -1)*(2.2 + Math.sin(bot.t*20 + j)*0.9); }); return; }
+  if (root.mode === 'free'){
+    if (root.v.length() < 0.35 && root.grounded) root.still += dt; else root.still = 0;
+    if (root.still > 1.0 && bot.head.parent === root){ root.obj.quaternion.setFromEuler(new T3.Euler(0, -Math.PI/2, 0)); root.obj.position.y = STAND;
+      for (const k of subtree(root)) if (k !== root){ k.obj.position.copy(k.rest); k.obj.quaternion.copy(k.restQ); } root.mode = 'bot'; say(bot, pick(['still standing','is that all you got','I am a professional'])); }
+    return;
+  }
+  if (bot.stunT > 0){ bot.stunT -= dt; return; }
+  const pos = root.obj.position, ph = bot.t*11, legs = bot.legs.filter(l => l.parent === root).length;
+  const walk = range.move && legs > 0 && !(root.frz > 0.5);
+  if (walk){ const spd = (legs === 2 ? 1.3 : 0.6)*(1 - 0.9*Math.min(1, root.frz || 0)); pos.z += bot.dir*spd*dt; if (pos.z > RG.z1 - 0.9){ pos.z = RG.z1 - 0.9; bot.dir = -1; } if (pos.z < RG.z0 + 0.9){ pos.z = RG.z0 + 0.9; bot.dir = 1; }
+    pos.x += (-5.5 - pos.x)*Math.min(1, dt*2); root.obj.rotation.set(0, bot.dir > 0 ? 0 : Math.PI, 0); }
+  else { let d = -Math.PI/2 - root.obj.rotation.y; d = Math.atan2(Math.sin(d), Math.cos(d)); root.obj.rotation.set(0, root.obj.rotation.y + d*Math.min(1, dt*5), 0); }
+  pos.y = (legs ? STAND : 0.18) + (walk ? Math.abs(Math.sin(ph))*0.06 : 0);
+  bot.legs.forEach((l, j) => { if (l.parent === root) l.obj.rotation.x = walk ? (j ? -1 : 1)*Math.sin(ph)*0.7 : 0; });
+  bot.ups.forEach((u, j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(walk ? 0.3 + Math.sin(ph)*0.2 : 0.15); });
+  bot.blinkT -= dt; if (bot.blinkT < 0) bot.blinkT = 2 + R()*3; if (!(bot.faceT > 0)) setFace(bot, bot.blinkT < 0.12 ? 'blink' : 'happy');
+  bot.sayT -= dt; if (bot.sayT < 0){ bot.sayT = 14 + R()*14; say(bot, pick(['aim for the chest','I am just a dummy','do your worst','target practice!','I get paid for this'])); }
 }
 
 // ================= the BACKROOMS MONSTER =================
@@ -4785,14 +4777,14 @@ function vrStep(dt){
   yPrev = io.yBtn;
   // grab / release
   for (const i of [0,1]){
-    if (io.grip[i] && !gripPrev[i] && mode === 'game') grab(i);
+    if (io.grip[i] && !gripPrev[i] && armed()) grab(i);
     if (!io.grip[i] && gripPrev[i]) release(i);
     gripPrev[i] = io.grip[i];
   }
   updateHolds(dt);
   updatePlayerGrabs(dt);
   updateWeapon(dt);
-  if (mode === 'game') punches(dt);
+  if (armed()) punches(dt);
   // fade
   if (fadeDir){ fade += fadeDir*dt*4; if (fade >= 1){ fade = 1; fadeAction && fadeAction(); fadeAction = null; fadeDir = -1; } if (fade <= 0){ fade = 0; fadeDir = 0; } }
   fadeMesh.material.opacity = fade; fadeMesh.position.copy(head);
@@ -4822,7 +4814,7 @@ function worldStep(dt, player){
   for (let i = bots.length-1; i >= 0; i--){ const b = bots[i]; if (b.dead && b.deadT > 6 && (b.chkT = (b.chkT || 0) - dt) <= 0){ b.chkT = 2; if (!parts.some(p => p.bot === b && !p.obj.userData.dead)) bots.splice(i,1); } }
 
   scene.updateMatrixWorld();
-  updateClips(); updateKerfs(); updateMines(dt); updateBooms(dt); updateWindows(dt); updateIce(dt); updateStuck(); updateHearts(dt); buttonPokes();
+  updateClips(); updateKerfs(); updateMines(dt); updateBooms(dt); updateWindows(dt); updateIce(dt); updateStuck(); updateMist(dt); updateHearts(dt); buttonPokes(); updateRange(dt);
   ropes(dt);
   netTick(dt);
   updateBurning(dt); updateFire(dt);
@@ -4908,7 +4900,7 @@ function updateRemoteAvatars(){
       w.saw.visible = on && t === 2; w.hammer.visible = on && t === 1; w.flame.visible = on && t === 3; w.mine.visible = on && t === 4 && act > 0.5; w.laser.visible = on && t === 5; w.hook.visible = on && t === 6; w.freeze.visible = on && t === 7; w.glue.visible = on && t === 8; w.boomer.visible = on && t === 9; w.boomer.blade.visible = act > 0.5;
       if (mi === 0){ p.fx = p.fx || [0,1].map(() => ({beam:makeBeam(), rope:makeRope(), head:makeHookHead(), frost:makeFrostBeam(), blade:makeFlyBlade()})); const fx = p.fx[i];
         fx.beam.visible = false; fx.rope.visible = false; fx.head.visible = false; fx.frost.visible = false; fx.blade.visible = false; w.hook.head.visible = true;
-        if (w.freeze.visible && act > 0.5){ const [tip, dir] = weaponRay(w.freeze, -0.26); let L = worldRayLen(tip, dir, FREEZE_LEN); const rp = rayPart(tip, dir, L); if (rp) L = rp.t; aimBeam(fx.frost, tip, tip.clone().addScaledVector(dir, L), 0.018); if (R() < 0.4) frostPuff(tip.clone().addScaledVector(dir, L*R())); }
+        if (w.freeze.visible && act > 0.5){ const [tip, dir] = weaponRay(w.freeze, -0.24); emitMist(tip, dir, worldRayLen(tip, dir, FREEZE_LEN), 2); }
         const bp = p.boomP && p.boomP[i]; if (bp){ fx.blade.position.copy(bp); fx.blade.rotation.y += 0.6; fx.blade.visible = true; }
         if (w.laser.visible && act > 0.5){ const [tip, dir] = weaponRay(w.laser, -0.25); let L = worldRayLen(tip, dir, LASER_LEN); const rp = rayPart(tip, dir, L); if (rp) L = rp.t; aimBeam(fx.beam, tip, tip.clone().addScaledVector(dir, L), 0.006); if (L < LASER_LEN - 0.01 && R() < 0.5) spawnSparks(tip.clone().addScaledVector(dir, L), 1, 1.2); }
         const hp = p.hookP && p.hookP[i]; if (w.hook.visible && hp){ const [tip] = weaponRay(w.hook, -0.2); aimBeam(fx.rope, tip, hp, 0.007); fx.head.position.copy(hp); fx.head.visible = true; w.hook.head.visible = false; } }
@@ -5164,7 +5156,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124074404';
+const BUILD = '20261124081206';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
