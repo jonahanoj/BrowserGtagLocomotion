@@ -4956,10 +4956,14 @@ const snap45 = a => Math.round(a/(Math.PI/4))*(Math.PI/4);
 function updateFake(bot, dt){
   const p = NET.peers[bot.fakeOf], root = bot.root; bot.t += dt;
   if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); }
-  if (!p || !p.P || bot.dead || root.mode !== 'bot') return;
-  const h = fakeTarget(p); let tgt = new V(h.x, 0, h.z), c = cellOf(tgt);
-  if (!NAV.ok(c[0], c[1], c[2])){ const rc = reachableCell(new V(h.x, NAV.lv[c[2]] + 0.5, h.z), c[2]); if (rc){ c = rc; tgt = cellPos(...rc); } else { c = bot.cell || c; tgt = root.obj.position.clone(); } }
-  bot.cell = c;
+  if (!p || !p.P || bot.dead) return;
+  if (root.mode !== 'bot'){ if (root.mode === 'held') return; bot.freeT = (bot.freeT || 0) + dt; if (bot.freeT < 0.8) return;   // knocked over: back on its feet
+    root.mode = 'bot'; root.v.set(0, 0, 0); root.w.set(0, 0, 0); root.obj.quaternion.set(0, 0, 0, 1); for (const k of subtree(root)) if (k !== root){ k.obj.position.copy(k.rest); k.obj.quaternion.copy(k.restQ); } }
+  bot.freeT = 0;
+  // follow the hider on the floor they're on; stick to the robot paths when possible, but never get left behind
+  const h = fakeTarget(p); let tgt = new V(h.x, h.y - 1.3, h.z), c = cellOf(tgt);
+  if (!NAV.ok(c[0], c[1], c[2])){ const rc = reachableCell(new V(h.x, NAV.lv[c[2]] + 0.5, h.z), c[2]); if (rc && Math.hypot(cellPos(...rc).x - h.x, cellPos(...rc).z - h.z) < 1.2){ c = rc; tgt = cellPos(...rc); } }
+  tgt.y = 0; bot.cell = c;
   const pos = root.obj.position, ex = tgt.x - pos.x, ez = tgt.z - pos.z;
   if (Math.hypot(ex, ez) > 4){ pos.set(tgt.x, pos.y, tgt.z); bot.mdir = null; bot.v = 0; }
   // walk like the robots do: straight lines, heading rounded to the nearest 45 degrees
@@ -5023,6 +5027,8 @@ function updateImposter(dt, head){
   if (IMP.phase === 'end' && IMP.t >= IMP_END){ IMP.on = false; IMP.phase = 'wait'; IMP.waitT = 0; }
   // fakes for the hiders (not for yourself)
   for (const id of IMP.hiders){ if (id === NET.id || IMP.found[id] || IMP.phase === 'end') continue; const p = NET.peers[id]; if (!p || !p.P) continue;
+    const old = bots.find(b => b.fakeOf === id);
+    if (old && (old.dead || old.root.obj.userData.dead || !old.root.obj.parent || old.head.parent !== old.root)){ removeBot(old); for (const q of parts.slice()) if (q.bot === old && !q.obj.userData.dead) removePart(q, true); const i = bots.indexOf(old); if (i >= 0) bots.splice(i, 1); }
     if (!bots.some(b => b.fakeOf === id)){ const b = makeBot(BOT_COLORS[[...id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % BOT_COLORS.length], new V(p.P.head.x, STAND, p.P.head.z), 'imp-' + id); b.fakeOf = id; b.root.owner = id; } }
   // the seeker can't see or move while the hiders hide
   blind.visible = amSeeker() && IMP.phase === 'hide';
@@ -5064,9 +5070,9 @@ function segDist(pt, a, b){ const ab = b.clone().sub(a), t = Math.max(0, Math.mi
 function armEnds(av, i){ const m = av.arms[i].up, half = new V(0, m.scale.y/2, 0).applyQuaternion(m.quaternion); return [m.position.clone().sub(half), m.position.clone().add(half)]; }
 function playerTargets(){
   const out = [];
-  if (!netGame || mode !== 'game') return out;
+  if (!netGame || mode !== 'game' || impHidden(NET.id)) return out;
   for (const [id, p] of Object.entries(NET.peers)){
-    if (!p.av || !p.P || p.g !== netGame || p.m !== 'game' || p.headless) continue;
+    if (!p.av || !p.P || p.g !== netGame || p.m !== 'game' || p.headless || impHidden(id)) continue;
     const av = p.av;
     out.push({id, k:'head', pos:p.P.head.clone(), dist:pt => boxDist(pt, av.head.localToWorld(new V(0,0,0.02)), av.head.quaternion, HEAD_HALF)});
     out.push({id, k:'torso', pos:av.torso.position.clone(), dist:pt => boxDist(pt, av.torso.position, av.torso.quaternion, TORSO_HALF)});
@@ -5701,7 +5707,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124201428';
+const BUILD = '20261124202155';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
