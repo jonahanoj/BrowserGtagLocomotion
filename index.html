@@ -2186,6 +2186,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
       // pieces: the same rules, and the ones far out in space are gone
       for (const p of parts){
         if (p.parent || p.obj.userData.dead || !mine(p) || p.mode === 'held' || p.stuck) continue;
+        if (p.bot && p.mode === 'bot' && impGame()) continue;          // imposter: robots never get spaced (they don't come back)
         const c = centerW(p), pin = inside(c);
         if (pin){ if (p.grav === 0) p.grav = undefined; } else p.grav = 0;
         if (open && inLock(c)){ if (p.bot && p === p.bot.root && p.mode === 'bot'){ p.mode = 'free'; p.bot.stunT = 3; say(p.bot, pick(['NOOOOO','I can see my house from here','goodbye cruel station'])); }
@@ -2467,10 +2468,11 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   MAPS.mansion = {name:'HAUNTED MANSION', group:grp, spawn:new V(22, 0, 5).add(O), yaw:Math.PI, nav, yMin:-5, yMax:14, props:B.props, sky:DARK,
     pose(P, inGame){
       if (!mAv){ mAv = makeScary(mh, true); mAv.lost = me.lost; } showAv(mAv, inGame); if (inGame) poseAvatar(mAv, P);
+      if (!!mAv.isCute !== impCute(NET.id)) setSkin(mAv, impCute(NET.id), 0x3aa0ff);
       for (const [id, p] of Object.entries(NET.peers)){
-        const on = inGame && p.P && p.g === netGame && p.m === 'game' && !p.headless;
+        const on = inGame && p.P && p.g === netGame && p.m === 'game' && !p.headless && !impHidden(id);     // a disguised hider has no reflection
         if (on && !peerAv[id]){ peerAv[id] = makeScary(mh, true); }
-        if (peerAv[id]){ showAv(peerAv[id], !!on); if (on){ peerAv[id].lost = p.lost; poseAvatar(peerAv[id], p.P); } }
+        if (peerAv[id]){ showAv(peerAv[id], !!on); if (on){ peerAv[id].lost = p.lost; poseAvatar(peerAv[id], p.P); if (!!peerAv[id].isCute !== (impCute(id) || p.sk === 'cute')) setSkin(peerAv[id], impCute(id) || p.sk === 'cute', 0x3aa0ff); } }
       }
     },
     leave(){ applySky(DARK); },
@@ -4889,6 +4891,8 @@ const IMP = {on:false, phase:'wait', t:0, seeker:null, hiders:[], found:{}, gues
 const impGame = () => mode === 'game' && !!netGame && netGame.split('~')[3] === 'imp';
 const amSeeker = () => IMP.on && IMP.seeker === NET.id, amHider = () => IMP.on && IMP.hiders.includes(NET.id) && !IMP.found[NET.id];
 const IMP_HIDE = 10, IMP_END = 8;
+const impHidden = id => impGame() && IMP.on && IMP.phase !== 'end' && IMP.phase !== 'wait' && IMP.hiders.includes(id) && !IMP.found[id];   // disguised right now
+const impCute = id => impGame() && IMP.on && IMP.phase !== 'wait' && IMP.hiders.includes(id);                                  // hiders are the cute robots
 const impLocked = () => impGame() && IMP.on && (IMP.phase === 'hide' || IMP.phase === 'seek');
 const seekTime = n => Math.min(120, 30 + 15*n);       // 1 hider 45 s, 2 hiders 1 min ... up to 2 min
 // a head-locked text panel (a HUD) and the seeker's blindfold
@@ -4912,7 +4916,7 @@ function impStart(ev){
   for (const b of bots.slice()) if (!b.fakeOf){ const i = bots.indexOf(b); bots.splice(i, 1); if (!b.root.obj.userData.dead) removePart(b.root, true); }
   for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead && p.name !== 'prop') removePart(p, true);
   if (IMP.seeker === NET.id){ teleport(SPAWN, MAPS[curMap].yaw); IMP.anchor = rig.position.clone(); showMsg('You are the SEEKER! Wait...'); }
-  else if (IMP.hiders.includes(NET.id)){ teleport(cellPos(...randomCell()).setY(NAV.lv[0]), R()*6.28); wpn[0] = wpn[1] = 'none'; showMsg('You are a HIDER! Blend in with the robots!'); }
+  else if (IMP.hiders.includes(NET.id)){ teleport(cellPos(...randomCell()).setY(NAV.lv[0]), R()*6.28); showMsg('You are a HIDER! Blend in with the robots!'); }
   sndBoop();
 }
 function impGuess(ev){
@@ -4948,7 +4952,7 @@ function fakeTarget(p){
   for (let i = h.length - 1; i > 0; i--) if (h[i-1].t <= tt){ const a = h[i-1], b = h[i], k = Math.min(1, (tt - a.t)/Math.max(1, b.t - a.t)); return a.v.clone().lerp(b.v, k); }
   return h[h.length-1].v.clone();
 }
-const snap90 = a => Math.round(a/(Math.PI/2))*(Math.PI/2);
+const snap45 = a => Math.round(a/(Math.PI/4))*(Math.PI/4);
 function updateFake(bot, dt){
   const p = NET.peers[bot.fakeOf], root = bot.root; bot.t += dt;
   if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); }
@@ -4957,20 +4961,20 @@ function updateFake(bot, dt){
   if (!NAV.ok(c[0], c[1], c[2])){ const rc = reachableCell(new V(h.x, NAV.lv[c[2]] + 0.5, h.z), c[2]); if (rc){ c = rc; tgt = cellPos(...rc); } else { c = bot.cell || c; tgt = root.obj.position.clone(); } }
   bot.cell = c;
   const pos = root.obj.position, ex = tgt.x - pos.x, ez = tgt.z - pos.z;
-  if (Math.hypot(ex, ez) > 4){ pos.set(tgt.x, pos.y, tgt.z); bot.ax = null; bot.v = 0; }
-  // walk like the robots do: straight along one grid direction at a time, never diagonally
-  if (bot.ax == null) bot.ax = Math.abs(ex) > Math.abs(ez) ? 0 : 1;
-  const cur = Math.abs(bot.ax ? ez : ex), oth = Math.abs(bot.ax ? ex : ez);
-  if ((cur < 0.12 && oth > 0.3) || oth > cur*1.8 + 0.25) bot.ax = 1 - bot.ax;
-  const e = bot.ax ? ez : ex, far = Math.abs(e);
-  const want = far > 0.18 ? Math.min(2.4, Math.max(1.0, far*1.6)) : 0;          // a steady robot pace, catching up if needed
+  if (Math.hypot(ex, ez) > 4){ pos.set(tgt.x, pos.y, tgt.z); bot.mdir = null; bot.v = 0; }
+  // walk like the robots do: straight lines, heading rounded to the nearest 45 degrees
+  const d = Math.hypot(ex, ez), aim = Math.atan2(ex, ez);
+  if (bot.mdir == null) bot.mdir = snap45(aim);
+  { let da = aim - bot.mdir; da = Math.atan2(Math.sin(da), Math.cos(da)); if (Math.abs(da) > Math.PI*0.17 && d > 0.25) bot.mdir = snap45(aim); }
+  const mx = Math.sin(bot.mdir), mz = Math.cos(bot.mdir), proj = ex*mx + ez*mz;
+  const want = d > 0.18 && proj > 0.05 ? Math.min(2.4, Math.max(1.0, d*1.6)) : 0;          // a steady robot pace, catching up if needed
   bot.v = (bot.v || 0) + (want - (bot.v || 0))*Math.min(1, dt*5);
-  const step = Math.min(far, bot.v*dt); if (bot.ax) pos.z += Math.sign(e)*step; else pos.x += Math.sign(e)*step;
-  // facing: only the four grid directions, like the real robots
+  const step = Math.min(Math.max(proj, 0), bot.v*dt); pos.x += mx*step; pos.z += mz*step;
+  // facing: rounded to 45 degrees too
   const moving = bot.v > 0.3;
-  if (moving) bot.face90 = bot.ax ? (e > 0 ? 0 : Math.PI) : (e > 0 ? Math.PI/2 : -Math.PI/2);
-  else { const hy = new T3.Euler().setFromQuaternion(p.P.yawQ || p.P.headQ, 'YXZ').y + Math.PI, s9 = snap90(hy);
-    if (bot.face90 == null){ bot.face90 = s9; } else { let dd = hy - bot.face90; dd = Math.atan2(Math.sin(dd), Math.cos(dd)); if (Math.abs(dd) > Math.PI*0.32) bot.face90 = s9; } }
+  if (moving) bot.face90 = bot.mdir;
+  else { const hy = new T3.Euler().setFromQuaternion(p.P.yawQ || p.P.headQ, 'YXZ').y + Math.PI, s9 = snap45(hy);
+    if (bot.face90 == null){ bot.face90 = s9; } else { let dd = hy - bot.face90; dd = Math.atan2(Math.sin(dd), Math.cos(dd)); if (Math.abs(dd) > Math.PI*0.17) bot.face90 = s9; } }
   const ey = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ').y; let dd = bot.face90 - ey; dd = Math.atan2(Math.sin(dd), Math.cos(dd));
   root.obj.quaternion.setFromEuler(new T3.Euler(0, ey + dd*Math.min(1, dt*10), 0));
   // the same walk the robots do, with the step rate following the speed
@@ -4985,7 +4989,9 @@ function updateFake(bot, dt){
 let stickPrev = false;
 function updateImposter(dt, head){
   const inImp = impGame();
-  const cute = inImp && amHider() && IMP.phase !== 'end';
+  const cute = impCute(NET.id), hid = impHidden(NET.id);
+  if (hid && !IMP.wsave){ IMP.wsave = wpn.slice(); wpn[0] = wpn[1] = 'none'; }
+  if (!hid && IMP.wsave){ if (wpn[0] === 'none' && wpn[1] === 'none'){ wpn[0] = IMP.wsave[0]; wpn[1] = IMP.wsave[1]; } IMP.wsave = null; }
   if (!!me.isCute !== cute){ setSkin(me, cute, 0x3aa0ff); setSkin(meMirror, cute, 0x3aa0ff); }
   if (!inImp){ if (IMP.on){ IMP.on = false; for (const b of bots.slice()) if (b.fakeOf) removeBot(b); } hud.visible = blind.visible = false; return; }
   hud.visible = true; placeHud(head);
@@ -5418,8 +5424,9 @@ function updateRemoteAvatars(){
     for (const i of [0,1]){ P.hands[i].lerp(T.hands[i], 0.45); P.handQ[i].slerp(T.handQ[i], 0.45); }
     P.trig = T.trig; P.gripV = T.gripV; P.thumb = T.thumb; P.grip = T.grip;
     let here = p.m === mode && (mode === 'lobby' || (p.g && p.g === netGame));
-    if (IMP.on && IMP.phase !== 'end' && IMP.hiders.includes(p.id) && !IMP.found[p.id]) here = false;
-    if (p.skinOn !== p.sk){ p.skinOn = p.sk; const col = BOT_COLORS[[...(p.n || 'x')].reduce((a, ch) => a + ch.charCodeAt(0), 0) % BOT_COLORS.length]; setSkin(p.av, p.sk === 'cute', col); if (p.avM) setSkin(p.avM, p.sk === 'cute', col); }
+    if (impHidden(p.id)) here = false;
+    const skW = impCute(p.id) ? 'cute' : p.sk;
+    if (p.skinOn !== skW){ p.skinOn = skW; const col = BOT_COLORS[[...(p.n || 'x')].reduce((a, ch) => a + ch.charCodeAt(0), 0) % BOT_COLORS.length]; setSkin(p.av, skW === 'cute', col); if (p.avM) setSkin(p.avM, skW === 'cute', col); }
     setAvVisible(p.av, here); setAvVisible(p.avM, here && mode === 'lobby'); p.tag.visible = here && !p.headless;
     if (p.headless){ p.av.head.visible = false; }
     if (!p.wp) p.wp = [p.av, p.avM].map(av => [0,1].map(i => weaponSet(av.claws[i])));
@@ -5694,7 +5701,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124193343';
+const BUILD = '20261124201428';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
