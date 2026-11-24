@@ -8,7 +8,8 @@ A WebXR VR game for Meta Quest. The Backrooms here has half walls to vault, a ta
 - Push off floors and walls with your hands to move; fling your arms to jump.
 - **Grip** to grab a bot or any part. Grab a second part with your other hand and pull to rip it off.
 - Swing fast to punch parts off. Throw bots and parts into walls to smash them, or smash two held bots together hard to break them.
-- Right thumbstick snap-turns. **Y** returns to the lobby. Score and time are on your left wrist.
+- Somewhere upstairs there's a hidden **chainsaw**: grab it, hold the trigger, and slice bots, parts and players (the insides are all motherboard).
+- Right thumbstick snap-turns. **Y** returns to the lobby (not within 10 s of a fight). Score and time are on your left wrist.
 - **Player vs player:** grab a friend with one claw to carry (and throw) them, or with both claws and pull. Swing or throw bot parts at friends: light hits shove, hard hits knock arms (then heads) off. Arms come off (and stop working for movement); rip the head off and they're scrapped back to the lobby.
 - **Multiplayer:** open the page on another headset (same Wi-Fi works best). The lobby board shows who's online; push the blue **PLAY TOGETHER** button to start or join a shared game. Players find each other through [Trystero](https://github.com/dmotz/trystero) and then connect directly with WebRTC.
 
