@@ -814,66 +814,54 @@ function shatter(p, remote){
 }
 
 // ================= player: scary robot avatar =================
-const steel = new T3.MeshLambertMaterial({color:0x353a41}), steelD = new T3.MeshLambertMaterial({color:0x15171a}),
-  steelL = new T3.MeshLambertMaterial({color:0x6d747c}), redGlow = new T3.MeshBasicMaterial({color:0xff2a1a, fog:false});
-const UPPER = 0.3, FORE = 0.3;
-const cyl = (r1, r2, len, seg) => new T3.CylinderGeometry(r1, r2, len, seg || 8);
+const dk = new T3.MeshLambertMaterial({color:0x26292e}), dk2 = new T3.MeshLambertMaterial({color:0x3c4048}), redGlow = new T3.MeshBasicMaterial({color:0xff2a1a, fog:false}), fang = new T3.MeshLambertMaterial({color:0xd8d2bf});
 function segTo(m, a, b){ const d = b.clone().sub(a), L = Math.max(0.001, d.length()); m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(UP, d.divideScalar(L)); m.scale.set(1, L, 1); }
 function makeScary(parent, full){
   const av = {lost:{0:false, 1:false}};
   const head = new T3.Group();
   if (full){
-    const hm = (geo, mat, x, y, z, rx) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); if (rx) m.rotation.x = rx; head.add(m); return m; };
-    hm(new T3.BoxGeometry(0.17,0.13,0.21), steel, 0, 0.025, 0.01);                 // cranium
-    hm(new T3.BoxGeometry(0.13,0.05,0.2), steelD, 0, 0.095, 0.025, 0.12);           // crest
-    hm(new T3.BoxGeometry(0.19,0.03,0.06), steelD, 0, 0.055, -0.095, 0.35);         // brow ridge
-    hm(new T3.BoxGeometry(0.15,0.075,0.05), steelD, 0, -0.005, -0.095);             // face plate
-    hm(new T3.BoxGeometry(0.13,0.012,0.008), redGlow, 0, 0.018, -0.121);            // visor slit
-    hm(new T3.BoxGeometry(0.11,0.045,0.09), steel, 0, -0.068, -0.055, -0.15);       // jaw
-    for (let k=0;k<7;k++) hm(new T3.BoxGeometry(0.006,0.022,0.006), steelL, -0.045+k*0.015, -0.045, -0.101);
+    const hm = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); head.add(m); return m; };
+    hm(new T3.BoxGeometry(0.3,0.25,0.28), dk, 0, 0, 0.02);
+    hm(new T3.BoxGeometry(0.34,0.06,0.08), dk2, 0, 0.09, -0.12).rotation.x = 0.35;
     for (const s of [-1,1]){
-      hm(new T3.BoxGeometry(0.012,0.09,0.13), steelD, s*0.092, 0.045, 0.05, 0.45); // swept fins
-      for (let k=0;k<3;k++) hm(new T3.BoxGeometry(0.004,0.008,0.04), steelD, s*0.087, -0.012-k*0.016, -0.03);
+      const e = hm(new T3.BoxGeometry(0.085,0.028,0.01), redGlow, s*0.07, 0.035, -0.125); e.rotation.z = s*0.35;
+      hm(new T3.ConeGeometry(0.025,0.12,6), dk2, s*0.12, 0.16, 0.04).rotation.z = -s*0.5;
     }
-    hm(cyl(0.022,0.028,0.14), steelD, 0, -0.13, 0.03);                           // neck
+    hm(new T3.BoxGeometry(0.24,0.07,0.04), new T3.MeshLambertMaterial({color:0x120f0d}), 0, -0.07, -0.115);
+    for (let i=0;i<7;i++){ const t = hm(new T3.ConeGeometry(0.014,0.045,4), fang, -0.105+i*0.035, -0.055, -0.13); t.rotation.x = Math.PI; }
+    for (let i=0;i<6;i++) hm(new T3.ConeGeometry(0.012,0.035,4), fang, -0.087+i*0.035, -0.095, -0.13);
   }
   parent.add(head); av.head = head;
   const torso = new T3.Group();
   const tm = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); torso.add(m); return m; };
-  tm(new T3.BoxGeometry(0.24,0.12,0.11), steel, 0, 0.1, -0.01);                 // upper chest
-  tm(new T3.SphereGeometry(0.022,10,8), redGlow, 0, 0.1, -0.067);                // core
-  for (let k=0;k<4;k++) tm(new T3.BoxGeometry(0.2-k*0.03, 0.012, 0.1), steelD, 0, 0.02-k*0.035, -0.005);  // ribs
-  tm(cyl(0.02,0.02,0.42), steelD, 0, -0.03, 0.035);                             // spine
-  tm(new T3.BoxGeometry(0.13,0.05,0.08), steel, 0, -0.24, 0.03);                // pelvis
-  for (const s of [-1,1]){ const m = tm(new T3.BoxGeometry(0.09,0.035,0.1), steel, s*0.14, 0.165, 0); m.rotation.z = -s*0.35; }
+  tm(new T3.BoxGeometry(0.5,0.42,0.34), dk, 0, 0, 0);
+  const core = tm(new T3.CylinderGeometry(0.065,0.065,0.02,16), redGlow, 0, 0.02, -0.172); core.rotation.x = Math.PI/2;
+  for (const s of [-1,1]) for (let k=0;k<3;k++){ const sp = tm(new T3.ConeGeometry(0.03,0.13,5), dk2, s*(0.17+k*0.04), 0.24-k*0.03, 0.02+k*0.06); sp.rotation.z = -s*0.4; }
+  for (let i=0;i<4;i++) tm(new T3.BoxGeometry(0.36,0.015,0.01), dk2, 0, -0.08-i*0.035, -0.172);
   parent.add(torso); av.torso = torso;
+  // one thick arm from shoulder to wrist (fo/el only show up on a ripped-off trophy arm)
   av.arms = [0,1].map(() => {
-    const g = new T3.Group(); g.up = new T3.Mesh(cyl(0.02,0.024,1), steelD); g.fo = new T3.Mesh(cyl(0.015,0.02,1), steelD); g.el = new T3.Mesh(new T3.SphereGeometry(0.027,10,8), steel);
+    const g = new T3.Group(); g.up = new T3.Mesh(new T3.CylinderGeometry(0.04,0.05,1,8), dk2); g.fo = new T3.Mesh(new T3.CylinderGeometry(0.04,0.045,1,8), dk2); g.el = new T3.Mesh(new T3.SphereGeometry(0.048,10,8), dk2);
     g.add(g.up, g.fo, g.el); parent.add(g); return g;
   });
-  // WebXR gripSpace: palm faces -X (right) / +X (left), fingers point -Y, thumb points -Z, +Y runs up the arm
+  // WebXR gripSpace: palm faces -X (right hand) / +X (left hand), fingers point -Y, thumb points -Z, +Y runs up the arm
   av.claws = [0,1].map(i => {
-    const side = i ? 1 : -1;
+    const side = i ? 1 : -1;                       // which way the BACK of the hand faces (+X right, -X left)
     const g = new T3.Group(), cm = (geo, mat, x, y, z, par) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); (par || g).add(m); return m; };
-    cm(new T3.BoxGeometry(0.022,0.065,0.056), steel, 0, -0.004, 0);
-    cm(cyl(0.02,0.024,0.05), steelD, 0, 0.045, 0);
-    cm(new T3.BoxGeometry(0.004,0.012,0.012), redGlow, side*0.0125, 0.002, 0);
+    cm(new T3.BoxGeometry(0.035,0.09,0.085), dk, 0, 0.0, 0);
+    cm(new T3.BoxGeometry(0.05,0.05,0.065), dk2, side*0.004, 0.065, 0);
+    for (let k=0;k<3;k++) cm(new T3.ConeGeometry(0.008,0.03,4), dk2, side*0.02, 0.0+k*0.025-0.02, 0.0).rotation.z = -side*Math.PI/2;
     g.fingers = [];
-    for (let f=0; f<3; f++){
-      const piv = new T3.Group(); piv.position.set(-side*0.003, -0.037, -0.02 + f*0.02);
-      cm(cyl(0.0055,0.0065,0.045), steelD, 0, -0.0225, 0, piv);
-      const j2 = new T3.Group(); j2.position.y = -0.045; piv.add(j2);
-      cm(new T3.SphereGeometry(0.0075,8,6), steel, 0, 0, 0, j2);
-      cm(cyl(0.0042,0.0055,0.04), steelD, 0, -0.02, 0, j2);
-      const tip = cm(new T3.ConeGeometry(0.0045,0.024,6), steelL, 0, -0.052, 0, j2); tip.rotation.x = Math.PI;
-      g.add(piv); g.fingers.push({piv, j2});
+    for (let f=0; f<3; f++){                       // f=0 index (thumb side, -Z) ... f=2 pinky
+      const piv = new T3.Group(); piv.position.set(-side*0.006, -0.045, -0.026 + f*0.026);
+      const cone = cm(new T3.ConeGeometry(0.013,0.1,6), dk2, 0, -0.05, 0, piv); cone.rotation.x = Math.PI;
+      const tip = cm(new T3.ConeGeometry(0.007,0.03,5), redGlow, 0, -0.105, 0, piv); tip.rotation.x = Math.PI;
+      g.add(piv); g.fingers.push(piv);
     }
-    const th = new T3.Group(); th.position.set(-side*0.008, 0.0, -0.03);
-    cm(cyl(0.006,0.007,0.034), steelD, 0, 0, -0.017, th).rotation.x = Math.PI/2;
-    const tj = new T3.Group(); tj.position.z = -0.034; th.add(tj);
-    cm(cyl(0.0045,0.0055,0.028), steelD, 0, 0, -0.014, tj).rotation.x = Math.PI/2;
-    const ttip = cm(new T3.ConeGeometry(0.0045,0.02,6), steelL, 0, 0, -0.036, tj); ttip.rotation.x = -Math.PI/2;
-    g.add(th); g.thumb = th; g.thumbJ = tj; g.side = side; g.curl = [0.3,0.3,0.3]; g.thumbAmt = 0;
+    const th = new T3.Group(); th.position.set(-side*0.012, -0.005, -0.045);
+    const tc = cm(new T3.ConeGeometry(0.014,0.085,6), dk2, 0, 0, -0.042, th); tc.rotation.x = -Math.PI/2;
+    const tt = cm(new T3.ConeGeometry(0.007,0.028,5), redGlow, 0, 0, -0.092, th); tt.rotation.x = -Math.PI/2;
+    g.add(th); g.thumb = th; g.side = side; g.curl = [0.3,0.3,0.3]; g.thumbAmt = 0;
     parent.add(g); return g;
   });
   return av;
@@ -882,27 +870,22 @@ const me = makeScary(scene, false), meMirror = makeScary(mirrorWorld, true);
 meMirror.lost = me.lost;
 const allAv = [me, meMirror];
 for (const av of allAv) for (const k of ['head','torso','claws','arms']) [].concat(av[k]).forEach(o => o.visible = false);
-const LEAN = new Q().setFromAxisAngle(new V(1,0,0), -0.22);
 function poseAvatar(av, P){
   av.head.position.copy(P.head); av.head.quaternion.copy(P.headQ);
-  av.torso.position.copy(P.head).add(new V(0,-0.37,0.06).applyQuaternion(P.yawQ)); av.torso.quaternion.copy(P.yawQ).multiply(LEAN);
+  av.torso.position.copy(P.head).add(new V(0,-0.34,0.1).applyQuaternion(P.yawQ)); av.torso.quaternion.copy(P.yawQ);
   for (const i of [0,1]){
     const lost = av.lost && av.lost[i], arm = av.arms[i], cl = av.claws[i];
     arm.scale.setScalar(lost ? 0.0001 : 1); cl.scale.setScalar(lost ? 0.0001 : 1);
     if (lost) continue;
-    const sh = av.torso.position.clone().add(new V(i ? 0.15 : -0.15, 0.17, 0).applyQuaternion(P.yawQ));
-    const wr = P.hands[i].clone().add(new V(0,0.07,0).applyQuaternion(P.handQ[i]));
-    const d = wr.clone().sub(sh), Lr = d.length() || 0.001, dir = d.divideScalar(Lr), L = Math.min(Lr, UPPER+FORE-0.002);
-    const a = (L*L + UPPER*UPPER - FORE*FORE)/(2*L), hh = Math.sqrt(Math.max(0, UPPER*UPPER - a*a));
-    const pole = new V(i ? 0.7 : -0.7, -1, 0.6).applyQuaternion(P.yawQ); pole.addScaledVector(dir, -pole.dot(dir));
-    if (pole.lengthSq() < 1e-6) pole.set(0,-1,0); pole.normalize();
-    const el = sh.clone().addScaledVector(dir, a).addScaledVector(pole, hh);
-    segTo(arm.up, sh, el); segTo(arm.fo, el, wr); arm.el.position.copy(el);
+    const sh = av.torso.position.clone().add(new V(i ? 0.27 : -0.27, 0.12, 0).applyQuaternion(P.yawQ));
+    const wr = P.hands[i].clone().add(new V(0,0.08,0).applyQuaternion(P.handQ[i]));
+    segTo(arm.up, sh, wr); arm.fo.visible = false; arm.el.visible = false; arm.el.position.copy(sh).lerp(wr, 0.5);
     cl.position.copy(P.hands[i]); cl.quaternion.copy(P.handQ[i]);
     const tgt = [P.trig[i], P.gripV[i], P.gripV[i]];
-    cl.fingers.forEach((f,k) => { cl.curl[k] += ((0.2 + tgt[k]*1.1) - cl.curl[k])*0.5; f.piv.rotation.z = -cl.side*cl.curl[k]*0.8; f.j2.rotation.z = -cl.side*cl.curl[k]; });
+    cl.fingers.forEach((f,k) => { cl.curl[k] += ((0.25 + tgt[k]*1.25) - cl.curl[k])*0.5; f.rotation.z = -cl.side*cl.curl[k]; });
+    // thumb: up along the controller at rest, folds forward and in toward the palm when it rests on the buttons
     cl.thumbAmt += ((P.thumb[i] ? 1 : 0) - cl.thumbAmt)*0.4;
-    cl.thumb.rotation.x = -cl.thumbAmt*1.1; cl.thumb.rotation.y = -cl.side*(0.25 + cl.thumbAmt*0.35); cl.thumbJ.rotation.y = -cl.side*cl.thumbAmt*0.6;
+    cl.thumb.rotation.x = -cl.thumbAmt*1.0; cl.thumb.rotation.y = cl.side*(0.2 + cl.thumbAmt*0.3);
   }
 }
 
@@ -910,7 +893,7 @@ function poseAvatar(av, P){
 const wristCanvas = document.createElement('canvas'); wristCanvas.width = 256; wristCanvas.height = 128;
 const wristTex = new T3.CanvasTexture(wristCanvas); wristTex.encoding = T3.sRGBEncoding;
 const wrist = new T3.Mesh(new T3.PlaneGeometry(0.11, 0.055), new T3.MeshBasicMaterial({map:wristTex}));
-wrist.position.set(-0.026, 0.05, 0); wrist.rotation.y = -Math.PI/2; wrist.rotation.z = Math.PI/2; me.claws[0].add(wrist);
+wrist.position.set(-0.027, 0.062, 0); wrist.rotation.y = -Math.PI/2; wrist.rotation.z = Math.PI/2; me.claws[0].add(wrist);
 let startT = performance.now(), lastWrist = '';
 function drawWrist(){
   const s = Math.floor((performance.now()-startT)/1000), txt = `SCRAPPED ${score}|${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
