@@ -3010,7 +3010,7 @@ function updateWristVis(){ const n = new V(-1,0,0).applyQuaternion(me.claws[0].g
 let startT = performance.now(), lastWrist = '';
 function drawWrist(){
   const s = Math.floor((performance.now()-startT)/1000), cl = typeof lastCombat === 'number' ? Math.ceil(10 - (clock - lastCombat)) : 0;
-  const txt = (mode === 'game' ? (cl > 0 ? `LEAVE IN ${cl}s` : 'Y = LEAVE') : 'LOBBY') + '|' + `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const txt = (mode === 'game' ? (impLocked() ? 'ROUND ON' : cl > 0 ? `LEAVE IN ${cl}s` : 'Y = LEAVE') : 'LOBBY') + '|' + `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   if (txt === lastWrist) return; lastWrist = txt;
   const g = wristCanvas.getContext('2d'), [a,b] = txt.split('|');
   g.fillStyle = '#16090a'; g.fillRect(0,0,256,128); g.fillStyle = '#ff3b2f'; g.textAlign = 'center';
@@ -3294,14 +3294,16 @@ function updateBot(bot, dt, player){
   }
   if (bot.stunT > 0){ bot.stunT -= dt; return; }
   if (bot.spin > 0){ bot.spin -= dt; root.obj.rotation.y += dt*9; root.obj.position.y = NAV.lv[(bot.cell && bot.cell[2]) || 0] + STAND + Math.abs(Math.sin(bot.t*12))*0.12; bot.ups.forEach((u, j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(2.4 + Math.sin(bot.t*14)*0.5); }); setFace(bot, 'happy'); return; }
-  if (socialTick(bot, dt)) return;
-  if (!near_(bot, player) && R() < dt*0.25) trySocial(bot);
+  const imp = impGame();
+  if (!imp && socialTick(bot, dt)) return;
+  if (!imp && !near_(bot, player) && R() < dt*0.25) trySocial(bot);
+  if (imp && IMP.on && IMP.phase !== 'wait'){ bot.sayT -= dt; if (bot.sayT < 0){ bot.sayT = 30 + R()*40; const s_ = pick(IMP_SAY); say(bot, s_); netSend('ev', {t:'imp', k:'bsay', b:bot.id, s:s_}); } }
   // running around
   const pos = root.obj.position, flat = new V(player.x, STAND, player.z);
   const legs = bot.legs.filter(l => l.parent === root).length, spd = bot.speed * (legs === 2 ? 1 : legs === 1 ? 0.55 : 0.3) * (bot.burning ? 1.7 : 1) * (1 - 0.92*Math.min(1, root.frz || 0));
   if (bot.burning && clock - (bot.screamT || 0) > 3 + R()*2){ bot.screamT = clock; say(bot, pick(SCREAMS)); scream(); }
   const to = bot.target.clone().sub(pos); to.y = 0;
-  const near = flat.distanceTo(pos) < 10 || bot.burning;
+  const near = !imp && (flat.distanceTo(pos) < 10 || bot.burning);
   if (to.length() < 0.08){
     const [x,y,l] = bot.cell = cellOf(bot.target);
     let nb = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => x+dx>=0 && y+dy>=0 && x+dx<NAV.nx && y+dy<NAV.nz && NAV.open(x,y,l,dx,dy)).map(([dx,dy]) => [x+dx,y+dy,l]);
@@ -4886,7 +4888,9 @@ function updateMonster(bot, dt){
 const IMP = {on:false, phase:'wait', t:0, seeker:null, hiders:[], found:{}, guesses:0, used:0, msg:'', waitT:0, endT:0, picked:new Set(), anchor:null};
 const impGame = () => mode === 'game' && !!netGame && netGame.split('~')[3] === 'imp';
 const amSeeker = () => IMP.on && IMP.seeker === NET.id, amHider = () => IMP.on && IMP.hiders.includes(NET.id) && !IMP.found[NET.id];
-const IMP_HIDE = 10, IMP_SEEK = 60, IMP_END = 8;
+const IMP_HIDE = 10, IMP_END = 8;
+const impLocked = () => impGame() && IMP.on && (IMP.phase === 'hide' || IMP.phase === 'seek');
+const seekTime = n => Math.min(120, 30 + 15*n);       // 1 hider 45 s, 2 hiders 1 min ... up to 2 min
 // a head-locked text panel (a HUD) and the seeker's blindfold
 const hudC = document.createElement('canvas'); hudC.width = 512; hudC.height = 128; const hudT = new T3.CanvasTexture(hudC); hudT.encoding = T3.sRGBEncoding;
 const hud = new T3.Mesh(new T3.PlaneGeometry(0.34, 0.085), new T3.MeshBasicMaterial({map:hudT, transparent:true, depthTest:false, fog:false})); hud.renderOrder = 1001; hud.visible = false; scene.add(hud);
@@ -4904,7 +4908,7 @@ function placeHud(head){
 function randomCell(){ for (let k=0;k<400;k++){ const x = Math.floor(R()*NAV.nx), y = Math.floor(R()*NAV.nz), l = Math.floor(R()*NAV.lv.length); if (NAV.ok(x, y, l)) return [x, y, l]; } return cellOf(SPAWN); }
 const IMP_SAY = ['beep boop','just a normal robot','nothing to see here','hello fellow robots','I love walking','*whistles*','01101000 01101001','I am definitely a robot'];
 function impStart(ev){
-  Object.assign(IMP, {on:true, phase:'hide', t:0, seeker:ev.s, hiders:ev.h, found:{}, guesses:ev.n, used:0, msg:'', picked:new Set()});
+  Object.assign(IMP, {on:true, phase:'hide', t:0, seeker:ev.s, hiders:ev.h, found:{}, guesses:ev.n, used:0, msg:'', picked:new Set(), seekT:ev.st || seekTime(ev.h.length), known:new Set(gameMembers())});
   for (const b of bots.slice()) if (!b.fakeOf){ const i = bots.indexOf(b); bots.splice(i, 1); if (!b.root.obj.userData.dead) removePart(b.root, true); }
   for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead && p.name !== 'prop') removePart(p, true);
   if (IMP.seeker === NET.id){ teleport(SPAWN, MAPS[curMap].yaw); IMP.anchor = rig.position.clone(); showMsg('You are the SEEKER! Wait...'); }
@@ -4936,27 +4940,53 @@ function impTouch(p){
   const ev = {t:'imp', k:'guess', u:IMP.used, hit, b:b.id}; netSend('ev', ev); impGuess(ev);
 }
 // what everyone else sees of a hider: a plain robot that goes where they go, on the ground and on the paths
+// where the hider was 0.3 s ago, blended between pose packets, so the robot never jitters
+function fakeTarget(p){
+  const h = p.hist; if (!h || !h.length) return p.P.head.clone();
+  const tt = performance.now() - 300;
+  if (tt <= h[0].t) return h[0].v.clone();
+  for (let i = h.length - 1; i > 0; i--) if (h[i-1].t <= tt){ const a = h[i-1], b = h[i], k = Math.min(1, (tt - a.t)/Math.max(1, b.t - a.t)); return a.v.clone().lerp(b.v, k); }
+  return h[h.length-1].v.clone();
+}
+const snap90 = a => Math.round(a/(Math.PI/2))*(Math.PI/2);
 function updateFake(bot, dt){
   const p = NET.peers[bot.fakeOf], root = bot.root; bot.t += dt;
   if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); }
-  if (!p || !p.P || bot.dead || root.mode !== 'bot' && root.mode !== 'held') return;
-  if (root.mode === 'held') return;
-  const h = p.P.head; let tgt = new V(h.x, 0, h.z), c = cellOf(tgt);
+  if (!p || !p.P || bot.dead || root.mode !== 'bot') return;
+  const h = fakeTarget(p); let tgt = new V(h.x, 0, h.z), c = cellOf(tgt);
   if (!NAV.ok(c[0], c[1], c[2])){ const rc = reachableCell(new V(h.x, NAV.lv[c[2]] + 0.5, h.z), c[2]); if (rc){ c = rc; tgt = cellPos(...rc); } else { c = bot.cell || c; tgt = root.obj.position.clone(); } }
   bot.cell = c;
-  const pos = root.obj.position, to = tgt.clone().sub(pos); to.y = 0; const d = to.length();
-  if (d > 5) pos.set(tgt.x, pos.y, tgt.z); else if (d > 0.01) pos.addScaledVector(to.clone().normalize(), Math.min(d, 3.2*dt));
-  pos.y = NAV.lv[c[2]] + STAND;
-  const sp = Math.min(1, (bot.lastD || 0)/(dt*1.4)); bot.lastD = Math.min(d, 3.2*dt);
-  const e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ'); let want = e.y;
-  if (d > 0.05) want = Math.atan2(to.x, to.z); else { const hy = new T3.Euler().setFromQuaternion(p.P.yawQ || p.P.headQ, 'YXZ').y; want = hy + Math.PI; }
-  let dd = want - e.y; dd = Math.atan2(Math.sin(dd), Math.cos(dd)); root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y + dd*Math.min(1, dt*6), 0));
-  const ph = bot.t*11; bot.legs.forEach((l, j) => { if (l.parent === root) l.obj.rotation.x = (j ? -1 : 1)*Math.sin(ph)*0.6*sp; }); bot.ups.forEach((u, j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(0.15 + Math.sin(ph)*0.15*sp); });
+  const pos = root.obj.position, ex = tgt.x - pos.x, ez = tgt.z - pos.z;
+  if (Math.hypot(ex, ez) > 4){ pos.set(tgt.x, pos.y, tgt.z); bot.ax = null; bot.v = 0; }
+  // walk like the robots do: straight along one grid direction at a time, never diagonally
+  if (bot.ax == null) bot.ax = Math.abs(ex) > Math.abs(ez) ? 0 : 1;
+  const cur = Math.abs(bot.ax ? ez : ex), oth = Math.abs(bot.ax ? ex : ez);
+  if ((cur < 0.12 && oth > 0.3) || oth > cur*1.8 + 0.25) bot.ax = 1 - bot.ax;
+  const e = bot.ax ? ez : ex, far = Math.abs(e);
+  const want = far > 0.18 ? Math.min(2.4, Math.max(1.0, far*1.6)) : 0;          // a steady robot pace, catching up if needed
+  bot.v = (bot.v || 0) + (want - (bot.v || 0))*Math.min(1, dt*5);
+  const step = Math.min(far, bot.v*dt); if (bot.ax) pos.z += Math.sign(e)*step; else pos.x += Math.sign(e)*step;
+  // facing: only the four grid directions, like the real robots
+  const moving = bot.v > 0.3;
+  if (moving) bot.face90 = bot.ax ? (e > 0 ? 0 : Math.PI) : (e > 0 ? Math.PI/2 : -Math.PI/2);
+  else { const hy = new T3.Euler().setFromQuaternion(p.P.yawQ || p.P.headQ, 'YXZ').y + Math.PI, s9 = snap90(hy);
+    if (bot.face90 == null){ bot.face90 = s9; } else { let dd = hy - bot.face90; dd = Math.atan2(Math.sin(dd), Math.cos(dd)); if (Math.abs(dd) > Math.PI*0.32) bot.face90 = s9; } }
+  const ey = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ').y; let dd = bot.face90 - ey; dd = Math.atan2(Math.sin(dd), Math.cos(dd));
+  root.obj.quaternion.setFromEuler(new T3.Euler(0, ey + dd*Math.min(1, dt*10), 0));
+  // the same walk the robots do, with the step rate following the speed
+  const run = Math.min(1, bot.v/bot.speed), amp = Math.min(1, bot.v/0.4);
+  bot.ph = (bot.ph || 0) + dt*11*Math.max(run, 0.45)*amp;
+  pos.y = NAV.lv[c[2]] + STAND + Math.abs(Math.sin(bot.ph))*0.08*Math.max(run, 0.5)*amp;
+  bot.legs.forEach((l, j) => { if (l.parent === root) l.obj.rotation.x = (j ? -1 : 1)*Math.sin(bot.ph)*0.7*amp; });
+  const ph = bot.t*11; bot.ups.forEach((u, j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(0.2 + Math.sin(ph)*0.2); });
+  if (bot.head.parent === root) bot.head.obj.rotation.z = Math.sin(ph*0.5)*0.12;
   bot.blinkT -= dt; if (bot.blinkT < 0) bot.blinkT = 2 + R()*3; setFace(bot, bot.blinkT < 0.12 ? 'blink' : 'idle');
 }
 let stickPrev = false;
 function updateImposter(dt, head){
   const inImp = impGame();
+  const cute = inImp && amHider() && IMP.phase !== 'end';
+  if (!!me.isCute !== cute){ setSkin(me, cute, 0x3aa0ff); setSkin(meMirror, cute, 0x3aa0ff); }
   if (!inImp){ if (IMP.on){ IMP.on = false; for (const b of bots.slice()) if (b.fakeOf) removeBot(b); } hud.visible = blind.visible = false; return; }
   hud.visible = true; placeHud(head);
   IMP.t += dt;
@@ -4970,14 +5000,20 @@ function updateImposter(dt, head){
       const pref = id => id === NET.id ? rolePref : (NET.peers[id].rp || 'random');
       const pool = members.filter(id => pref(id) === 'seeker'), pool2 = members.filter(id => pref(id) !== 'hider');
       const seeker = pick(pool.length ? pool : pool2.length ? pool2 : members), hiders = members.filter(id => id !== seeker);
-      const ev = {t:'imp', k:'start', s:seeker, h:hiders, n:hiders.length + 2}; netSend('ev', ev); impStart(ev);
+      const ev = {t:'imp', k:'start', s:seeker, h:hiders, n:hiders.length + 2, st:seekTime(hiders.length)}; netSend('ev', ev); impStart(ev);
       const total = 10 + Math.floor((members.length - 2)/2);
       for (let k=0;k<total - hiders.length;k++){ const pos = cellPos(...randomCell()), b = makeBot(pick(BOT_COLORS), pos); netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(pos.x), y:r3(pos.y), z:r3(pos.z)}); }
     }
     return;
   }
+  if (IMP.phase === 'hide' || IMP.phase === 'seek'){
+    if (!members.includes(IMP.seeker)) impEnd('ROUND OVER', 'the seeker left');
+    else if (!IMP.hiders.some(h => !IMP.found[h] && members.includes(h))) impEnd('ROUND OVER', 'the hiders left');
+    else if (isHost()) for (const id of members) if (!IMP.known.has(id)){ IMP.known.add(id);
+      netSend('ev', {t:'imp', k:'sync', ph:IMP.phase, tt:IMP.t, s:IMP.seeker, h:IMP.hiders, f:IMP.found, n:IMP.guesses, u:IMP.used, st:IMP.seekT}, [id]); }
+  }
   if (IMP.phase === 'hide' && IMP.t >= IMP_HIDE){ IMP.phase = 'seek'; IMP.t = 0; if (amSeeker()) showMsg('GO! Find the imposters! Touching a robot = a guess'); }
-  if (IMP.phase === 'seek' && IMP.t >= IMP_SEEK) impEnd('HIDERS WIN!', 'time ran out');
+  if (IMP.phase === 'seek' && IMP.t >= IMP.seekT) impEnd('HIDERS WIN!', 'time ran out');
   if (IMP.phase === 'end' && IMP.t >= IMP_END){ IMP.on = false; IMP.phase = 'wait'; IMP.waitT = 0; }
   // fakes for the hiders (not for yourself)
   for (const id of IMP.hiders){ if (id === NET.id || IMP.found[id] || IMP.phase === 'end') continue; const p = NET.peers[id]; if (!p || !p.P) continue;
@@ -4987,13 +5023,15 @@ function updateImposter(dt, head){
   if (blind.visible && IMP.anchor){ rig.position.copy(IMP.anchor); loco.S.velocity.set(0, 0, 0); }
   // hiders: push the thumbstick in to make your robot talk
   const stick = !!(io.pads[1] && io.pads[1].buttons && io.pads[1].buttons[3] && io.pads[1].buttons[3].pressed) || !!(io.pads[0] && io.pads[0].buttons && io.pads[0].buttons[3] && io.pads[0].buttons[3].pressed);
-  if (stick && !stickPrev && amHider()){ const s = pick(IMP_SAY); netSend('ev', {t:'imp', k:'say', s}); showMsg('Your robot says: ' + s); }
+  if (stick && !stickPrev && amHider() && clock - (IMP.saidAt || -9) > 2){ const s = pick(IMP_SAY); IMP.said = s; IMP.saidAt = clock; netSend('ev', {t:'imp', k:'say', s}); showMsg('Your robot says: ' + s);
+    pulse(0, 0.5, 60); pulse(1, 0.5, 60); speakBot({head:{obj:{userData:{}, getWorldPosition:v => v.copy(loco.headPos())}}}, s); }
   stickPrev = stick;
   // the HUD
-  const left = Math.max(0, Math.ceil((IMP.phase === 'hide' ? IMP_HIDE : IMP_SEEK) - IMP.t)), mm = Math.floor(left/60) + ':' + String(left % 60).padStart(2, '0');
+  const left = Math.max(0, Math.ceil((IMP.phase === 'hide' ? IMP_HIDE : IMP.seekT) - IMP.t)), mm = Math.floor(left/60) + ':' + String(left % 60).padStart(2, '0');
   const g = 'guesses ' + Math.max(0, IMP.guesses - IMP.used) + '/' + IMP.guesses, nf = IMP.hiders.filter(h => IMP.found[h]).length + '/' + IMP.hiders.length + ' found';
   if (IMP.phase === 'end'){ const [a, b] = IMP.msg.split('|'); drawHud(a, b + ' - next round soon', a.startsWith('SEEKER') ? '#ff6a5e' : '#7fe07a'); }
   else if (amSeeker()) drawHud(IMP.phase === 'hide' ? 'HIDERS ARE HIDING ' + left : 'SEEK ' + mm, IMP.phase === 'hide' ? 'you are the seeker' : g + '   ' + nf, '#ff6a5e');
+  else if (amHider() && clock - (IMP.saidAt || -9) < 2.5) drawHud('YOUR ROBOT SAID:', '"' + IMP.said + '"', '#ffd23d');
   else if (amHider()) drawHud(IMP.phase === 'hide' ? 'HIDE! ' + left : 'BLEND IN ' + mm, 'stick click: say something   ' + g, '#7fe07a');
   else drawHud(IMP.phase === 'hide' ? 'HIDING ' + left : 'SEEK ' + mm, IMP.found[NET.id] ? 'you were found - watch!' : nf, '#c9cdd2');
 }
@@ -5002,6 +5040,9 @@ function impEv(ev, from){
   if (ev.k === 'start') impStart(ev);
   else if (ev.k === 'guess') impGuess(ev);
   else if (ev.k === 'say'){ const f = bots.find(b => b.fakeOf === from); if (f) say(f, ev.s); }
+  else if (ev.k === 'bsay'){ const b = bots.find(b => b.id === ev.b); if (b && !b.dead) say(b, ev.s); }
+  else if (ev.k === 'sync' && (!IMP.on || IMP.phase === 'wait')){        // joined mid-round: watch until the next one
+    Object.assign(IMP, {on:true, phase:ev.ph, t:ev.tt, seeker:ev.s, hiders:ev.h, found:ev.f || {}, guesses:ev.n, used:ev.u, msg:'', picked:new Set(), seekT:ev.st, known:new Set()}); showMsg('A round is on - you\'re watching until the next one'); }
 }
 
 // ================= players ripping players =================
@@ -5155,7 +5196,7 @@ btn.addEventListener('click', async () => {
     await renderer.xr.setSession(session);
     if (renderer.xr.setFoveation) renderer.xr.setFoveation(1);
     camera.position.set(0,0,0); camera.rotation.set(0,0,0); inited = false;
-    session.addEventListener('end', () => { inited = false; showAvatar(false); resetPreview(); });
+    session.addEventListener('end', () => { if (mode === 'game'){ netGame = null; netHello(); netSend('ev', {t:'bye'}); fadeDir = 0; goto('lobby'); } inited = false; showAvatar(false); resetPreview(); });
   } catch(e){ setStatus('Could not start VR: ' + e.message); }
 });
 function showAvatar(on){
@@ -5248,7 +5289,8 @@ function vrStep(dt){
     else if (pressed2){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); playTogether(); }
   }
   if (mode === 'game' && io.yBtn && !yPrev){
-    if (clock - lastCombat < 10){ pulse(0, 0.6, 60); sndClank(2); lastWrist = ''; }   // still in a fight: no escaping
+    if (impLocked()){ pulse(0, 0.6, 60); sndClank(2); showMsg('You can\'t leave in the middle of a round'); }
+    else if (clock - lastCombat < 10){ pulse(0, 0.6, 60); sndClank(2); lastWrist = ''; }   // still in a fight: no escaping
     else goto('lobby');
   }
   if (hs.some(h => h.mode === 'player') || carriedT > 0 || knockT > 0) lastCombat = clock;
@@ -5312,7 +5354,8 @@ function roomMembers(){ return mode === 'lobby' ? [NET.id].concat(lobbyPeers()) 
 function lobbyLeader(){ return roomMembers().sort()[0]; }
 function mine(root){ return !room() || !root.owner || root.owner === NET.id; }
 function netSend(type, data, target){ if (NET.send) try { NET.send(type, data, target); } catch(e){} }
-function gameMembers(){ return [NET.id].concat(Object.keys(NET.peers).filter(id => NET.peers[id].g === netGame && netGame)); }
+const peerLive = p => p && performance.now() - (p.pt || 0) < 4000;          // still sending its pose = really playing
+function gameMembers(){ return [NET.id].concat(Object.keys(NET.peers).filter(id => NET.peers[id].g === netGame && netGame && peerLive(NET.peers[id]))); }
 // the host is whoever has been in this match the longest (someone who died and came back is the newest)
 function joinedAt(id){ if (id === NET.id) return mode === 'game' && netGame ? gameJoinT/1000 : Infinity; const p = NET.peers[id]; return p && p.gt != null ? p.gt : Infinity; }
 function hostId(){
@@ -5330,7 +5373,7 @@ const gameMap = g => (g && g.split('~')[2]) || 'backrooms';
 function netHello(target){ netSend('hi', {n:myName, sk:mySkin, rp:rolePref, m:mode, g:netGame, ga:mode === 'game' && netGame ? (performance.now() - gameJoinT)/1000 : -1}, target); }
 function playTogether(){
   const others = Object.entries(NET.peers);
-  const live = others.find(([id,p]) => p.g && gameMap(p.g) === selMap && (p.g.split('~')[3] || 'free') === lobbyMode);
+  const live = others.find(([id,p]) => p.g && peerLive(p) && gameMap(p.g) === selMap && (p.g.split('~')[3] || 'free') === lobbyMode);
   netGame = live ? live[1].g : NET.id + '~' + Date.now().toString(36) + '~' + selMap + (lobbyMode === 'imp' ? '~imp' : '');
   goto('game');
 }
@@ -5361,7 +5404,8 @@ function onPose(a, from){
   const tgt = {head:new V(a[0],a[1],a[2]), headQ:unpackQ(a,3), yawQ:new Q().setFromAxisAngle(UP, a[7]),
     hands:[new V(a[8],a[9],a[10]), new V(a[15],a[16],a[17])], handQ:[unpackQ(a,11), unpackQ(a,18)],
     trig:[a[22],a[25]], gripV:[a[23],a[26]], thumb:[!!a[24], !!a[27]], grip:[a[23]>0.5, a[26]>0.5]};
-  if (!p.P) p.P = tgt; p.T = tgt;
+  if (!p.P) p.P = tgt; p.T = tgt; const now_ = performance.now(); p.pt = now_;
+  (p.hist = p.hist || []).push({t:now_, v:tgt.head.clone()}); while (p.hist.length > 2 && now_ - p.hist[0].t > 1500) p.hist.shift();
   p.lost[0] = !!a[28]; p.lost[1] = !!a[29]; p.wType = [a[30] || 0, a[31] || 0]; p.wAct = [a[32] || 0, a[33] || 0]; p.burnV = a.length > 36 ? [a[34], a[35], a[36]] : [-1, -1, -1];
   p.charV = a.length > 40 ? {arm0:a[37], arm1:a[38], head:a[39], torso:a[40]} : {}; p.hookP = a.length > 46 ? [0,1].map(i => a[42 + i*3] > -900 ? new V(a[41 + i*3], a[42 + i*3], a[43 + i*3]) : null) : [null, null];
   p.boomP = a.length > 52 ? [0,1].map(i => a[48 + i*3] > -900 ? new V(a[47 + i*3], a[48 + i*3], a[49 + i*3]) : null) : [null, null]; p.frz = a.length > 53 ? a[53] : 0; p.noise = a.length > 54 ? a[54] : 0;
@@ -5449,6 +5493,7 @@ function applyRemoteState(){
   }
 }
 function onEvent(ev, from){
+  if (ev && ev.t === 'bye'){ onLeave(from); return; }
   { const pg = NET.peers[from]; if (netGame && pg && pg.g && pg.g !== netGame && ev.t !== 'need') return;   // someone in a different game
     if (pg && pg.m && ev.t !== 'need' && ((pg.m === 'lobby') !== (mode === 'lobby'))) return; }         // lobby stuff stays in the lobby
   if (ev.t === 'rng'){ if (mode === 'lobby') rangeEv(ev, from); return; }
@@ -5606,6 +5651,7 @@ function onHello(d, from){
   p.tagName = d.n;
   if (!wasMember && netGame && d.g === netGame && mode === 'game' && isHost()) sendSnapshot(from);
 }
+addEventListener('pagehide', () => netSend('ev', {t:'bye'}));
 function onLeave(id){ const p = NET.peers[id]; if (!p) return; dropAvatar(p); delete NET.peers[id];
   for (const q of parts) if (!q.parent && q.owner === id && isHost()) q.owner = NET.id; }
 function wireTransport(t){
@@ -5648,7 +5694,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124185918';
+const BUILD = '20261124193343';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
