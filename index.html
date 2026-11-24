@@ -70,6 +70,25 @@ function makeLoco(THREE, boxes, io){
     headRadius:0.15, bodyRadius:0.15, gravity:9.81, friction:0.6};
   const UP = new V(0,1,0);
 
+  // ---- broad phase: a 2 m grid so each query only tests nearby boxes ----
+  const GS = 2, GX0 = -30, GZ0 = -10, GW = 45, GD = 35, qOut = []; let grid = null, gridN = -1, stamp = 0;
+  function buildGrid(){
+    grid = Array.from({length:GW*GD}, () => []); gridN = boxes.length;
+    for (const b of boxes){
+      const x0 = Math.max(0, Math.floor((b.min[0]-GX0)/GS)), x1 = Math.min(GW-1, Math.floor((b.max[0]-GX0)/GS));
+      const z0 = Math.max(0, Math.floor((b.min[2]-GZ0)/GS)), z1 = Math.min(GD-1, Math.floor((b.max[2]-GZ0)/GS));
+      for (let z=z0; z<=z1; z++) for (let x=x0; x<=x1; x++) grid[z*GW+x].push(b);
+    }
+  }
+  function query(lo, hi){
+    if (gridN !== boxes.length) buildGrid();
+    stamp++; qOut.length = 0;
+    const x0 = Math.max(0, Math.floor((lo[0]-GX0)/GS)), x1 = Math.min(GW-1, Math.floor((hi[0]-GX0)/GS));
+    const z0 = Math.max(0, Math.floor((lo[2]-GZ0)/GS)), z1 = Math.min(GD-1, Math.floor((hi[2]-GZ0)/GS));
+    for (let z=z0; z<=z1; z++) for (let x=x0; x<=x1; x++) for (const b of grid[z*GW+x]) if (b._s !== stamp){ b._s = stamp; qOut.push(b); }
+    return qOut;
+  }
+
   // ---- Unity Physics.SphereCast / Physics.Raycast against axis-aligned boxes ----
   // Like Unity, colliders that already overlap the cast origin are ignored.
   function sphereCast(o, r, dir, maxDist){
@@ -79,7 +98,7 @@ function makeLoco(THREE, boxes, io){
     const lo = [], hi = [];
     for (let a=0;a<3;a++){ const e = oo[a] + d[a]*maxDist; lo[a] = Math.min(oo[a],e) - r; hi[a] = Math.max(oo[a],e) + r; }
     let bt = Infinity, bn = null;
-    for (const b of boxes){
+    for (const b of query(lo, hi)){
       if (b.max[0] < lo[0] || b.min[0] > hi[0] || b.max[1] < lo[1] || b.min[1] > hi[1] || b.max[2] < lo[2] || b.min[2] > hi[2]) continue;
       let tmin = -Infinity, tmax = Infinity, ax = -1, sg = 0, miss = false;
       for (let a=0;a<3;a++){
@@ -273,7 +292,7 @@ function makeLoco(THREE, boxes, io){
     }
     // depenetrate (Unity pushes rigidbodies out of geometry)
     for (const s of physicsSpheres()){
-      for (const b of boxes){
+      for (const b of query([s.x-0.2, 0, s.z-0.2], [s.x+0.2, 0, s.z+0.2])){
         const q = [Math.max(b.min[0],Math.min(s.x,b.max[0])), Math.max(b.min[1],Math.min(s.y,b.max[1])), Math.max(b.min[2],Math.min(s.z,b.max[2]))];
         const dv = new V(s.x-q[0], s.y-q[1], s.z-q[2]), dl = dv.length();
         if (dl < P.bodyRadius && dl > 1e-6){
@@ -288,7 +307,7 @@ function makeLoco(THREE, boxes, io){
       const k = hs > dec ? (hs-dec)/hs : 0; S.velocity.x *= k; S.velocity.z *= k;
     }
   }
-  return {P, S, InitializeValues, Update, Physics, Turn, headPos, handPos, sphereCast};
+  return {P, S, InitializeValues, Update, Physics, Turn, headPos, handPos, sphereCast, query};
 }
 // ===== </loco> =====
 </script>
@@ -367,6 +386,8 @@ const WIN = {z0:1.1, z1:5.9, y1:2.5};              // mirror opening
 const PED = {x:-18.9, z:2.3, top:0.55, cap:0.2};    // PLAY button pedestal (front-right of spawn)
 const LOBBY_SPAWN = new V(-17.9, 0, 3.6), LOBBY_YAW = Math.PI/2;
 const PED2 = {x:-18.9, z:4.9, top:0.55, cap:0.2};   // PLAY TOGETHER (front-left of spawn)
+// weapon buttons along the north wall: the claw that presses one gets that weapon
+const WPN = [{k:'none', x:-14.6, col:0x9aa0a6, label:'NONE'}, {k:'hammer', x:-15.3, col:0xff9a2a, label:'HAMMER'}, {k:'saw', x:-16.0, col:0xff3b2f, label:'CHAINSAW'}, {k:'flame', x:-16.7, col:0x3aa0ff, label:'FLAMETHROWER'}].map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
 addBox([LB.x0-1,-1,LB.z0-1],[LB.x1+1,0,LB.z1+1]); addBox([LB.x0-1,H,LB.z0-1],[LB.x1+1,H+1,LB.z1+1]);
 addBox([LB.x0-TW/2,0,LB.z0-TW/2],[LB.x0+TW/2,H,LB.z1+TW/2]);
 addBox([LB.x1-TW/2,0,LB.z0-TW/2],[LB.x1+TW/2,H,LB.z1+TW/2]);
@@ -375,6 +396,7 @@ addBox([LB.x0,0,LB.z1-TW/2],[LB.x1,H,LB.z1+TW/2]);
 addBox([PED.x-0.25,0,PED.z-0.25],[PED.x+0.25,PED.top,PED.z+0.25]);
 addBox([PED.x-PED.cap,PED.top,PED.z-PED.cap],[PED.x+PED.cap,PED.top+0.08,PED.z+PED.cap]);
 addBox([PED2.x-0.25,0,PED2.z-0.25],[PED2.x+0.25,PED2.top,PED2.z+0.25]);
+for (const w of WPN){ addBox([w.x-0.2,0,w.z-0.2],[w.x+0.2,w.top,w.z+0.2]); addBox([w.x-w.cap,w.top,w.z-w.cap],[w.x+w.cap,w.top+0.06,w.z+w.cap]); }
 addBox([PED2.x-PED2.cap,PED2.top,PED2.z-PED2.cap],[PED2.x+PED2.cap,PED2.top+0.08,PED2.z+PED2.cap]);
 
 // ================= renderer / scene =================
@@ -423,6 +445,8 @@ const tiles = canvasTex(128, 128, (g,w,h) => {
   g.strokeStyle = '#a89f72'; g.lineWidth = 4; g.strokeRect(0,0,w,h);
 }, true);
 const wallMat = new T3.MeshLambertMaterial({map:wallpaper, vertexColors:true});
+const BLADE = 0.5;   // chainsaw bar length
+const chainTex = canvasTex(32, 128, (g) => { g.fillStyle = '#26282c'; g.fillRect(0,0,32,128); g.fillStyle = '#c9cdd2'; for (let y=0;y<128;y+=16){ g.beginPath(); g.moveTo(0,y); g.lineTo(32,y+6); g.lineTo(0,y+12); g.fill(); } }, true);
 const floorMat = new T3.MeshLambertMaterial({map:carpet}), ceilMat = new T3.MeshLambertMaterial({map:tiles});
 
 // Merged wall mesh. Each face's winding is checked against its outward normal so the
@@ -530,9 +554,9 @@ function mergeGeos(list){
     const m = new T3.Mesh(mergeGeos(list), mat); m.renderOrder = 1; scene.add(m);
   };
   const damp = blot(70,56,18,0.16), stain = blot(120,92,40,0.2);
-  decal(damp, 70, 0.003, true, () => [0,0,SIZE,SIZE], 0.7, 2.8);
+  decal(damp, 38, 0.003, true, () => [0,0,SIZE,SIZE], 0.8, 2.6);
   decal(damp, 6, BAL.y1+0.003, true, () => [HW.x0+0.3, HW.z0+0.3, HW.x1-0.3, BAL.z1-0.3], 0.6, 1.4);
-  decal(stain, 40, H-0.006, false, () => [0,0,SIZE,SIZE], 0.5, 1.8, true);
+  decal(stain, 22, H-0.006, false, () => [0,0,SIZE,SIZE], 0.5, 1.6, true);
   decal(stain, 8, H2-0.006, false, () => [HW.x0+0.5, HW.z0+0.5, HW.x1-0.5, HW.z1-0.5], 0.6, 1.8);
 }
 
@@ -545,7 +569,7 @@ function mergeGeos(list){
   const chair = () => {
     const p = [piece('fabric', new T3.BoxGeometry(0.46,0.08,0.44), 0,0.47,0, 0,0,0, true), piece('fabric', new T3.BoxGeometry(0.44,0.52,0.07), 0,0.78,-0.21, -0.12,0,0, true),
       piece('metal', new T3.CylinderGeometry(0.025,0.025,0.32,8), 0,0.29,0, 0,0,0, true), piece('metal', new T3.BoxGeometry(0.5,0.08,0.5), 0,0.06,0, 0,0,0, false)];
-    p[3].solid = true; p[3].hidden = true;
+    p.pop();
     for (let k=0;k<5;k++){ const a = k*Math.PI*2/5; p.push(piece('metal', new T3.BoxGeometry(0.3,0.03,0.04), Math.cos(a)*0.14,0.1,Math.sin(a)*0.14, 0,-a,0)); p.push(piece('black', new T3.SphereGeometry(0.03,6,4), Math.cos(a)*0.28,0.035,Math.sin(a)*0.28)); }
     for (const sx of [-1,1]) p.push(piece('black', new T3.BoxGeometry(0.04,0.04,0.3), sx*0.24,0.66,0.02), piece('black', new T3.BoxGeometry(0.03,0.18,0.03), sx*0.24,0.56,0.1));
     return p;
@@ -553,11 +577,24 @@ function mergeGeos(list){
   const cabinet = () => { const p = [piece('beige', new T3.BoxGeometry(0.46,1.25,0.6), 0,0.625,0, 0,0,0, true)];
     for (let k=0;k<4;k++){ p.push(piece('black', new T3.BoxGeometry(0.4,0.008,0.01), 0,0.32+k*0.3,0.301), piece('metal', new T3.BoxGeometry(0.12,0.02,0.02), 0,0.25+k*0.3,0.31)); } return p; };
   const cooler = () => [piece('white', new T3.BoxGeometry(0.34,0.95,0.34), 0,0.475,0, 0,0,0, true), piece('blue', new T3.CylinderGeometry(0.15,0.15,0.42,14), 0,1.16,0, 0,0,0, true), piece('black', new T3.BoxGeometry(0.1,0.06,0.05), 0,0.75,0.19)];
-  const place = (parts, pos, rot) => { const T = new M4().compose(pos, new Q().setFromEuler(rot), new V(1,1,1));
+  // col = [half width x, half depth z, height] of a tight box; only used when the thing stands upright on a floor
+  const place = (parts, pos, rot, col) => { const T = new M4().compose(pos, new Q().setFromEuler(rot), new V(1,1,1));
+    for (const p of parts){ const m = T.clone().multiply(p.m); if (!p.hidden) bins[p.mat].push({geo:p.geo, m}); }
+    const upright = Math.abs(rot.x) < 0.05 && Math.abs(rot.z) < 0.2 && (pos.y < 0.01 || Math.abs(pos.y - BAL.y1) < 0.01);
+    if (col && upright){ const q = Math.abs(Math.sin(rot.y)) > 0.7, hx = q ? col[1] : col[0], hz = q ? col[0] : col[1]; addBox([pos.x-hx, pos.y, pos.z-hz], [pos.x+hx, pos.y+col[2], pos.z+hz]); return; }
+    // tilted / stuck in a wall: fill each solid piece with small cubes that follow its angle
     for (const p of parts){
-      const m = T.clone().multiply(p.m); if (!p.hidden) bins[p.mat].push({geo:p.geo, m});
-      if (p.solid){ p.geo.computeBoundingBox(); const bb = p.geo.boundingBox.clone().applyMatrix4(m); addBox(bb.min.toArray(), bb.max.toArray()); }
-    } };
+      if (!p.solid) continue;
+      const g = p.geo.parameters, dims = g.width ? [g.width, g.height, g.depth] : [g.radiusTop*2, g.height, g.radiusTop*2];
+      const m = T.clone().multiply(p.m), n = dims.map(d => Math.max(1, Math.min(6, Math.ceil(d/0.14)))), h = Math.max(...dims.map((d,k) => d/n[k]))/2;
+      for (let i=0;i<n[0];i++) for (let j=0;j<n[1];j++) for (let k=0;k<n[2];k++){
+        const c = new V((i+0.5)/n[0]-0.5, (j+0.5)/n[1]-0.5, (k+0.5)/n[2]-0.5).multiply(new V(...dims)).applyMatrix4(m);
+        addBox([c.x-h, c.y-h, c.z-h], [c.x+h, c.y+h, c.z+h]);
+      }
+    }
+  };
+  const CHAIR = [0.2, 0.2, 0.52], CAB = [0.23, 0.3, 1.25], COOL = [0.17, 0.17, 1.37];
+  const snap = a => Math.round(a/(Math.PI/2))*(Math.PI/2);
   const walls = mazeWalls.filter(b => b.max[1] <= H + 0.01 && (b.max[0]-b.min[0] > 1 || b.max[2]-b.min[2] > 1));
   for (let i=0;i<34;i++){
     const b = walls[Math.floor(rnd()*walls.length)], alongX = b.max[0]-b.min[0] > b.max[2]-b.min[2], side = rnd() < 0.5 ? -1 : 1;
@@ -565,13 +602,13 @@ function mergeGeos(list){
     const z = alongX ? (side < 0 ? b.min[2] : b.max[2]) + side*(0.05 - rnd()*0.3) : b.min[2] + t*(b.max[2]-b.min[2]);
     const kind = rnd(), stuck = rnd() < 0.45, wallTop = b.max[1];
     const y = stuck ? 0.2 + rnd()*Math.max(0.1, wallTop - 1.0) : 0;
-    const rot = stuck ? new T3.Euler((rnd()-0.5)*2.2, rnd()*6.3, (rnd()-0.5)*2.2) : new T3.Euler(0, rnd()*6.3, (rnd()-0.5)*0.15);
-    place(kind < 0.7 ? chair() : kind < 0.9 ? cabinet() : cooler(), new V(x, y, z), rot);
+    const yaw = kind < 0.7 ? rnd()*6.3 : snap(rnd()*6.3);
+    const rot = stuck ? new T3.Euler((rnd()-0.5)*2.2, rnd()*6.3, (rnd()-0.5)*2.2) : new T3.Euler(0, yaw, 0);
+    place(kind < 0.7 ? chair() : kind < 0.9 ? cabinet() : cooler(), new V(x, y, z), rot, kind < 0.7 ? CHAIR : kind < 0.9 ? CAB : COOL);
   }
   for (let i=0;i<10;i++){ const cx = Math.floor(rnd()*N), cy = Math.floor(rnd()*N); if (inHall(cx,cy) && cy === HALL.y0) continue;
-    place(chair(), new V((cx+0.2+rnd()*0.6)*C, 0, (cy+0.2+rnd()*0.6)*C), new T3.Euler(0, rnd()*6.3, rnd() < 0.2 ? Math.PI/2 : 0)); }
-  for (let i=0;i<5;i++) place(rnd() < 0.6 ? chair() : cabinet(), new V(HW.x0+1.2+rnd()*(HW.x1-HW.x0-4), BAL.y1, HW.z0+0.6+rnd()*2.2), new T3.Euler(0, rnd()*6.3, 0));
-  place(cabinet(), new V(HW.x1-1.25, BAL.y1, HW.z0+0.75), new T3.Euler(0, Math.PI/2, 0));     // hides the chainsaw
+    place(chair(), new V((cx+0.2+rnd()*0.6)*C, 0, (cy+0.2+rnd()*0.6)*C), new T3.Euler(0, rnd()*6.3, rnd() < 0.2 ? Math.PI/2 : 0), CHAIR); }
+  for (let i=0;i<5;i++){ const isChair = rnd() < 0.6; place(isChair ? chair() : cabinet(), new V(HW.x0+1.2+rnd()*(HW.x1-HW.x0-4), BAL.y1, HW.z0+0.6+rnd()*2.2), new T3.Euler(0, isChair ? rnd()*6.3 : snap(rnd()*6.3), 0), isChair ? CHAIR : CAB); }
   for (const k in bins) if (bins[k].length) scene.add(new T3.Mesh(mergeGeos(bins[k]), mats[k]));
 }
 
@@ -595,6 +632,11 @@ function drawBoard(lines){
   boardTex.needsUpdate = true;
 }
 drawBoard(['Looking for players on the network...']);
+const weaponTex = signTex(920, 200, (g,W,Hh) => {
+  g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK YOUR WEAPON', W/2, 62);
+  g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('press a button with the claw you want it on', W/2, 108);
+  g.font = 'bold 36px VT323, monospace'; [['FLAMER','#5ab4ff'],['CHAINSAW','#ff6a5e'],['HAMMER','#ffb04a'],['NONE','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.14 + i*0.24), 168); });
+});
 function plane(parent, tex, w, h, x, y, z, ry){ const m = new T3.Mesh(new T3.PlaneGeometry(w,h), new T3.MeshBasicMaterial({map:tex})); m.position.set(x,y,z); m.rotation.y = ry; parent.add(m); return m; }
 function buildLobby(parent, real){
   const walls = [
@@ -614,6 +656,13 @@ function buildLobby(parent, real){
   const cap2 = new T3.Mesh(new T3.CylinderGeometry(PED2.cap, PED2.cap, 0.08, 32), new T3.MeshLambertMaterial({color:0x1f7bff, emissive:0x05204a}));
   cap2.position.set(PED2.x, PED2.top+0.04, PED2.z); parent.add(cap2); caps2.push(cap2);
   const board = plane(parent, boardTex, 1.1, 0.645, PED2.x - 0.35, 1.25, PED2.z, Math.PI/2);
+  parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
+  plane(parent, weaponTex, 2.8, 0.6, -15.65, 1.45, LB.z0+TW/2+0.006, 0);
+  for (const w of WPN){
+    const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
+    cap.position.set(w.x, w.top+0.03, w.z); parent.add(cap); (w.caps = w.caps || []).push(cap);
+    if (w.k !== 'none'){ const m = w.k === 'saw' ? makeSaw() : w.k === 'flame' ? makeFlamer() : makeHammer(); if (w.k === 'saw'){ m.ext = 1; m.bar.scale.y = 1; } m.scale.setScalar(0.8); m.position.set(w.x, w.top + (w.k === 'saw' ? 0.62 : 0.6), w.z); m.rotation.z = 0.25; parent.add(m); (w.models = w.models || []).push(m); }
+  }
   plane(parent, playTex, 1.3, 0.51, PED.x, 1.25, LB.z0+TW/2+0.006, 0);
   const arrow = new T3.Mesh(new T3.ConeGeometry(0.12,0.25,4), new T3.MeshBasicMaterial({color:0xff3b2f})); arrow.rotation.x = Math.PI; arrow.position.set(PED.x, 1.05, PED.z); arrow.userData.bob = true; parent.add(arrow);
   plane(parent, helpTex, 1.9, 1.19, -14.6, 1.25, LB.z1-TW/2-0.006, Math.PI);
@@ -697,7 +746,7 @@ function addTethers(objA, localA, objB, localB, count){
     wires.push({obj:objA, local:localA.clone().add(jit()), obj2:objB, local2:localB.clone().add(jit()), pts, prev, segL:rope/(n-1), rope, maxLen:rope + 0.3 + R()*0.45, col:WCOL[Math.floor(R()*WCOL.length)]});
   }
 }
-const taut = [];
+const taut = [], HOT = new T3.Color(0xffb040);
 // Wires still joining two pieces after the joint broke act like ropes: the loose piece hangs,
 // swings and gets dragged. Held or running pieces are fixed; free pieces get pulled.
 const massOf = root => subtree(root).reduce((m,p) => m + p.r**3, 0);
@@ -759,7 +808,7 @@ function updateWires(dt){
     }
     for (let j=1;j<w.pts.length;j++) seg(w.pts[j-1], w.pts[j], w.col, 0.009);
   }
-  for (const t of taut) for (let k=0;k<4;k++){
+  for (const t of taut) if (t.hot) seg(t.a, t.b, HOT, 0.012); else for (let k=0;k<4;k++){
     const o = new V(((k&1)-0.5)*0.03, ((k>>1)-0.5)*0.03, 0);
     seg(tmpV2.copy(t.a).add(o).clone(), t.b.clone().add(o), WCOL[k], 0.009);
   }
@@ -874,7 +923,7 @@ let botCounter = 0;
 function makeBot(color, pos, id){
   id = id || (NET.id.slice(0,6) + '-' + (botCounter++));
   const accent = new T3.MeshBasicMaterial({color});
-  const bot = {color, dead:false, t:R()*10, sayT:3+R()*6, blinkT:R()*3, sp:null, spT:0, speed:2.3+R()*0.5, prev:null, face:'idle', deadT:0};
+  const bot = {color, dead:false, t:R()*10, sayT:10+R()*15, blinkT:R()*3, sp:null, spT:0, speed:2.3+R()*0.5, prev:null, face:'idle', deadT:0};
   const body = mkPart('body', 0.22); mesh(body, G.body, white); mesh(body, G.guts, gutsMat, 0, 0.01, 0.1605);
   const chest = mkPart('chest', 0.13, new V(0,0,0.01)); mesh(chest, G.plate, white, 0, 0, 0.0125); const st = mesh(chest, starGeo, accent, 0, 0, 0.026); attach(body, chest, 0, 0.01, 0.16);
   const head = mkPart('head', 0.24, new V(0,0.2,0)); mesh(head, G.head, white, 0, 0.2, 0); attach(body, head, 0, 0.18, 0);
@@ -912,8 +961,26 @@ function bubble(text){
   });
   const sp = new T3.Sprite(new T3.SpriteMaterial({map:t, depthTest:false, transparent:true})); sp.scale.set(0.9, 0.28, 1); sp.renderOrder = 10; return sp;
 }
+// cute robot voice: the headset's speech engine, pitched up and quick, with a little chirp first
+let voiceCD = 0, robotVoice = null, lastPlayer = new V();
+function pickVoice(){ try { const vs = speechSynthesis.getVoices(); robotVoice = vs.find(v => /^en/i.test(v.lang) && /female|zira|samantha|aria|jenny|google us/i.test(v.name)) || vs.find(v => /^en/i.test(v.lang)) || null; } catch(e){} }
+if ('speechSynthesis' in window){ pickVoice(); try { speechSynthesis.onvoiceschanged = pickVoice; } catch(e){} }
+function speakBot(bot, text){
+  if (!AC || clock < voiceCD || !text) return;
+  const pos = bot.head && !bot.head.obj.userData.dead ? bot.head.obj.getWorldPosition(new V()) : bot.root.obj.getWorldPosition(new V());
+  if (pos.distanceTo(lastPlayer) > 6) return;
+  voiceCD = clock + 2.2;
+  tone('square', 1500, 2200, 0.05, 0.03);
+  try {
+    if (!window.speechSynthesis) throw 0;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text.replace(/\.\.\./g, '.').replace(/\.json/g, ' dot jason'));
+    u.pitch = 1.9; u.rate = 1.15; u.volume = 1; if (robotVoice) u.voice = robotVoice; speechSynthesis.speak(u);
+  } catch(e){ for (let k=0;k<Math.min(8, text.length/3);k++) setTimeout(() => AC && tone('square', 700 + R()*900, 500 + R()*700, 0.07, 0.03), k*90); }
+}
 function say(bot, text){
   bot.said = text || '';
+  if (text && !bot.dead) setTimeout(() => speakBot(bot, text), 0);
   if (bot.dead && text) return; if (bot.sp){ bot.sp.parent && bot.sp.parent.remove(bot.sp); bot.sp = null; }
   if (!text) return; bot.sp = bubble(text); bot.sp.position.set(0, 0.66, 0); bot.head.obj.add(bot.sp); bot.spT = 2.4;
 }
@@ -945,7 +1012,7 @@ function detach(p, vel, remote){
   const bot = p.bot;
   if (bot && !bot.dead){
     if (p.name === 'head' || (p.name === 'face' && !remote && R() < 0.5)) killBot(bot, !!remote);
-    else { setFace(bot, 'dizzy'); bot.faceT = 0.8; say(bot, pick(OW)); }
+    else { setFace(bot, 'dizzy'); bot.faceT = 0.8; if (R() < 0.45) say(bot, pick(OW)); }
   }
   return S;
 }
@@ -963,15 +1030,15 @@ function makeChunk(id, s, hex, owner){
   const ch = mkPart('chunk', s*0.75); ch.obj.add(new T3.Mesh(chunkGeo, chunkMat(hex))); ch.obj.children[0].scale.setScalar(s);
   if (id){ ch.id = id; partsById.set(id, ch); } ch.owner = owner; ch.spec = {type:'chunk', s, col:hex}; return ch;
 }
-function shatter(p, remote, specs){
+function shatter(p, remote, specs, vel){
   const hex = firstMat(p).color ? firstMat(p).color.getHex() : 0x8d939a;
   specs = specs || Array.from({length:4 + Math.floor(R()*3)}, (_, k) => ({id:p.id ? p.id + 'c' + k : null, s:0.025 + R()*0.03}));
-  if (!remote && netGame && p.id) netSend('ev', {t:'shat', p:p.id, c:specs});
+  if (!remote && netGame && p.id) netSend('ev', {t:'shat', p:p.id, c:specs, v:vel ? r3(vel.toArray()) : null});
   const c = centerW(p);
   for (const sp of specs){
     const s = sp.s, ch = makeChunk(sp.id, s, hex, remote || NET.id);
     ch.obj.position.copy(c).add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(p.r)); ch.obj.rotation.set(R()*6, R()*6, R()*6);
-    ch.v.copy(p.v).multiplyScalar(0.3).add(new V(R()-0.5, R()*0.8, R()-0.5).multiplyScalar(4)); ch.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(20);
+    ch.v.copy(vel || p.v).multiplyScalar(vel ? 0.5 : 0.3).add(new V(R()-0.5, R()*0.8, R()-0.5).multiplyScalar(vel ? 5 : 4)); ch.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(20);
     scene.add(ch.obj);
   }
   spawnSparks(c, 90, 4.5); flash(c, 0.7); sndSnap(); removePart(p, true);
@@ -982,10 +1049,9 @@ function shatter(p, remote, specs){
 const sliced = [];
 function buildHalf(src, planes, id, owner, side){
   const half = mkPart(src.name, Math.max(0.03, src.r*0.72), src.c.clone());
-  const ud = src.obj.userData; src.obj.userData = {};          // three.js JSON-copies userData on clone; ours points back at the part
-  const copy = src.obj.clone(true); src.obj.userData = ud; const kids = [];
-  copy.traverse(o => { if (o.isSprite) kids.push(o); });
-  kids.forEach(o => o.parent && o.parent.remove(o));
+  // copy only this piece's own meshes (not attached pieces, not speech bubbles)
+  const copy = new T3.Group();
+  for (const c of src.obj.children){ if ((c.userData && c.userData.part) || c.isSprite) continue; copy.add(c.clone(true)); }
   half.clip = planes.map(() => new T3.Plane());
   const inside = new T3.MeshBasicMaterial({map:gutsInsideTex, side:T3.BackSide, clippingPlanes:half.clip, color:0xd8d8d8});
   const shells = [];
@@ -1006,13 +1072,13 @@ function buildHalf(src, planes, id, owner, side){
   return half;
 }
 // nL/d: the cut plane in the piece's own frame (n·x = d)
-function slicePart(p, nL, d, ids, owner, vel){
+function slicePart(p, nL, d, ids, owner, vel, quiet){
   const prev = (p.planes || []).map(pl => [pl.normal.x, pl.normal.y, pl.normal.z, pl.constant]);
   const a = buildHalf(p, prev.concat([[nL.x, nL.y, nL.z, -d]]), ids[0], owner);
   const b = buildHalf(p, prev.concat([[-nL.x, -nL.y, -nL.z, d]]), ids[1], owner);
   const nW = nL.clone().applyQuaternion(p.obj.getWorldQuaternion(new Q()));
   for (const [h, sg] of [[a, 1], [b, -1]]){ h.mode = 'free'; h.v.copy(vel || p.v).addScaledVector(nW, sg*1.4); h.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(9); }
-  const at = centerW(p); spawnSparks(at, 70, 4); flash(at, 0.4); sndSnap();
+  if (!quiet){ const at = centerW(p); spawnSparks(at, 70, 4); flash(at, 0.4); sndSnap(); }
   removePart(p, true);
   return [a, b];
 }
@@ -1107,7 +1173,7 @@ wrist.position.set(-0.038, 0.072, 0); wrist.rotation.y = -Math.PI/2; wrist.rotat
 let startT = performance.now(), lastWrist = '';
 function drawWrist(){
   const s = Math.floor((performance.now()-startT)/1000), cl = typeof lastCombat === 'number' ? Math.ceil(10 - (clock - lastCombat)) : 0;
-  const txt = `SCRAPPED ${score}|` + (mode === 'game' && cl > 0 ? `COMBAT ${cl}s` : typeof sawHand === 'number' && sawHand >= 0 ? `SAW ${Math.ceil(sawT)}s` : `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`);
+  const txt = `SCRAPPED ${score}|` + (mode === 'game' && cl > 0 ? `COMBAT ${cl}s` : `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`);
   if (txt === lastWrist) return; lastWrist = txt;
   const g = wristCanvas.getContext('2d'), [a,b] = txt.split('|');
   g.fillStyle = '#16090a'; g.fillRect(0,0,256,128); g.fillStyle = '#ff3b2f'; g.textAlign = 'center';
@@ -1142,9 +1208,8 @@ function goto(m){
   if (fadeDir) return; fadeDir = 1;
   fadeAction = () => {
     mode = m;
-    me.lost[0] = me.lost[1] = false; dropSaw();
+    me.lost[0] = me.lost[1] = false;
     if (m === 'game'){
-      sawAvail = true;
       lastDeath = '';
       resetWorld(); teleport(SPAWN, io.yaw); startT = performance.now(); score = 0; lastWrist = '';
       if (!netGame) for (let k=0;k<4;k++) makeBot(BOT_COLORS[k], farCell(SPAWN));
@@ -1173,7 +1238,7 @@ function startHold(i, root, part){
 }
 function grab(i){
   if (me.lost[i]) return;
-  if (mode === 'game' && sawAvail && sawHand < 0 && handW[i].distanceTo(sawPickup.position) < 0.28){ takeSaw(i); return; }
+  if (weapon === 'hammer' && weaponHand === i) return;
   const np = nearestPart(i, true);
   let bt = null, btd = Infinity;
   if (carriedT <= 0) for (const t of playerTargets()){ const d = t.dist(handW[i]); if (d < 0.08 && d < btd){ btd = d; bt = t; } }
@@ -1195,12 +1260,12 @@ function grab(i){
     let k = p, side = 'mine';
     if (isAnc(p, o.part)){ k = o.part; while (k.parent !== p) k = k.parent; side = 'other'; }
     hs[i] = {mode:'stretch', part:p, root, k, side, gLocal:p.obj.worldToLocal(handW[i].clone())};
-    if (p.bot && !p.bot.dead){ setFace(p.bot, 'scared'); if (R() < 0.6) say(p.bot, pick(['no no no','please not the '+(k.name === 'face' ? 'face' : k.name),'I have a family (of weights)','that is attached to me!'])); }
+    if (p.bot && !p.bot.dead){ setFace(p.bot, 'scared'); if (R() < 0.3) say(p.bot, pick(['no no no','please not the '+(k.name === 'face' ? 'face' : k.name),'I have a family (of weights)','that is attached to me!'])); }
   } else {
     root.obj.updateMatrixWorld(true);
     startHold(i, root, p);
     const b = root.bot;
-    if (b && !b.dead && root === b.root){ setFace(b, 'scared'); say(b, pick(CAUGHT)); sndSqueak(); }
+    if (b && !b.dead && root === b.root){ setFace(b, 'scared'); if (R() < 0.5) say(b, pick(CAUGHT)); sndSqueak(); }
   }
   pulse(i, 0.4, 40); sndTap(0.15);
 }
@@ -1250,7 +1315,7 @@ function updateHolds(dt){
     const st = Math.max(0, (L - 0.06) / 0.34); strain = Math.max(strain, st);
     pulse(i, 0.15 + st*0.7, 20); pulse(1-i, 0.1 + st*0.6, 20);
     if (st > 0.3 && R() < st*0.6) spawnSparks(S, 3, 2);
-    if (k.bot && !k.bot.dead && R() < 0.02) say(k.bot, pick(['AAAA','stop stop stop','my '+k.name+'!!']));
+    if (k.bot && !k.bot.dead && R() < 0.004) say(k.bot, pick(['AAAA','stop stop stop','my '+k.name+'!!']));
     if (L > 0.4){
       const A = 1-i, mine = s.side === 'mine';
       const kHand = mine ? i : A, kPart = mine ? s.part : hs[A].part, restHand = mine ? A : i, restPart = mine ? hs[A].part : s.part;
@@ -1326,7 +1391,7 @@ function bash(root){
 function punches(dt){
   for (const i of [0,1]){
     punchCD[i] -= dt; const sp = hv[i].length();
-    if (hs[i].mode !== 'none' || punchCD[i] > 0 || sp < 2.8 || me.lost[i]) continue;
+    if (hs[i].mode !== 'none' || punchCD[i] > 0 || sp < 2.8 || me.lost[i] || (weapon === 'hammer' && weaponHand === i)) continue;
     let best = null, bd = Infinity;
     for (const p of parts){ if (p.obj.userData.dead) continue; const d = centerW(p).distanceTo(handW[i]) - p.r; if (d < 0.04 && d < bd){ bd = d; best = p; } }
     if (!best) continue;
@@ -1358,7 +1423,7 @@ function updateBot(bot, dt, player){
   if (root.mode === 'held'){
     for (const [j,u] of bot.ups.entries()) if (u.parent === root && !isStretched(u)) u.obj.rotation.z = (j ? 1 : -1)*(2.2 + Math.sin(ph*2.3 + j)*0.9);
     for (const [j,l] of bot.legs.entries()) if (l.parent === root && !isStretched(l)) l.obj.rotation.x = Math.sin(ph*2 + j*3)*0.9;
-    if (R() < 0.006) say(bot, pick(CAUGHT));
+    if (R() < 0.0012) say(bot, pick(CAUGHT));
     return;
   }
   if (root.mode === 'free'){
@@ -1373,11 +1438,13 @@ function updateBot(bot, dt, player){
     }
     return;
   }
+  if (bot.stunT > 0){ bot.stunT -= dt; return; }
   // running around
   const pos = root.obj.position, flat = new V(player.x, STAND, player.z);
-  const legs = bot.legs.filter(l => l.parent === root).length, spd = bot.speed * (legs === 2 ? 1 : legs === 1 ? 0.55 : 0.3);
+  const legs = bot.legs.filter(l => l.parent === root).length, spd = bot.speed * (legs === 2 ? 1 : legs === 1 ? 0.55 : 0.3) * (bot.burning ? 1.7 : 1);
+  if (bot.burning && clock - (bot.screamT || 0) > 3 + R()*2){ bot.screamT = clock; say(bot, pick(SCREAMS)); scream(); }
   const to = bot.target.clone().sub(pos); to.y = 0;
-  const near = flat.distanceTo(pos) < 10;
+  const near = flat.distanceTo(pos) < 10 || bot.burning;
   if (to.length() < 0.08){
     const [x,y] = bot.cell = cellOf(bot.target);
     let nb = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => x+dx>=0 && y+dy>=0 && x+dx<N && y+dy<N && open(x,y,dx,dy)).map(([dx,dy]) => [x+dx,y+dy]);
@@ -1396,7 +1463,7 @@ function updateBot(bot, dt, player){
   if (bot.head.parent === root) bot.head.obj.rotation.z = Math.sin(ph*0.5)*0.12;
   bot.blinkT -= dt; if (bot.blinkT < 0) bot.blinkT = 2 + R()*3;
   if (!(bot.faceT > 0)) setFace(bot, bot.blinkT < 0.12 ? 'blink' : near ? 'happy' : 'idle');
-  bot.sayT -= dt; if (bot.sayT < 0 && near){ bot.sayT = 6 + R()*7; say(bot, pick(LINES)); }
+  bot.sayT -= dt; if (bot.sayT < 0 && near && !bot.burning){ bot.sayT = 18 + R()*20; say(bot, pick(LINES)); }
 }
 const isStretched = p => hs.some(s => s.mode === 'stretch' && s.k === p);
 
@@ -1416,7 +1483,7 @@ function physics(root, dt){
   let bestImpact = 0, bestPt = null;
   for (const p of sub){
     const c = centerW(p), r = p.r;
-    for (const b of boxes){
+    for (const b of loco.query([c.x-r, 0, c.z-r], [c.x+r, 0, c.z+r])){
       if (c.x+r < b.min[0] || c.x-r > b.max[0] || c.y+r < b.min[1] || c.y-r > b.max[1] || c.z+r < b.min[2] || c.z-r > b.max[2]) continue;
       const q = new V(Math.max(b.min[0],Math.min(c.x,b.max[0])), Math.max(b.min[1],Math.min(c.y,b.max[1])), Math.max(b.min[2],Math.min(c.z,b.max[2])));
       const d = c.clone().sub(q); let L = d.length(), n;
@@ -1444,9 +1511,8 @@ function physics(root, dt){
   if (root.obj.position.y < -5) removePart(root);
 }
 
-// ================= chainsaw power-up =================
-const SAW_SPOT = new V(HW.x1-0.75, BAL.y1+0.55, HW.z0+0.7), SAW_TIME = 40, BLADE = 0.5;
-const chainTex = canvasTex(32, 128, (g) => { g.fillStyle = '#26282c'; g.fillRect(0,0,32,128); g.fillStyle = '#c9cdd2'; for (let y=0;y<128;y+=16){ g.beginPath(); g.moveTo(0,y); g.lineTo(32,y+6); g.lineTo(0,y+12); g.fill(); } }, true);
+// ================= weapons (picked with the lobby buttons) =================
+// HAMMER: always on, smashes things into a pile of pieces. CHAINSAW: hold the trigger to run it.
 function makeSaw(){
   const g = new T3.Group(), orange = new T3.MeshLambertMaterial({color:0xff7a1a}), blk = new T3.MeshLambertMaterial({color:0x1b1c1f}), steelM = new T3.MeshLambertMaterial({color:0xb9bec4});
   const add = (geo, mat, x, y, z, par) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); (par || g).add(m); return m; };
@@ -1467,10 +1533,35 @@ function poseSaw(sw, ext, dt){
   sw.bar.scale.y = sw.ext; sw.bar.rotation.y = (1 - Math.min(1, sw.ext))*1.4;
   if (ext > 0.5) sw.chain.map.offset.y -= dt*9;
 }
-let sawAvail = true, sawHand = -1, sawT = 0, sawRun = 0, sawPrevMid = new V();
-const sawPickup = makeSaw(); sawPickup.ext = 1; sawPickup.bar.scale.y = 1; sawPickup.position.copy(SAW_SPOT); scene.add(sawPickup);
-const sawGlow = new T3.Sprite(new T3.SpriteMaterial({map:flashTex, blending:T3.AdditiveBlending, transparent:true, depthWrite:false, opacity:0.5, color:0xff8a3a})); sawGlow.scale.setScalar(0.7); sawPickup.add(sawGlow);
-const mySaws = [0,1].map(i => { const sw = makeSaw(); sw.visible = false; me.claws[i].add(sw); return sw; });
+function makeFlamer(){
+  const g = new T3.Group(), add = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
+  const red = new T3.MeshLambertMaterial({color:0xb3261e}), metal = new T3.MeshLambertMaterial({color:0x8d939a}), dark = new T3.MeshLambertMaterial({color:0x222428});
+  add(new T3.CylinderGeometry(0.045,0.045,0.18,14), red, 0, 0.09, 0.02);
+  add(new T3.SphereGeometry(0.045,12,8), red, 0, 0.18, 0.02);
+  add(new T3.CylinderGeometry(0.016,0.016,0.32,10), metal, 0, -0.16, 0);
+  add(new T3.CylinderGeometry(0.026,0.02,0.05,12), dark, 0, -0.33, 0);
+  g.pilot = add(new T3.ConeGeometry(0.012,0.04,8), new T3.MeshBasicMaterial({color:0x4aa8ff, fog:false}), 0, -0.375, 0); g.pilot.rotation.x = Math.PI;
+  return g;
+}
+function makeHammer(){
+  const g = new T3.Group(), add = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
+  const wood = new T3.MeshLambertMaterial({color:0x6b4a2b}), head = new T3.MeshLambertMaterial({color:0x50555c}), face = new T3.MeshLambertMaterial({color:0x2b2e33}), wrap = new T3.MeshLambertMaterial({color:0x151515});
+  add(new T3.CylinderGeometry(0.02,0.024,0.36,10), wood, 0, -0.14, 0);
+  add(new T3.CylinderGeometry(0.027,0.027,0.1,10), wrap, 0, 0.0, 0);
+  g.head = add(new T3.BoxGeometry(0.24,0.12,0.12), head, 0, -0.33, 0);
+  for (const sx of [-1,1]) add(new T3.CylinderGeometry(0.068,0.068,0.03,16), face, sx*0.13, -0.33, 0).rotation.z = Math.PI/2;
+  return g;
+}
+let weapon = 'none', weaponHand = 1, sawRun = 0, sawPrevMid = new V(), hammerPrev = new V(), hammerV = new V(), hammerT = -1, cutJob = null;
+const myW = [0,1].map(i => { const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer()}; me.claws[i].add(w.saw, w.hammer, w.flame); return w; });
+const myWm = [0,1].map(i => { const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer()}; meMirror.claws[i].add(w.saw, w.hammer, w.flame); return w; });
+function showWeapons(){
+  for (const i of [0,1]) for (const set of [myW, myWm]){
+    set[i].saw.visible = weapon === 'saw' && weaponHand === i; set[i].hammer.visible = weapon === 'hammer' && weaponHand === i; set[i].flame.visible = weapon === 'flame' && weaponHand === i;
+  }
+  myWm[weaponHand].saw.bar.scale.y = myW[weaponHand].saw.bar.scale.y;
+}
+function chooseWeapon(k, hand){ weapon = k; weaponHand = hand; sndBoop(); pulse(hand, 0.8, 90); for (const i of [0,1]){ myW[i].saw.ext = 0.001; myW[i].saw.bar.scale.y = 0.001; } }
 let sawOsc = null, sawGain = null;
 function sawSound(level, pitch){
   if (!AC) return;
@@ -1479,27 +1570,32 @@ function sawSound(level, pitch){
   sawGain.gain.setTargetAtTime(level*0.12, AC.currentTime, 0.04);
   sawOsc[0].frequency.setTargetAtTime(70 + pitch*60, AC.currentTime, 0.05); sawOsc[1].frequency.setTargetAtTime(140 + pitch*120, AC.currentTime, 0.05);
 }
-function takeSaw(i){ sawHand = i; sawT = SAW_TIME; sawAvail = false; netSend('ev', {t:'sawtake'}); pulse(i, 1, 150); sndBoop(); }
-function dropSaw(){ if (sawHand < 0) return; mySaws[sawHand].visible = false; sawHand = -1; sawRun = 0; sawSound(0, 0); sawAvail = true; netSend('ev', {t:'sawback'}); }
+function updateWeapon(dt){
+  showWeapons();
+  if (weapon === 'saw' && !me.lost[weaponHand]) updateSaw(dt); else { sawRun = 0; sawSound(0, 0); cutJob = null; }
+  if (weapon === 'hammer' && !me.lost[weaponHand] && mode === 'game') updateHammer(dt);
+  if (weapon === 'flame' && !me.lost[weaponHand]) updateFlamer(dt); else { flameOn = false; flameSound(0); }
+  updateMyFire(dt);
+}
+
+// ---- chainsaw: the blade grinds through, and the whole robot splits once it reaches the far side ----
 function updateSaw(dt){
-  sawPickup.visible = sawAvail && mode === 'game';
-  if (sawPickup.visible){ sawPickup.rotation.y += dt*1.2; sawPickup.position.y = SAW_SPOT.y + Math.sin(clock*2)*0.04; }
-  if (sawHand < 0) return;
-  sawT -= dt; if (sawT <= 0 || mode !== 'game' || me.lost[sawHand]){ dropSaw(); return; }
-  const i = sawHand, sw = mySaws[i]; sw.visible = true;
+  const i = weaponHand, sw = myW[i].saw;
   const on = io.trig[i] > 0.5; poseSaw(sw, on ? 1 : 0, dt);
   sawRun += ((on ? 1 : 0) - sawRun)*Math.min(1, dt*8);
   const A = sw.localToWorld(new V(0,-0.05,0)), B = sw.localToWorld(new V(0,-0.03-BLADE*Math.min(1, sw.ext),0)), mid = A.clone().lerp(B, 0.5);
-  const bv = mid.clone().sub(sawPrevMid).divideScalar(dt); sawPrevMid.copy(mid);
+  const bv = mid.clone().sub(sawPrevMid).divideScalar(Math.max(dt, 1e-3)); sawPrevMid.copy(mid);
   let cutting = 0;
-  if (sw.ext > 0.6){
-    pulse(i, 0.25, 20);
+  if (sw.ext > 0.6 && mode === 'game'){
+    pulse(i, 0.2, 20);
     const dir = B.clone().sub(A).normalize();
-    for (const p of parts.slice()){
-      if (p.obj.userData.dead || clock - (p.cutT || -1) < 0.3) continue;
-      const c = centerW(p); if (segDist(c, A, B) > p.r*0.85) continue;
-      cutting = 1; p.cutT = clock; cutPiece(p, c, A, B, dir, bv);
-    }
+    let contact = null, best = Infinity;
+    for (const p of parts){ if (p.obj.userData.dead) continue; const d = segDist(centerW(p), A, B); if (d < p.r*0.9 && d < best){ best = d; contact = p; } }
+    if (contact){
+      const root = rootOf(contact);
+      if (!cutJob || cutJob.root !== root || root.obj.userData.dead) startCut(root, contact, A, B, dir, bv);
+      cutting = advanceCut(dt, A, B, dir, bv) ? 1 : 0.6;
+    } else if (cutJob){ cutJob.idle += dt; if (cutJob.idle > 0.4) cutJob = null; }
     for (const t of playerTargets()){
       const peer = NET.peers[t.id]; if (!peer || clock - (peer.sawT || -1) < 0.4) continue;
       let hit = false; for (let k=0;k<=4;k++) if (t.dist(A.clone().lerp(B, k/4)) < 0.02) hit = true;
@@ -1509,22 +1605,228 @@ function updateSaw(dt){
       const k = t.k[0] === 'a' ? t.k : t.k === 'head' ? 'head' : arms.length ? 'arm' + pick(arms) : 'head';
       ripPlayer(t.id, k, -1, bv.clone().multiplyScalar(0.3));
     }
-  }
-  if (cutting){ pulse(i, 1, 60); spawnSparks(mid, 6, 3); }
+  } else if (cutJob){ cutJob.idle += dt; if (cutJob.idle > 0.4) cutJob = null; }
+  if (cutting) pulse(i, 0.5 + cutting*0.5, 30);
   sawSound(sawRun, cutting ? 1 : 0.2);
 }
-function cutPiece(p, c, A, B, dir, bv){
-  const root = rootOf(p); if (!mine(root) && root.mode !== 'held') claim(root);
-  if (p.parent){ detach(p, bv.clone().multiplyScalar(0.3)); return; }
-  if (p.kids.length){ const k = p.kids.reduce((a, b) => segDist(centerW(a), A, B) < segDist(centerW(b), A, B) ? a : b); detach(k, bv.clone().multiplyScalar(0.3)); return; }
-  if (p.r < 0.05 || (p.planes && p.planes.length >= 4)){ shatter(p); return; }
-  // the cut plane contains the blade and the way it's moving
+function startCut(root, contact, A, B, dir, bv){
   let n = dir.clone().cross(bv); if (n.lengthSq() < 1e-4) n = dir.clone().cross(new V(0,1,0)); if (n.lengthSq() < 1e-4) n.set(1,0,0); n.normalize();
-  const P0 = A.clone().addScaledVector(dir, Math.max(0, Math.min(B.distanceTo(A), c.clone().sub(A).dot(dir))));
-  const inv = p.obj.getWorldQuaternion(new Q()).invert(), nL = n.clone().applyQuaternion(inv).normalize(), d = nL.dot(p.obj.worldToLocal(P0.clone()));
-  const ids = p.id ? [p.id + 'a', p.id + 'b'] : [null, null];
-  if (netGame && p.id) netSend('ev', {t:'slice', p:p.id, n:r3(nL.toArray()), d:Math.round(d*10000)/10000, ids, v:r3(bv.clone().multiplyScalar(0.2).toArray())});
-  slicePart(p, nL, d, ids, NET.id, bv.clone().multiplyScalar(0.2));
+  let u = n.clone().cross(dir).normalize(); if (u.dot(bv) < 0) u.negate();          // the direction the blade travels through it
+  const c = centerW(contact), P = A.clone().addScaledVector(dir, Math.max(0, Math.min(B.distanceTo(A), c.clone().sub(A).dot(dir))));
+  let far = 0, near = 0; for (const q of subtree(root)){ const d = centerW(q).sub(P).dot(u); far = Math.max(far, d + q.r); near = Math.min(near, d - q.r); }
+  const inv = root.obj.getWorldQuaternion(new Q()).invert();
+  cutJob = {root, entryL:root.obj.worldToLocal(P.clone().addScaledVector(u, near*0.3)), nL:n.applyQuaternion(inv.clone()), uL:u.applyQuaternion(inv.clone()), len:Math.max(0.12, far - near*0.3), prog:0, idle:0};
+  const b = root.bot; if (b && !b.dead && root === b.root){ setFace(b, 'scared'); if (R() < 0.5) say(b, pick(['AAAAA','not the saw!','this is so unsafe'])); }
+  if (!mine(root) && root.mode !== 'held') claim(root);
+}
+function advanceCut(dt, A, B, dir, bv){
+  const j = cutJob, root = j.root; j.idle = 0;
+  const q = root.obj.getWorldQuaternion(new Q()), entry = root.obj.localToWorld(j.entryL.clone()), u = j.uL.clone().applyQuaternion(q), n = j.nL.clone().applyQuaternion(q);
+  const mid = A.clone().lerp(B, 0.5);
+  j.prog = Math.max(j.prog + dt*0.22, mid.clone().sub(entry).dot(u));    // pushing through is faster; holding still still grinds
+  const k = Math.min(1, j.prog / j.len), tip = entry.clone().addScaledVector(u, j.prog);
+  // the glowing cut line, sparks and a shudder while it goes through
+  for (const o of [-0.05, 0, 0.05]) taut.push({a:entry.clone().addScaledVector(dir, o), b:tip.clone().addScaledVector(dir, o), hot:true});
+  spawnSparks(tip, 5, 3.5);
+  if (root.mode !== 'held' && mine(root)){ root.obj.position.add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.006)); if (root.bot && root === root.bot.root) root.bot.stunT = 0.3; }
+  if (k >= 0.92){ cutJob = null; finishCut(root, n, entry); }
+  return true;
+}
+function finishCut(root, nW, pW){
+  if (root.obj.userData.dead) return;
+  // which pieces get sliced and which side the rest fall on is decided here and sent as-is
+  const info = {cut:{}, A:[], B:[]};
+  for (const q of subtree(root)){
+    if (!q.id) q.id = NET.id.slice(0,6) + '-p' + (botCounter++), partsById.set(q.id, q);
+    const c = centerW(q), d = nW.dot(c.clone().sub(pW));
+    if (Math.abs(d) < q.r*0.75 && q.r >= 0.04 && !(q.planes && q.planes.length >= 5)){
+      const nL = nW.clone().applyQuaternion(q.obj.getWorldQuaternion(new Q()).invert()).normalize();
+      info.cut[q.id] = [...r3(nL.toArray()), Math.round(nL.dot(q.obj.worldToLocal(pW.clone()))*10000)/10000];
+    } else (d >= 0 ? info.A : info.B).push(q.id);
+  }
+  if (netGame && root.id) netSend('ev', {t:'aslice', r:root.id, n:r3(nW.toArray()), info});
+  sliceAssembly(root, nW, info, NET.id);
+}
+function sliceAssembly(root, nW, info, owner){
+  const all = subtree(root), parentOf = new Map(all.map(q => [q, q.parent]));
+  const heldParts = [0,1].map(i => hs[i].mode === 'hold' && all.includes(hs[i].part) ? hs[i].part : null);
+  for (const q of all.slice().reverse()) if (q.parent){ q.parent.kids.splice(q.parent.kids.indexOf(q), 1); q.parent = null; scene.attach(q.obj); }
+  const rep = new Map();
+  for (const q of all){
+    const c = info.cut[q.id];
+    if (c){ const [a, b] = slicePart(q, new V(c[0], c[1], c[2]), c[3], [q.id + 'a', q.id + 'b'], owner, root.v.clone(), true); rep.set(q, {A:a, B:b}); }
+    else rep.set(q, info.A.includes(q.id) ? {A:q, B:null} : {A:null, B:q});
+  }
+  for (const side of ['A', 'B']){
+    for (const q of all){
+      const r = rep.get(q)[side]; if (!r) continue;
+      const par = parentOf.get(q), rp = par && rep.get(par)[side];
+      if (rp){ rp.obj.attach(r.obj); r.parent = rp; rp.kids.push(r); r.rest = r.obj.position.clone(); r.restQ = r.obj.quaternion.clone(); }
+      else { r.mode = 'free'; r.asleep = false; r.owner = owner; r.v.copy(root.v).addScaledVector(nW, side === 'A' ? 1.3 : -1.3); r.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(4); }
+    }
+  }
+  const at = centerW(rep.get(root).A || rep.get(root).B); spawnSparks(at, 120, 5); flash(at, 0.8); sndSnap();
+  const bot = root.bot; if (bot && !bot.dead) killBot(bot, owner !== NET.id);
+  // keep holding whatever piece ended up in your claw
+  heldParts.forEach((p, i) => { if (!p) return; const r = rep.get(p), piece = (r.A && !r.A.obj.userData.dead) ? r.A : r.B; if (piece){ hs[i] = {mode:'none'}; piece.obj.updateMatrixWorld(true); startHold(i, rootOf(piece), piece); } });
+}
+
+// ---- flamethrower, fire and ash ----
+const FN = 420, AN = 900;
+const fireMesh = new T3.InstancedMesh(new T3.IcosahedronGeometry(1, 0), new T3.MeshBasicMaterial({blending:T3.AdditiveBlending, transparent:true, depthWrite:false, fog:false}), FN);
+fireMesh.frustumCulled = false; fireMesh.setColorAt(0, new T3.Color(0)); scene.add(fireMesh);
+const ashMesh = new T3.InstancedMesh(new T3.BoxGeometry(1,1,1), new T3.MeshLambertMaterial({color:0xffffff}), AN);
+ashMesh.frustumCulled = false; ashMesh.setColorAt(0, new T3.Color(0x555555)); scene.add(ashMesh);
+const flames = Array.from({length:FN}, () => ({p:new V(), v:new V(), life:0, max:1, s:0.04})), ashes = Array.from({length:AN}, () => ({p:new V(), v:new V(), life:0, s:0.01, g:0.4, rot:0}));
+let fI = 0, aI = 0, flameOn = false, flameGain = null;
+function emitFire(pos, vel, size, life){ const f = flames[fI = (fI+1) % FN]; f.p.copy(pos); f.v.copy(vel); f.s = size; f.max = f.life = life; }
+function emitAsh(pos, n, spread){
+  for (let k=0;k<n;k++){ const a = ashes[aI = (aI+1) % AN]; a.p.copy(pos).add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(spread*2));
+    a.v.set((R()-0.5)*0.6, 0.2 + R()*0.6, (R()-0.5)*0.6); a.life = 5 + R()*4; a.s = 0.006 + R()*0.014; a.g = 0.25 + R()*0.35; a.rot = R()*6; a.c = 0.18 + R()*0.3; }
+}
+function partFlames(pos, r, rate){ if (R() < rate*0.5) emitFire(pos.clone().add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(r*1.5)), new V((R()-0.5)*0.3, 0.6 + R()*0.6, (R()-0.5)*0.3), r*0.22 + 0.015, 0.3 + R()*0.3); }
+const fCol = new T3.Color();
+function updateFire(dt){
+  let n = 0;
+  for (const f of flames){
+    if (f.life <= 0) continue; f.life -= dt; const k = 1 - f.life/f.max;
+    f.v.multiplyScalar(Math.pow(0.25, dt)); f.v.y += 2.2*dt; f.p.addScaledVector(f.v, dt);
+    const s = f.s*(0.55 + k*1.0); tmpM.compose(f.p, IDENT, tmpV.set(s, s*1.4, s)); fireMesh.setMatrixAt(n, tmpM);
+    fCol.setRGB(1, Math.max(0.08, 0.5 - k*0.45), Math.max(0, 0.12 - k*0.2)).multiplyScalar(Math.max(0, 1 - k*1.05)*0.42); fireMesh.setColorAt(n, fCol); n++;
+  }
+  fireMesh.count = n; fireMesh.instanceMatrix.needsUpdate = true; if (fireMesh.instanceColor) fireMesh.instanceColor.needsUpdate = true;
+  let m = 0;
+  for (const a of ashes){
+    if (a.life <= 0) continue; a.life -= dt;
+    if (a.p.y > 0.005){ a.v.y -= a.g*dt; a.v.multiplyScalar(Math.pow(0.4, dt)); a.v.x += (R()-0.5)*0.4*dt; a.v.z += (R()-0.5)*0.4*dt; a.p.addScaledVector(a.v, dt); a.rot += dt*2; }
+    if (a.p.y < 0.005){ a.p.y = 0.005; a.v.set(0,0,0); }
+    const s = a.s*Math.min(1, a.life); tmpQ.setFromAxisAngle(UP, a.rot); tmpM.compose(a.p, tmpQ, tmpV.set(s, s*0.5, s)); ashMesh.setMatrixAt(m, tmpM);
+    fCol.setScalar(a.c); ashMesh.setColorAt(m, fCol); m++;
+  }
+  ashMesh.count = m; ashMesh.instanceMatrix.needsUpdate = true; if (ashMesh.instanceColor) ashMesh.instanceColor.needsUpdate = true;
+}
+function flameSound(level){
+  if (!AC) return;
+  if (!flameGain){ flameGain = AC.createGain(); flameGain.gain.value = 0; flameGain.connect(AC.destination);
+    const ns = AC.createBufferSource(); ns.buffer = noiseBuf; ns.loop = true; const bp = AC.createBiquadFilter(); bp.type = 'lowpass'; bp.frequency.value = 700; ns.connect(bp); bp.connect(flameGain); ns.start(); }
+  flameGain.gain.setTargetAtTime(level*0.35, AC.currentTime, 0.05);
+}
+function shootFlames(fl, n){
+  const tip = fl.localToWorld(new V(0,-0.38,0)), dir = fl.localToWorld(new V(0,-1.38,0)).sub(tip).normalize();
+  for (let k=0;k<n;k++) emitFire(tip.clone(), dir.clone().multiplyScalar(5.5 + R()*1.5).add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.9)), 0.025 + R()*0.02, 0.4 + R()*0.2);
+  return [tip, dir];
+}
+function updateFlamer(dt){
+  const i = weaponHand, fl = myW[i].flame; flameOn = io.trig[i] > 0.5;
+  fl.pilot.scale.setScalar(0.8 + R()*0.4);
+  flameSound(flameOn ? 1 : 0);
+  if (!flameOn) return;
+  pulse(i, 0.25, 20);
+  const [tip, dir] = shootFlames(fl, 3);
+  if (mode !== 'game') return;
+  const inCone = (c, extra) => { const t = c.clone().sub(tip).dot(dir); if (t < 0 || t > 2.6) return false; return c.clone().sub(tip).addScaledVector(dir, -t).length() < 0.06 + t*0.17 + extra; };
+  for (const p of parts){
+    if (p.obj.userData.dead || p.fire) continue;
+    if (inCone(centerW(p), p.r*0.6)){ p.heat = (p.heat || 0) + dt*3; if (p.heat > 0.35) ignitePart(p); }
+  }
+  for (const t of playerTargets()){
+    const peer = NET.peers[t.id]; peer.fireCD = peer.fireCD || {};
+    if (inCone(t.pos, 0.12) && clock - (peer.fireCD[t.k] || -1) > 0.6){ peer.fireCD[t.k] = clock; lastCombat = clock; netSend('ev', {t:'ignite', k:t.k, n:myName}, [t.id]); }
+  }
+}
+const SCREAMS = ['AAAAAAH','IT BURNS','I AM ON FIRE','HOT HOT HOT','this is fine'];
+function scream(){ if (!AC) return; const o = AC.createOscillator(), lfo = AC.createOscillator(), lg = AC.createGain(), g = AC.createGain(), t = AC.currentTime;
+  o.type = 'square'; o.frequency.value = 1100; lfo.frequency.value = 14; lg.gain.value = 180; lfo.connect(lg); lg.connect(o.frequency);
+  g.gain.setValueAtTime(0.05, t); g.gain.exponentialRampToValueAtTime(0.001, t+0.7); o.connect(g); g.connect(AC.destination); o.start(t); lfo.start(t); o.stop(t+0.72); lfo.stop(t+0.72); }
+function ignitePart(p, remote){
+  if (p.fire || p.obj.userData.dead) return;
+  p.fire = {t:0, life:6 + R()*4};
+  p.fireMats = [];
+  p.obj.traverse(o => { if (!o.isMesh || o.userData.inside) return; let par = o.parent; while (par && par !== p.obj){ if (par.userData && par.userData.part) return; par = par.parent; }
+    const ms = Array.isArray(o.material) ? o.material : [o.material]; const cl = ms.map(m => { const c = m.clone(); if (c.color) p.fireMats.push({m:c, base:c.color.clone()}); return c; });
+    o.material = Array.isArray(o.material) ? cl : cl[0]; o.userData.baseScale = o.scale.clone(); });
+  if (!remote && netGame && p.id) netSend('ev', {t:'burn', p:p.id});
+  const b = p.bot; if (b && !b.dead){ b.burning = true; setFace(b, 'scared'); if (!b.screamT || clock - b.screamT > 2.5){ b.screamT = clock; say(b, pick(SCREAMS)); scream(); } }
+}
+function ashPart(p, remote){
+  if (p.obj.userData.dead) return;
+  if (!remote && netGame && p.id) netSend('ev', {t:'ash', p:p.id});
+  const c = centerW(p); emitAsh(c, 40 + Math.round(p.r*200), p.r*0.8);
+  for (const k of p.kids.slice()) detach(k, new V((R()-0.5)*0.5, 0.3, (R()-0.5)*0.5), remote || undefined);
+  if (p.parent){ p.parent.kids.splice(p.parent.kids.indexOf(p), 1); p.parent = null; scene.attach(p.obj); }
+  const b = p.bot; if (b && !b.dead && (p.name === 'head' || p === b.root)) killBot(b, !!remote);
+  removePart(p, true);
+}
+function updateBurning(dt){
+  for (const p of parts.slice()){
+    const f = p.fire; if (!f || p.obj.userData.dead) continue;
+    f.t += dt; const k = Math.min(1, f.t/f.life), c = centerW(p);
+    for (const fm of p.fireMats) fm.m.color.copy(fm.base).multiplyScalar(1 - 0.88*Math.min(1, k*1.6));
+    partFlames(c, p.r, 1.5*dt*30);
+    if (k > 0.7){                                     // crumbling: shrink away while shedding ash
+      const sc = Math.max(0.05, 1 - (k - 0.7)/0.3);
+      p.obj.traverse(o => { if (o.userData.baseScale) o.scale.copy(o.userData.baseScale).multiplyScalar(sc); });
+      if (R() < 0.5) emitAsh(c, 1, p.r*0.7);
+    }
+    if (!mine(rootOf(p))) continue;
+    if (f.t > 1.6 && !f.spread){ f.spread = true; for (const q of [p.parent, ...p.kids]) if (q && !q.fire && R() < 0.75) ignitePart(q); }
+    if (f.t >= f.life) ashPart(p);
+  }
+}
+
+// ---- you on fire: each part burns on its own; a burned-up arm is gone, a burned-up head or body scraps you ----
+const myFire = {head:null, torso:null, arm0:null, arm1:null}; let fireBy = '';
+function fireBits(){ return (myFire.head ? 1 : 0) | (myFire.torso ? 2 : 0) | (myFire.arm0 ? 4 : 0) | (myFire.arm1 ? 8 : 0); }
+function igniteMe(k, by){
+  if (mode !== 'game' || myFire[k]) return; if (k[0] === 'a' && me.lost[+k[3]]) return;
+  myFire[k] = {t:0, life:k === 'head' ? 9 : 8}; fireBy = by || fireBy; lastCombat = clock;
+}
+function updateMyFire(dt){
+  if (mode !== 'game'){ for (const k in myFire) myFire[k] = null; return; }
+  for (const k of Object.keys(myFire)){
+    const f = myFire[k]; if (!f) continue;
+    f.t += dt; lastCombat = clock;
+    const pos = k === 'head' ? loco.headPos().add(new V(0,0.12,0)) : k === 'torso' ? me.torso.position : handW[+k[3]];
+    partFlames(pos, k === 'torso' ? 0.2 : 0.09, 1.5*dt*30);
+    if (k[0] === 'a') pulse(+k[3], 0.3, 20);
+    if (f.t > 2.5 && !f.spread){ f.spread = true; const next = k === 'torso' ? ['head','arm0','arm1'] : k[0] === 'a' ? ['torso'] : ['torso']; for (const n of next) if (R() < 0.7) igniteMe(n); }
+    if (f.t >= f.life){
+      myFire[k] = null; emitAsh(pos.clone(), 60, 0.15); netSend('ev', {t:'pash', k});
+      if (k[0] === 'a'){ const i = +k[3]; me.lost[i] = true; release(i, true); hs[i] = {mode:'none'}; }
+      else { for (const j in myFire) myFire[j] = null; die(fireBy ? fireBy + "'s fire" : 'fire'); return; }
+    }
+  }
+}
+
+// ---- hammer: big swings smash pieces into a shower of bits ----
+function updateHammer(dt){
+  const i = weaponHand, hm = myW[i].hammer, head = hm.head.getWorldPosition(new V());
+  hammerV.lerp(head.clone().sub(hammerPrev).divideScalar(Math.max(dt, 1e-3)), 0.6); hammerPrev.copy(head);
+  const sp = hammerV.length(); if (sp < 2.2 || clock - hammerT < 0.15) return;
+  for (const p of parts){
+    if (p.obj.userData.dead || centerW(p).distanceTo(head) > p.r + 0.1) continue;
+    hammerT = clock; const root = rootOf(p); if (!mine(root) && root.mode !== 'held') claim(root);
+    pulse(i, 1, 110); sndClank(sp*2.2); spawnSparks(head, 20 + sp*6, sp*0.7); flash(head, 0.45);
+    if (sp >= 3.5) smash(p, hammerV.clone());
+    else if (p.parent) detach(p, hammerV.clone().multiplyScalar(0.5));
+    else if (root.mode !== 'held'){ root.mode = 'free'; root.asleep = false; root.v.add(hammerV.clone().multiplyScalar(0.7)); root.w.add(new V(R()-0.5,R()-0.5,R()-0.5).multiplyScalar(sp*3)); }
+    return;
+  }
+  for (const t of playerTargets()){
+    const peer = NET.peers[t.id]; if (!peer || t.dist(head) > 0.1 || clock - (peer.hitT || -1) < 0.3) continue;
+    hammerT = clock; peer.hitT = clock; lastCombat = clock;
+    pulse(i, 1, 110); sndClank(sp*2.2); spawnSparks(head, 30, 4); flash(head, 0.4);
+    const imp = hammerV.clone().multiplyScalar(0.5).add(new V(0, 1, 0)); if (imp.length() > 6) imp.setLength(6);
+    netSend('ev', {t:'hit', v:r3(imp.toArray())}, [t.id]);
+    if (sp >= 3.5){ const arms = [0,1].filter(j => !peer.lost[j]); const k = t.k[0] === 'a' && !peer.lost[+t.k[3]] ? t.k : arms.length ? 'arm' + pick(arms) : 'head'; ripPlayer(t.id, k, -1, hammerV.clone().multiplyScalar(0.5)); }
+    return;
+  }
+}
+function smash(p, vel){
+  for (const k of p.kids.slice()) detach(k, vel.clone().multiplyScalar(0.4).add(new V(R()-0.5, 1.5, R()-0.5)));
+  if (p.parent) detach(p, vel.clone().multiplyScalar(0.5));
+  const n = 16 + Math.floor(R()*12);
+  shatter(p, null, Array.from({length:n}, (_, k) => ({id:p.id ? p.id + 'h' + (botCounter++) + '_' + k : null, s:0.015 + R()*0.035})), vel);
 }
 
 // ================= players ripping players =================
@@ -1632,7 +1934,6 @@ function makeTrophy(k, id, pos, owner){
   return p;
 }
 function die(by){
-  dropSaw();
   lastDeath = by || 'another robot';
   for (const i of [0,1]) release(i, true);
   spawnSparks(loco.headPos(), 120, 4); sndSnap(); pulse(0, 1, 300); pulse(1, 1, 300);
@@ -1694,7 +1995,7 @@ function readXR(frame){
     if (gp){
       const bv = k => gp.buttons[k] ? gp.buttons[k].value : 0, bt = k => !!(gp.buttons[k] && (gp.buttons[k].touched || gp.buttons[k].pressed));
       io.trig[i] = bv(0); io.gripV[i] = bv(1);
-      io.grip[i] = io.gripV[i] > 0.5 || (io.trig[i] > 0.5 && sawHand !== i);
+      io.grip[i] = io.gripV[i] > 0.5 || (io.trig[i] > 0.5 && !((weapon === 'saw' || weapon === 'flame') && weaponHand === i));
       io.thumb[i] = bt(3) || bt(4) || bt(5);
       if (i === 0) io.yBtn = !!(gp.buttons[5] && gp.buttons[5].pressed);
       if (i === 1) io.stickX = gp.axes.length > 2 ? gp.axes[2] : 0;
@@ -1737,6 +2038,14 @@ function vrStep(dt){
     let pressed2 = false;
     for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-PED2.x, h.z-PED2.z) < PED2.cap+0.04 && h.y < PED2.top+0.08+0.05+0.02) pressed2 = true; }
     caps2.forEach(c => c.position.y = PED2.top + (pressed2 ? 0.015 : 0.04));
+    for (const w of WPN){
+      let by = -1; for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-w.x, h.z-w.z) < w.cap+0.04 && h.y < w.top+0.06+0.05+0.02) by = i; }
+      w.caps.forEach(c => c.position.y = w.top + (by >= 0 ? 0.01 : 0.03));
+      if (by >= 0 && !w.down && !me.lost[by]) chooseWeapon(w.k, by);
+      w.down = by >= 0;
+      const sel = weapon === w.k; w.caps.forEach(c => c.material.emissive.setHex(sel ? 0x553311 : 0x000000));
+      (w.models || []).forEach(m => { m.rotation.y += sel ? 0.03 : 0.008; });
+    }
     if (pressed){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); netGame = null; goto('game'); }
     else if (pressed2){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); playTogether(); }
   }
@@ -1754,7 +2063,7 @@ function vrStep(dt){
   }
   updateHolds(dt);
   updatePlayerGrabs(dt);
-  updateSaw(dt);
+  updateWeapon(dt);
   if (mode === 'game') punches(dt);
   // fade
   if (fadeDir){ fade += fadeDir*dt*4; if (fade >= 1){ fade = 1; fadeAction && fadeAction(); fadeAction = null; fadeDir = -1; } if (fade <= 0){ fade = 0; fadeDir = 0; } }
@@ -1767,6 +2076,7 @@ function vrStep(dt){
 function worldStep(dt, player){
   clock += dt;
   scene.updateMatrixWorld();
+  lastPlayer.copy(player);
   const flee = nearestPlayerFn(player);
   for (const b of bots) updateBot(b, dt, flee(b.root.obj.position));
   for (const p of parts.slice()){
@@ -1785,6 +2095,7 @@ function worldStep(dt, player){
   updateClips();
   ropes(dt);
   netTick(dt);
+  updateBurning(dt); updateFire(dt);
   updateWires(dt); updateSparks(dt); updateFlashes(dt);
 }
 
@@ -1831,7 +2142,7 @@ function setAvVisible(av, on){ av.head.visible = av.torso.visible = on; av.arms.
 function dropAvatar(p){
   if (!p.av) return;
   for (const av of [p.av, p.avM]) for (const o of [av.head, av.torso, ...av.arms, ...av.claws]) o.parent && o.parent.remove(o);
-  p.tag.parent && p.tag.parent.remove(p.tag); p.av = null; p.saws = null;
+  p.tag.parent && p.tag.parent.remove(p.tag); p.av = null; p.wp = null;
 }
 const unpackQ = (a, i) => new Q(a[i], a[i+1], a[i+2], a[i+3]);
 function onPose(a, from){
@@ -1840,7 +2151,7 @@ function onPose(a, from){
     hands:[new V(a[8],a[9],a[10]), new V(a[15],a[16],a[17])], handQ:[unpackQ(a,11), unpackQ(a,18)],
     trig:[a[22],a[25]], gripV:[a[23],a[26]], thumb:[!!a[24], !!a[27]], grip:[a[23]>0.5, a[26]>0.5]};
   if (!p.P) p.P = tgt; p.T = tgt;
-  p.lost[0] = !!a[28]; p.lost[1] = !!a[29]; p.sawHand = a.length > 30 ? a[30] : -1; p.sawExt = a.length > 31 ? a[31] : 0;
+  p.lost[0] = !!a[28]; p.lost[1] = !!a[29]; p.wHand = a.length > 30 ? a[30] : -1; p.sawExt = a.length > 31 ? a[31] : 0; p.wType = a.length > 32 ? a[32] : 0; p.fireBits = a.length > 33 ? a[33] : 0;
 }
 function updateRemoteAvatars(){
   for (const p of Object.values(NET.peers)){
@@ -1852,8 +2163,17 @@ function updateRemoteAvatars(){
     const here = p.m === mode && (mode === 'lobby' || (p.g && p.g === netGame));
     setAvVisible(p.av, here); setAvVisible(p.avM, here && mode === 'lobby'); p.tag.visible = here && !p.headless;
     if (p.headless){ p.av.head.visible = false; }
-    if (!p.saws) p.saws = [0,1].map(i => { const sw = makeSaw(); sw.visible = false; p.av.claws[i].add(sw); return sw; });
-    p.saws.forEach((sw, i) => { sw.visible = here && p.sawHand === i; if (sw.visible){ sw.bar.scale.y = Math.max(0.001, p.sawExt); if (p.sawExt > 0.5) sw.chain.map.offset.y -= 0.12; } });
+    if (!p.wp) p.wp = [p.av, p.avM].map(av => [0,1].map(i => { const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer()}; av.claws[i].add(w.saw, w.hammer, w.flame); return w; }));
+    p.wp.forEach((set, mi) => set.forEach((w, i) => {
+      const on = here && (mi === 0 || mode === 'lobby') && p.wHand === i;
+      w.saw.visible = on && p.wType === 2; w.hammer.visible = on && p.wType === 1; w.flame.visible = on && p.wType === 3;
+      if (w.flame.visible && mi === 0 && p.sawExt > 0.5) shootFlames(w.flame, 2);
+      if (w.saw.visible){ w.saw.bar.scale.y = Math.max(0.001, p.sawExt); if (p.sawExt > 0.5) w.saw.chain.map.offset.y -= 0.12; }
+    }));
+    if (here && p.fireBits){
+      const spots = [[1, P.head, 0.13], [2, p.av.torso.position, 0.2], [4, P.hands[0], 0.08], [8, P.hands[1], 0.08]];
+      for (const [bit, pos, r] of spots) if (p.fireBits & bit) partFlames(pos, r, 1);
+    }
     if (here){
       poseAvatar(p.av, P); if (mode === 'lobby') poseAvatar(p.avM, P); p.tag.position.copy(P.head).add(new V(0, 0.32, 0)); p.head.copy(P.head);
       if (p.pull){
@@ -1869,7 +2189,7 @@ function sendPose(){
   const a = [...head.toArray(), hq.x, hq.y, hq.z, hq.w, io.yaw + io.headYaw];
   for (const i of [0,1]) a.push(...handW[i].toArray(), handQW[i].x, handQW[i].y, handQW[i].z, handQW[i].w);
   for (const i of [0,1]) a.push(io.trig[i], io.gripV[i], io.thumb[i] ? 1 : 0);
-  a.push(me.lost[0] ? 1 : 0, me.lost[1] ? 1 : 0, sawHand, sawHand >= 0 ? mySaws[sawHand].ext : 0);
+  a.push(me.lost[0] ? 1 : 0, me.lost[1] ? 1 : 0, weapon === 'none' ? -1 : weaponHand, weapon === 'saw' ? myW[weaponHand].saw.ext : weapon === 'flame' && flameOn ? 1 : 0, weapon === 'hammer' ? 1 : weapon === 'saw' ? 2 : weapon === 'flame' ? 3 : 0, fireBits());
   netSend('pose', r3(a));
 }
 // world state: every root I own is streamed; everyone else eases toward it
@@ -1908,9 +2228,12 @@ function onEvent(ev, from){
   else if (ev.t === 'det'){ if (p && p.parent){ detach(p, new V().fromArray(ev.v), from); } if (p) p.owner = from; }
   else if (ev.t === 'claim'){ const r = partsById.get(ev.r); if (r && !r.parent){ for (const i of [0,1]) if (hs[i].root === r) release(i, true); r.owner = from; } }
   else if (ev.t === 'slice'){ if (p && !p.parent) slicePart(p, new V().fromArray(ev.n), ev.d, ev.ids, from, ev.v ? new V().fromArray(ev.v) : null); }
-  else if (ev.t === 'sawtake'){ sawAvail = false; }
-  else if (ev.t === 'sawback'){ sawAvail = true; }
-  else if (ev.t === 'shat'){ if (p) shatter(p, from, ev.c); }
+  else if (ev.t === 'shat'){ if (p){ for (const k of p.kids.slice()) detach(k, null, from); if (p.parent) detach(p, null, from); shatter(p, from, ev.c, ev.v ? new V().fromArray(ev.v) : null); } }
+  else if (ev.t === 'burn'){ if (p) ignitePart(p, from); }
+  else if (ev.t === 'ash'){ if (p) ashPart(p, from); }
+  else if (ev.t === 'ignite'){ igniteMe(ev.k, ev.n); }
+  else if (ev.t === 'pash'){ const peer = NET.peers[from]; if (peer && peer.P){ const pos = ev.k === 'head' ? peer.P.head : ev.k === 'torso' ? peer.av.torso.position : peer.P.hands[+ev.k[3]]; emitAsh(pos.clone(), 50, 0.15); if (ev.k[0] === 'a') peer.lost[+ev.k[3]] = true; } }
+  else if (ev.t === 'aslice'){ const r = partsById.get(ev.r); if (r && !r.obj.userData.dead){ if (r.parent) detach(r, null, from); sliceAssembly(r, new V().fromArray(ev.n), ev.info, from); } }
   else if (ev.t === 'rm'){ if (p) removePart(p, true); }
   else if (ev.t === 'prip'){
     const pos = new V().fromArray(ev.p), q = ev.q ? new Q().fromArray(ev.q) : null;
@@ -1940,10 +2263,11 @@ function sendSnapshot(to){
   });
   const extras = [];
   for (const p of parts){
-    if (p.parent || p.obj.userData.dead || !p.id || !p.spec) continue;
+    if (p.obj.userData.dead || !p.id || !p.spec) continue;
     extras.push({id:p.id, spec:p.spec, o:p.owner || NET.id, p:r3(p.obj.position.toArray()), q:r3(p.obj.quaternion.toArray())});
   }
-  netSend('ev', {t:'snap', bots:list, extras, saw:sawAvail}, [to]);
+  const tree = parts.filter(p => p.id && !p.obj.userData.dead).map(p => [p.id, p.parent ? p.parent.id : null, r3(p.obj.position.toArray()), r3(p.obj.quaternion.toArray())]);
+  netSend('ev', {t:'snap', bots:list, extras, tree}, [to]);
 }
 function fromSpec(id, spec, owner){
   if (spec.type === 'trophy') return makeTrophy(spec.k, id, new V(), owner);
@@ -1969,12 +2293,21 @@ function loadSnapshot(ev){
   }
   // everything else in the match: trophies, chunks, sliced halves (created before missing originals are removed)
   for (const e of ev.extras || []){
-    if (partsById.has(e.id)) continue;
+    if (partsById.has(e.id) || e.spec.type === 'half' && false) continue;
     const p = fromSpec(e.id, e.spec, e.o); if (!p) continue;
     p.mode = 'free'; p.obj.position.fromArray(e.p); p.obj.quaternion.fromArray(e.q); p.obj.updateMatrixWorld(true);
   }
-  for (const s of ev.bots) for (const id of s.gone){ const q = partsById.get(id); if (q){ if (q.parent){ q.parent.kids.splice(q.parent.kids.indexOf(q),1); q.parent = null; scene.attach(q.obj); } removePart(q, true); } }
-  if (typeof ev.saw === 'boolean') sawAvail = ev.saw;
+  // rebuild who is attached to what (cut-up robots), then drop originals that no longer exist
+  for (const [id, pid, pos, q] of ev.tree || []){
+    const p = partsById.get(id); if (!p) continue;
+    const want = pid ? partsById.get(pid) : null;
+    if (p.parent && p.parent !== want){ p.parent.kids.splice(p.parent.kids.indexOf(p), 1); p.parent = null; scene.attach(p.obj); }
+    if (want && p.parent !== want){ want.obj.add(p.obj); p.parent = want; want.kids.push(p); }
+    if (!want && !p.parent && p.obj.parent !== scene) scene.attach(p.obj);
+    p.obj.position.fromArray(pos); p.obj.quaternion.fromArray(q);
+    if (want){ p.rest.copy(p.obj.position); p.restQ.copy(p.obj.quaternion); } else p.mode = p.mode === 'bot' ? 'bot' : 'free';
+  }
+  for (const s of ev.bots) for (const id of s.gone){ const q = partsById.get(id); if (q){ for (const k of q.kids.slice()){ q.kids.splice(q.kids.indexOf(k),1); k.parent = null; scene.attach(k.obj); } if (q.parent){ q.parent.kids.splice(q.parent.kids.indexOf(q),1); q.parent = null; scene.attach(q.obj); } removePart(q, true); } }
 }
 let boardKey = '';
 function updateBoard(){
@@ -2039,7 +2372,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124020054';
+const BUILD = '20261124022658';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
