@@ -1005,6 +1005,7 @@ function detach(p, vel, remote){
   scene.attach(p.obj); p.mode = 'free'; p.holdHand = -1; p.born = clock; p.asleep = false;
   p.v.copy(vel || new V()); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(8);
   const out = S.clone().sub(centerW(parent)).normalize();
+  if (quietFx){ const bot = p.bot; if (bot && !bot.dead && p.name === 'head') killBot(bot, !!remote); return S; }
   addWires(parent.obj, p.rest.clone(), 3 + Math.floor(R()*3), out);
   addWires(p.obj, new V(), 2 + Math.floor(R()*3), out.clone().negate());
   addTethers(parent.obj, p.rest.clone(), p.obj, new V(), 2 + Math.floor(R()*2));
@@ -1041,8 +1042,10 @@ function shatter(p, remote, specs, vel){
     ch.v.copy(vel || p.v).multiplyScalar(vel ? 0.5 : 0.3).add(new V(R()-0.5, R()*0.8, R()-0.5).multiplyScalar(vel ? 5 : 4)); ch.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(20);
     scene.add(ch.obj);
   }
-  spawnSparks(c, 90, 4.5); flash(c, 0.7); sndSnap(); removePart(p, true);
+  if (!quietFx){ spawnSparks(c, 90, 4.5); flash(c, 0.7); sndSnap(); }
+  removePart(p, true);
 }
+let quietFx = false;
 
 // ================= slicing (chainsaw) =================
 // A piece is cut by a plane: each half keeps the original meshes, clipped by every cut so far.
@@ -1505,8 +1508,10 @@ function physics(root, dt){
   }
   if (root.grounded){ root.w.multiplyScalar(Math.pow(0.05, dt)); if (root.v.length() < 0.06) root.v.set(0,0,0); }
   if (root.grounded && root.v.lengthSq() < 0.01 && root.w.lengthSq() < 0.05){ root.sleepT = (root.sleepT || 0) + dt; if (root.sleepT > 0.6) root.asleep = true; } else root.sleepT = 0;
-  if (bestImpact > 2.5){ spawnSparks(bestPt, Math.min(60, bestImpact*6), bestImpact*0.5); sndClank(bestImpact); }
-  if (bestImpact > 5.5){
+  const calm = root.calmT > clock;
+  if (bestImpact > 2.5 && !calm){ spawnSparks(bestPt, Math.min(60, bestImpact*6), bestImpact*0.5); sndClank(bestImpact); }
+  else if (bestImpact > 2.5 && R() < 0.15) spawnSparks(bestPt, 4, 2);
+  if (bestImpact > 5.5 && !calm){
     if (root.kids.length){ const k = pick(root.kids); detach(k, root.v.clone().add(new V(R()-0.5, 1, R()-0.5).multiplyScalar(2))); }
     else if (root.r > 0.04 && R() < 0.7) shatter(root);
   }
@@ -2122,15 +2127,15 @@ function updateMines(dt){
 }
 // ---- the explosion ----
 const boomMat = new T3.MeshBasicMaterial({color:0xffa040, transparent:true, opacity:0.8, blending:T3.AdditiveBlending, depthWrite:false, fog:false, side:T3.DoubleSide});
-const booms = [];
+const booms = [], boomGeo = new T3.SphereGeometry(1, 12, 8);
 function sndBoom(vol){ if (!AC) return; noiseHit(1.4, 180, 0.6, 1.2*vol); noiseHit(0.6, 900, 0.8, 0.7*vol); tone('sine', 90, 25, 0.9, 0.9*vol); for (let i=0;i<8;i++) noiseHit(0.05, 3000 + R()*3000, 2, 0.2*vol, AC.currentTime + 0.1 + R()*0.6); }
 function blast(pos, minePart, by){
   if (minePart){ if (minePart.obj.userData.dead) return; for (const i of [0,1]) if (hs[i].root === minePart) hs[i] = {mode:'none'}; minePart.stuck = null; removePart(minePart, true); }
   // the look: a white-hot flash, a fireball shell, fire flung in every direction, sparks and smoke
-  flash(pos, 3.5); flash(pos.clone().add(new V(0,0.2,0)), 2.5);
-  const sh = new T3.Mesh(new T3.SphereGeometry(1, 20, 14), boomMat.clone()); sh.position.copy(pos); sh.scale.setScalar(0.1); scene.add(sh); booms.push({m:sh, t:0});
-  for (let k=0;k<110;k++){ const d = new V(R()-0.5, R()-0.3, R()-0.5).normalize(); emitFire(pos.clone().addScaledVector(d, 0.05), d.multiplyScalar(3 + R()*6), 0.05 + R()*0.08, 0.35 + R()*0.5); }
-  spawnSparks(pos, 220, 9); emitAsh(pos, 70, 0.3);
+  flash(pos, 2.2);
+  const sh = new T3.Mesh(boomGeo, boomMat.clone()); sh.position.copy(pos); sh.scale.setScalar(0.1); scene.add(sh); booms.push({m:sh, t:0});
+  for (let k=0;k<32;k++){ const d = new V(R()-0.5, R()-0.3, R()-0.5).normalize(); emitFire(pos.clone().addScaledVector(d, 0.05), d.multiplyScalar(3 + R()*5), 0.04 + R()*0.05, 0.3 + R()*0.35); }
+  spawnSparks(pos, 60, 8); emitAsh(pos, 16, 0.3);
   const dist = pos.distanceTo(lastPlayer); sndBoom(Math.min(1, 2.2/(1 + dist*0.5)));
   if (dist < 5){ const k = 1 - dist/5; pulse(0, k, 250); pulse(1, k, 250); }
   const remote = by;                                       // everyone applies the same blast; pieces belong to whoever set it off
@@ -2139,15 +2144,17 @@ function blast(pos, minePart, by){
   const deadBefore = new Set(bots.filter(b => b.dead));
   // other mines nearby go off too
   for (const p of near) if (p.name === 'mine' && p.fuse > 0.15) p.fuse = 0.15 + R()*0.1;
+  quietFx = true; let smashed = 0;
+  near.sort((a, b) => centerW(a).distanceTo(pos) - centerW(b).distanceTo(pos));
   // the closest pieces are blown to bits, everything else in range is torn off and thrown
   for (const p of near){
     if (p.obj.userData.dead || p.name === 'mine') continue;
     const d = centerW(p).distanceTo(pos);
-    if (d < 0.5 + p.r*0.5 && p.r < 0.3){
+    if (d < 0.5 + p.r*0.5 && p.r < 0.3 && smashed < 3){ smashed++;
       for (const k of p.kids.slice()) if (k.name === 'mine') freeMine(k, true); else detach(k, out(k, 7), remote);
       if (p.parent) detach(p, out(p, 7), remote);
       for (const i of [0,1]) if (hs[i].root === p || hs[i].part === p) hs[i] = {mode:'none'};
-      shatter(p, remote, Array.from({length:7}, (_, k) => ({id:p.id ? p.id + 'x' + k : null, s:0.02 + R()*0.035})), out(p, 9));
+      shatter(p, remote, Array.from({length:3}, (_, k) => ({id:p.id ? p.id + 'x' + k : null, s:0.03 + R()*0.035})), out(p, 9));
     }
   }
   for (const p of near){
@@ -2159,6 +2166,9 @@ function blast(pos, minePart, by){
     for (const i of [0,1]) if (hs[i].root === p) hs[i] = {mode:'none'};
     p.owner = remote; p.mode = 'free'; p.asleep = false; p.v.add(out(p, 8)); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(18);
   }
+  quietFx = false;
+  for (const p of near) if (!p.obj.userData.dead) p.calmT = clock + 2.5;    // thrown by the blast: no second shattering against walls
+  for (const p of parts) if (p.name === 'chunk' && clock - p.born < 0.05) p.calmT = clock + 2.5;
   for (const b of bots) if (!b.dead && centerW(b.root).distanceTo(pos) < BLAST*0.7) killBot(b, true);
   if (by === NET.id) score += bots.filter(b => b.dead && !deadBefore.has(b)).length;
   // players: each one works out their own damage; everyone sees the debris
@@ -2173,10 +2183,10 @@ function blast(pos, minePart, by){
     for (const i of [0,1]) if (!peer.lost[i] && peer.P.hands[i].distanceTo(pos) < 1.05) debris(peer.P.hands[i], 0x3c4048);
   }
 }
-function debris(at, hex){ for (let k=0;k<6;k++){ const c = makeChunk(null, 0.03 + R()*0.04, hex, NET.id); c.obj.position.copy(at).add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.15)); c.v.set(R()-0.5, R()*0.8, R()-0.5).multiplyScalar(7); c.w.set(R(), R(), R()).multiplyScalar(20); scene.add(c.obj); } spawnSparks(at, 60, 5); }
+function debris(at, hex){ for (let k=0;k<3;k++){ const c = makeChunk(null, 0.03 + R()*0.04, hex, NET.id); c.obj.position.copy(at).add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.15)); c.v.set(R()-0.5, R()*0.8, R()-0.5).multiplyScalar(7); c.w.set(R(), R(), R()).multiplyScalar(20); scene.add(c.obj); } spawnSparks(at, 20, 5); }
 function updateBooms(dt){
   for (let i = booms.length-1; i >= 0; i--){ const b = booms[i]; b.t += dt; const k = b.t/0.35;
-    if (k >= 1){ scene.remove(b.m); b.m.geometry.dispose(); booms.splice(i, 1); continue; }
+    if (k >= 1){ scene.remove(b.m); b.m.material.dispose(); booms.splice(i, 1); continue; }
     b.m.scale.setScalar(0.15 + Math.sqrt(k)*0.95); b.m.material.opacity = 0.5*(1 - k)*(1 - k); b.m.material.color.setRGB(1, 0.55 - k*0.4, 0.15 - k*0.12); }
 }
 
@@ -2426,7 +2436,7 @@ function vrStep(dt){
 
 // shared world update: bots, free bodies, effects
 function worldStep(dt, player){
-  clock += dt;
+  clock += dt; quietFx = false;
   scene.updateMatrixWorld();
   lastPlayer.copy(player);
   const flee = nearestPlayerFn(player);
@@ -2435,7 +2445,7 @@ function worldStep(dt, player){
     if (p.parent || p.obj.userData.dead) continue;
     if (p.mode !== 'free' || p.v.lengthSq() > 0.0001){ p.asleep = false; }
     if (p.mode === 'free' && !p.asleep && mine(p)){
-      try { physics(p, dt); if (!p.obj.userData.dead && p.v.lengthSq() > 9) bash(p); } catch(e){ console.warn('removed broken piece', e); removePart(p); }
+      try { physics(p, dt); if (!p.obj.userData.dead && p.v.lengthSq() > 9 && !(p.calmT > clock)) bash(p); } catch(e){ console.warn('removed broken piece', e); removePart(p); }
     }
   }
   despawn(dt);
@@ -2742,7 +2752,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124032104';
+const BUILD = '20261124032728';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
