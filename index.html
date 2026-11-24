@@ -1671,15 +1671,43 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const darkSky = {bg:0x000000, fog:0x000000, near:0.5, far:9, hs:0x334455, hg:0x0, hi:0.22, ac:0x223040, ai:0.12};
   const lightCol = new T3.Color(0xfffbe2);
   const sndOff = () => { if (!AC) return; tone('sawtooth', 120, 30, 0.6, 0.12); noiseHit(0.15, 3000, 4, 0.2); };
-  MAPS.backrooms.update = (dt, inGame) => {
-    if (!inGame){ if (st !== 'on'){ st = 'on'; lightsOut = false; lightMat.color.copy(lightCol); applySky('backrooms'); } return; }
-    t -= dt;
-    if (st === 'on' && t <= 0){ st = 'flicker'; t = 1.6; }
-    else if (st === 'flicker'){ k -= dt; if (k <= 0){ k = 0.05 + R()*0.15; const off = R() < 0.5; lightsOut = off; lightMat.color.setHex(off ? 0x1a1812 : 0xfffbe2); applySky(off ? darkSky : 'backrooms'); }
-      if (t <= 0){ st = 'dark'; t = 7 + R()*4; lightsOut = true; lightMat.color.setHex(0x0a0908); applySky(darkSky); sndOff(); showMsg('LIGHTS OUT...'); } }
-    else if (st === 'dark' && t <= 0){ st = 'on'; t = 50 + R()*40; lightsOut = false; lightMat.color.copy(lightCol); applySky('backrooms'); }
+  // the lights going out is the host's call (so everyone's in the dark together), and the dark lasts until
+  // the monster is dead or it has got somebody
+  let monT = 0, syncT = 0;
+  const lightsOn = () => { st = 'on'; t = 50 + R()*40; lightsOut = false; lightMat.color.copy(lightCol); applySky('backrooms'); };
+  const goDark = () => { st = 'dark'; t = 150; lightsOut = true; lightMat.color.setHex(0x0a0908); applySky(darkSky); sndOff(); showMsg('LIGHTS OUT... something is moving'); };
+  const growl = () => { if (!AC) return; tone('sawtooth', 70, 45, 1.2, 0.08); noiseHit(1.0, 300, 0.5, 0.2); };
+  const clearMonsters = () => { for (let i = bots.length - 1; i >= 0; i--){ const b = bots[i]; if (!b.mon) continue; if (!b.root.obj.userData.dead){ const c = centerW(b.root); emitAsh(c, 60, 0.4); for (const q of parts.slice()) if (q.bot === b && !q.obj.userData.dead && !q.parent) removePart(q, true); } bots.splice(i, 1); } };
+  MAPS.backrooms.monsterDone = (why) => {
+    if (curMap !== 'backrooms') return;
+    if (why === 'killed'){ if (st === 'dark' && mode === 'game') showMsg('YOU KILLED IT! The lights come back on.'); for (const b of bots) if (b.mon) b.deadT = 0; }
+    else { clearMonsters(); if (mode === 'game') showMsg(why === 'ate' ? 'It got someone... and vanished. The lights flicker back on.' : 'The lights come back on.'); }
+    if (st !== 'on') lightsOn();
   };
-  MAPS.backrooms.leave = () => { st = 'on'; t = 50 + R()*30; lightsOut = false; lightMat.color.copy(lightCol); };
+  MAPS.backrooms.monEv = (ev) => {
+    if (curMap !== 'backrooms') return;
+    if (ev.k === 'flick' && st === 'on'){ st = 'flicker'; t = 1.6; }
+    else if (ev.k === 'dark' && st !== 'dark') goDark();
+    else if (ev.k === 'ate' || ev.k === 'off') MAPS.backrooms.monsterDone(ev.k === 'ate' ? 'ate' : 'off');
+  };
+  MAPS.backrooms.update = (dt, inGame) => {
+    if (!inGame){ if (st !== 'on') lightsOn(); clearMonsters(); return; }
+    t -= dt;
+    const boss = !netGame || isHost();
+    if (st === 'on' && t <= 0 && boss){ st = 'flicker'; t = 1.6; if (netGame) netSend('ev', {t:'mon', k:'flick'}); }
+    else if (st === 'flicker'){ k -= dt; if (k <= 0){ k = 0.05 + R()*0.15; const off = R() < 0.5; lightsOut = off; lightMat.color.setHex(off ? 0x1a1812 : 0xfffbe2); applySky(off ? darkSky : 'backrooms'); }
+      if (t <= 0){ goDark(); if (boss){ if (netGame) netSend('ev', {t:'mon', k:'dark'});
+        if (!bots.some(b => b.mon && !b.dead)){ const pos = farCell(lastPlayer), b = makeBot(0x1d1b26, pos, null, 'mon'); if (netGame) netSend('ev', {t:'spawn', k:'mon', b:b.id, c:b.color, x:r3(pos.x), y:r3(pos.y), z:r3(pos.z)}); } } } }
+    else if (st === 'dark'){
+      syncT -= dt; if (boss && netGame && syncT <= 0){ syncT = 3; netSend('ev', {t:'mon', k:'dark'}); }
+      monT -= dt; if (monT <= 0){ monT = 6 + R()*8; const m = bots.find(b => b.mon && !b.dead); if (m && m.root.obj.position.distanceTo(lastPlayer) < 14) growl(); }
+      const alive = bots.some(b => b.mon && !b.dead);
+      if (t <= 0 || (boss && !alive && !bots.some(b => b.mon))){ if (boss && netGame) netSend('ev', {t:'mon', k:'off'}); MAPS.backrooms.monsterDone('off'); }
+    }
+    // a dead monster's leftovers melt away after a while
+    for (const b of bots) if (b.mon && b.dead){ b.deadT += dt; if (b.deadT > 10){ clearMonsters(); break; } }
+  };
+  MAPS.backrooms.leave = () => { lightsOn(); clearMonsters(); };
 }
 
 
@@ -2450,9 +2478,9 @@ function tone(type, f0, f1, dur, vol){
   o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f1, t+dur);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t+dur); o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+dur+0.02);
 }
-function sndSnap(){ if (!AC) return; noiseHit(0.32, 1700, 1.2, 0.55); noiseHit(0.12, 4200, 6, 0.25); tone('sine', 120, 38, 0.25, 0.5); tone('sawtooth', 2600, 180, 0.18, 0.09);
+function sndSnap(){ noise = Math.min(6, noise + 0.7); if (!AC) return; noiseHit(0.32, 1700, 1.2, 0.55); noiseHit(0.12, 4200, 6, 0.25); tone('sine', 120, 38, 0.25, 0.5); tone('sawtooth', 2600, 180, 0.18, 0.09);
   for (let i=0;i<5;i++) noiseHit(0.03, 6000, 2, 0.12, AC.currentTime + 0.05 + R()*0.3); }
-function sndClank(k){ if (!AC) return; const v = Math.min(0.5, 0.06*k); noiseHit(0.09, 2600+R()*1500, 9, v); tone('sine', 500+R()*500, 300, 0.18, v*0.5); }
+function sndClank(k){ noise = Math.min(6, noise + Math.min(0.5, k*0.05)); if (!AC) return; const v = Math.min(0.5, 0.06*k); noiseHit(0.09, 2600+R()*1500, 9, v); tone('sine', 500+R()*500, 300, 0.18, v*0.5); }
 function sndTap(v){ if (!AC) return; noiseHit(0.05, 700, 0.8, v); }
 function sndBoop(){ if (!AC) return; tone('square', 660, 1500, 0.14, 0.08); }
 function sndSqueak(){ if (!AC) return; tone('square', 900, 1800, 0.08, 0.05); setTimeout(() => AC && tone('square', 1500, 700, 0.1, 0.05), 90); }
@@ -2471,17 +2499,18 @@ function drawFace(kind){
     if (kind === 'blink'){ for (const x of ex){ g.beginPath(); g.moveTo(x-18, ey); g.lineTo(x+18, ey); g.stroke(); } }
     if (kind === 'happy'){ for (const x of ex){ g.beginPath(); g.moveTo(x-20, ey+10); g.lineTo(x, ey-12); g.lineTo(x+20, ey+10); g.stroke(); } }
     if (kind === 'scared'){ g.lineWidth = 8; for (const x of ex){ g.beginPath(); g.arc(x, ey, 30, 0, Math.PI*2); g.stroke(); g.beginPath(); g.arc(x, ey+4, 8, 0, Math.PI*2); g.fill(); } }
+    if (kind === 'love'){ g.strokeStyle = g.fillStyle = '#ff5a9a'; g.shadowColor = '#ff5a9a'; for (const x of ex){ g.beginPath(); g.moveTo(x, ey + 22); g.bezierCurveTo(x - 34, ey - 4, x - 14, ey - 32, x, ey - 12); g.bezierCurveTo(x + 14, ey - 32, x + 34, ey - 4, x, ey + 22); g.fill(); } }
     if (kind === 'dizzy' || kind === 'dead'){ for (const x of ex){ g.beginPath(); g.moveTo(x-16,ey-16); g.lineTo(x+16,ey+16); g.moveTo(x+16,ey-16); g.lineTo(x-16,ey+16); g.stroke(); } }
     g.beginPath();
     if (kind === 'scared'){ g.lineWidth = 8; g.ellipse(128, 140, 14, 18, 0, 0, Math.PI*2); }
     else if (kind === 'dizzy'){ g.moveTo(90,138); for (let i=0;i<=8;i++) g.lineTo(90+i*10, 138 + (i%2 ? -8 : 8)); }
     else if (kind === 'dead'){ g.moveTo(92,138); g.lineTo(164,138); }
-    else if (kind === 'happy') g.arc(128, 118, 30, 0.1, Math.PI-0.1);
+    else if (kind === 'happy' || kind === 'love') g.arc(128, 118, 30, 0.1, Math.PI-0.1);
     else g.arc(128, 122, 20, 0.2, Math.PI-0.2);
     g.stroke();
   });
 }
-for (const k of ['idle','blink','happy','scared','dizzy','dead','off']) FACES[k] = new T3.MeshBasicMaterial({map:drawFace(k)});
+for (const k of ['idle','blink','happy','scared','dizzy','dead','off','love']) FACES[k] = new T3.MeshBasicMaterial({map:drawFace(k)});
 const white = new T3.MeshLambertMaterial({color:0xf3f0e6}), grey = new T3.MeshLambertMaterial({color:0x8d939a}), bezel = new T3.MeshLambertMaterial({color:0x1d2326});
 // motherboard: green board, copper traces, chips, capacitors, LEDs (used for every robot's insides)
 const gutsTex = canvasTex(256, 256, (g,w,h) => {
@@ -2514,6 +2543,9 @@ const G = {
   fore: new T3.CylinderGeometry(0.02,0.02,0.12,6), hand: new T3.SphereGeometry(0.05,10,8), leg: new T3.CylinderGeometry(0.03,0.03,0.12,6),
   foot: new T3.BoxGeometry(0.1,0.05,0.15), guts: new T3.PlaneGeometry(0.3,0.24) };
 const STAND = 0.36;
+const XG = (() => { const c = {}, m = {}; const g = (k, f) => () => c[k] || (c[k] = f());
+  return {btn:g('btn', () => new T3.CylinderGeometry(0.025, 0.025, 0.02, 12)), pack:g('pack', () => new T3.BoxGeometry(0.24, 0.26, 0.1)), stripe:g('stripe', () => new T3.BoxGeometry(0.2, 0.04, 0.005)), term:g('term', () => new T3.CylinderGeometry(0.015, 0.015, 0.03, 8)),
+    mat:(col) => m[col] || (m[col] = new T3.MeshBasicMaterial({color:col}))}; })();
 
 const parts = [];
 let clock = 0;
@@ -2528,7 +2560,8 @@ const subtree = (p, out=[]) => { out.push(p); for (const k of p.kids) subtree(k,
 
 const bots = [];
 let botCounter = 0;
-function makeBot(color, pos, id){
+function makeBot(color, pos, id, kind){
+  if (kind === 'mon') return makeMonster(color, pos, id);
   id = id || (NET.id.slice(0,6) + '-' + (botCounter++));
   const accent = new T3.MeshBasicMaterial({color});
   const bot = {color, dead:false, t:R()*10, sayT:10+R()*15, blinkT:R()*3, sp:null, spT:0, speed:2.3+R()*0.5, prev:null, face:'idle', deadT:0};
@@ -2538,6 +2571,8 @@ function makeBot(color, pos, id){
   const face = mkPart('face', 0.17); mesh(face, G.bez, bezel); bot.screen = mesh(face, G.scr, FACES.idle, 0, 0, 0.011); attach(head, face, 0, 0.2, 0.19);
   const ant = mkPart('antenna', 0.07, new V(0,0.12,0)); mesh(ant, G.stalk, grey, 0, 0.08, 0); mesh(ant, G.bulb, accent, 0, 0.17, 0); attach(head, ant, 0, 0.39, 0);
   for (const s of [-1,1]){ const e = mkPart('ear', 0.05); mesh(e, G.ear, grey).rotation.z = Math.PI/2; attach(head, e, s*0.27, 0.2, 0); }
+  for (const [s, col] of [[-1, 0xff3b2f], [1, 0xffd23d]]){ const b = mkPart('button', 0.03); mesh(b, XG.btn(), XG.mat(col)); b.obj.children[0].rotation.x = Math.PI/2; attach(chest, b, s*0.07, -0.075, 0.03); b.press = col === 0xff3b2f; }
+  { const bp = mkPart('battery', 0.11); mesh(bp, XG.pack(), grey); mesh(bp, XG.stripe(), accent, 0, 0.04, -0.051); for (const s of [-1, 1]) mesh(bp, XG.term(), XG.mat(s < 0 ? 0xd8302a : 0x222428), s*0.05, 0.135, 0); attach(body, bp, 0, 0.0, -0.21); }
   bot.ups = []; bot.legs = [];
   for (const s of [-1,1]){
     const up = mkPart('arm', 0.07, new V(0,-0.07,0)); mesh(up, G.up, grey, 0, -0.07, 0); attach(body, up, s*0.23, 0.12, 0);
@@ -2609,6 +2644,8 @@ let score = 0, respawnTimers = [];
 function killBot(bot, remote){
   if (bot.dead) return; bot.dead = true; say(bot, null); setFace(bot, 'dead'); bot.deadT = 0; if (!remote) score++;
   if (bot.root.mode === 'bot'){ bot.root.mode = 'free'; bot.root.v.set(0,0,0); }
+  if (bot.social) endSocial(bot);
+  if (bot.mon){ say(bot, pick(['noooo','ow ow ow :(','i just wanted a hug'])); if (MAPS.backrooms.monsterDone) MAPS.backrooms.monsterDone('killed'); return; }
   if (!netGame || isHost()) respawnTimers.push(3);
 }
 function detach(p, vel, remote){
@@ -3033,6 +3070,8 @@ function punches(dt){
 
 // ================= bot AI & free-body physics =================
 function updateBot(bot, dt, player){
+  if (bot.mon) return updateMonster(bot, dt);
+  if (bot.socialCD > 0) bot.socialCD -= dt;
   bot.t += dt;
   const root = bot.root;
   if (!mine(root) && !bot.dead){ if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); } return; }
@@ -3056,7 +3095,7 @@ function updateBot(bot, dt, player){
     if (root.v.length() < 0.35 && root.grounded) root.still += dt; else root.still = 0;
     if (root.still > 1.0 && bot.head.parent === root){
       const e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ');
-      const c = cellOf(root.obj.position);
+      const c = reachableCell(root.obj.position) || cellOf(root.obj.position);
       root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y, 0)); root.obj.position.y = NAV.lv[c[2]] + STAND;
       for (const k of subtree(root)) if (k !== root){ k.obj.position.copy(k.rest); k.obj.quaternion.copy(k.restQ); }
       bot.cell = c; bot.target = cellPos(...c); bot.prev = null;
@@ -3065,6 +3104,9 @@ function updateBot(bot, dt, player){
     return;
   }
   if (bot.stunT > 0){ bot.stunT -= dt; return; }
+  if (bot.spin > 0){ bot.spin -= dt; root.obj.rotation.y += dt*9; root.obj.position.y = NAV.lv[(bot.cell && bot.cell[2]) || 0] + STAND + Math.abs(Math.sin(bot.t*12))*0.12; bot.ups.forEach((u, j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(2.4 + Math.sin(bot.t*14)*0.5); }); setFace(bot, 'happy'); return; }
+  if (socialTick(bot, dt)) return;
+  if (!near_(bot, player) && R() < dt*0.25) trySocial(bot);
   // running around
   const pos = root.obj.position, flat = new V(player.x, STAND, player.z);
   const legs = bot.legs.filter(l => l.parent === root).length, spd = bot.speed * (legs === 2 ? 1 : legs === 1 ? 0.55 : 0.3) * (bot.burning ? 1.7 : 1) * (1 - 0.92*Math.min(1, root.frz || 0));
@@ -3074,7 +3116,7 @@ function updateBot(bot, dt, player){
   if (to.length() < 0.08){
     const [x,y,l] = bot.cell = cellOf(bot.target);
     let nb = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => x+dx>=0 && y+dy>=0 && x+dx<NAV.nx && y+dy<NAV.nz && NAV.open(x,y,l,dx,dy)).map(([dx,dy]) => [x+dx,y+dy,l]);
-    if (!nb.length) nb = [cellOf(farCell(pos))];
+    if (!nb.length){ const rc = reachableCell(pos.clone().add(to.set(R()-0.5, 0, R()-0.5).multiplyScalar(2.5))); nb = rc ? [rc] : [[x, y, l]]; }
     if (nb.length > 1 && bot.prev) nb = nb.filter(c => c[0] !== bot.prev[0] || c[1] !== bot.prev[1]);
     nb.sort((a,b) => near ? cellPos(...b).distanceTo(flat) - cellPos(...a).distanceTo(flat) + (R()-0.5)*3 : R()-0.5);
     bot.prev = [x,y,l]; bot.target = cellPos(...nb[0]);
@@ -3093,6 +3135,7 @@ function updateBot(bot, dt, player){
   bot.sayT -= dt; if (bot.sayT < 0 && near && !bot.burning){ bot.sayT = 18 + R()*20; say(bot, pick(LINES)); }
 }
 const isStretched = p => hs.some(s => s.mode === 'stretch' && s.k === p);
+const near_ = (bot, player) => new V(player.x, STAND, player.z).distanceTo(bot.root.obj.position) < 4 || bot.burning;
 
 function physics(root, dt){
   const sub = subtree(root);
@@ -3245,6 +3288,7 @@ function updateWeapon(dt){
     if (w === 'boomer') updateBoomer(i, dt); else { booms_[i] = null; boomPrev[i] = false; myBlades[i].visible = false; }
     if (w === 'hook') updateHook(i, dt); else { hooks[i] = null; hookPrev[i] = false; myRopes[i].visible = myHooks[i].visible = false; }
   }
+  noise = noise*Math.exp(-dt*0.45) + dt*(sawLvl*2.2 + (flameOn[0] || flameOn[1] ? 1.6 : 0) + (laserOn[0] || laserOn[1] ? 1.2 : 0) + (freezeOn[0] || freezeOn[1] ? 0.8 : 0) + (booms_[0] || booms_[1] ? 0.8 : 0)); noise = Math.min(6, noise);
   sawSound(sawLvl, sawCut ? 1 : 0.2); flameSound(flameOn[0] || flameOn[1] ? 1 : 0); laserSound(laserOn[0] || laserOn[1]);
   // things cool off when the flames aren't on them
   for (const p of heated){ if (!p.heatT || clock - p.heatT > 0.05){ p.heat = Math.max(0, (p.heat || 0) - dt*0.6); if (!p.heat) heated.delete(p); } }
@@ -3782,7 +3826,7 @@ function updateMines(dt){
 // ---- the explosion ----
 const boomMat = new T3.MeshBasicMaterial({color:0xffa040, transparent:true, opacity:0.8, blending:T3.AdditiveBlending, depthWrite:false, fog:false, side:T3.DoubleSide});
 const booms = [], boomGeo = new T3.SphereGeometry(1, 12, 8);
-function sndBoom(vol){ if (!AC) return; noiseHit(1.4, 180, 0.6, 1.2*vol); noiseHit(0.6, 900, 0.8, 0.7*vol); tone('sine', 90, 25, 0.9, 0.9*vol); for (let i=0;i<8;i++) noiseHit(0.05, 3000 + R()*3000, 2, 0.2*vol, AC.currentTime + 0.1 + R()*0.6); }
+function sndBoom(vol){ noise = Math.min(6, noise + 3*Math.min(1, vol*2)); if (!AC) return; noiseHit(1.4, 180, 0.6, 1.2*vol); noiseHit(0.6, 900, 0.8, 0.7*vol); tone('sine', 90, 25, 0.9, 0.9*vol); for (let i=0;i<8;i++) noiseHit(0.05, 3000 + R()*3000, 2, 0.2*vol, AC.currentTime + 0.1 + R()*0.6); }
 function blast(pos, minePart, by){
   if (minePart){ if (minePart.obj.userData.dead) return; for (const i of [0,1]) if (hs[i].root === minePart) hs[i] = {mode:'none'}; minePart.stuck = null; removePart(minePart, true); }
   // the look: a white-hot flash, a fireball shell, fire flung in every direction, sparks and smoke
@@ -4321,6 +4365,184 @@ function updateBoomer(i, dt){
   if (R() < 0.5) sndWhir(b.p.distanceTo(lastPlayer));
 }
 
+// ================= safe re-pathing (robots never cut through walls to get back on their grid) =================
+function clearLine(a, b){ const o = new V(a.x, Math.max(a.y, NAV.lv[0] + 0.5), a.z), e = new V(b.x, o.y, b.z), d = e.clone().sub(o), L = d.length(); if (L < 0.05) return true; return !loco.sphereCast(o, 0.18, d.divideScalar(L), L); }
+function reachableCell(pos, l){
+  const c = cellOf(pos); l = l == null ? c[2] : l; let best = null, bd = 1e9;
+  for (let dy=-2; dy<=2; dy++) for (let dx=-2; dx<=2; dx++){ const x = c[0] + dx, y = c[1] + dy; if (x < 0 || y < 0 || x >= NAV.nx || y >= NAV.nz || !NAV.ok(x, y, l)) continue;
+    const cp = cellPos(x, y, l), d = Math.hypot(cp.x - pos.x, cp.z - pos.z); if (d < bd && clearLine(pos, cp)){ bd = d; best = [x, y, l]; } }
+  return best;
+}
+// shortest walk on the robots' grid (same floor), as a list of cells
+function navPath(from, to){
+  const nx = NAV.nx, l = from[2], key = (x, y) => y*nx + x, prev = new Map([[key(from[0], from[1]), -1]]), q = [[from[0], from[1]]];
+  let found = false;
+  for (let qi = 0; qi < q.length && qi < 4000; qi++){ const [x, y] = q[qi]; if (x === to[0] && y === to[1]){ found = true; break; }
+    for (const [dx, dy] of [[1,0],[-1,0],[0,1],[0,-1]]){ const X = x + dx, Y = y + dy; if (X < 0 || Y < 0 || X >= nx || Y >= NAV.nz || prev.has(key(X, Y)) || !NAV.open(x, y, l, dx, dy)) continue; prev.set(key(X, Y), key(x, y)); q.push([X, Y]); } }
+  if (!found) return null;
+  const out = []; let k = key(to[0], to[1]); while (k !== key(from[0], from[1])){ out.push([k % nx, Math.floor(k/nx), l]); k = prev.get(k); }
+  return out.reverse();
+}
+
+// ================= robots being friends =================
+// When two robots meet and nobody's bothering them, they wave, chat, hug, or kiss (heart eyes!).
+const CHAT = [['hey','hey yourself'],['nice antenna','thanks I polish it'],['seen any humans?','they keep ripping my arms off'],['beep','boop'],['do you ever feel like a spare part?','every day'],['what is a backroom','we live here buddy'],['I love your bolts','stop it you'],['want to hide together?','always']];
+function socialTick(bot, dt){
+  const so = bot.social; if (!so) return false;
+  const o = so.other, root = bot.root;
+  if (o.dead || bot.dead || o.root.mode !== 'bot' || root.mode !== 'bot' || !mine(o.root) || so.t <= 0){ endSocial(bot); return false; }
+  so.t -= dt; const ph = bot.t*11, pos = root.obj.position, op = o.root.obj.position, to = op.clone().sub(pos); to.y = 0; const d = to.length();
+  const want = Math.atan2(to.x, to.z), e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ'); let dd = want - e.y; dd = Math.atan2(Math.sin(dd), Math.cos(dd)); root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y + dd*Math.min(1, dt*6), 0));
+  const close = so.k === 'hug' || so.k === 'kiss' ? 0.55 : 1.4;
+  if (d > close && clearLine(pos, op)){ pos.addScaledVector(to.normalize(), Math.min(d - close, 1.2*dt)); bot.legs.forEach((l, j) => { if (l.parent === root) l.obj.rotation.x = (j ? -1 : 1)*Math.sin(ph*0.6)*0.5; }); }
+  else bot.legs.forEach(l => { if (l.parent === root) l.obj.rotation.x *= 0.8; });
+  pos.y = NAV.lv[(bot.cell && bot.cell[2]) || 0] + STAND;
+  const ups = bot.ups.filter(u => u.parent === root);
+  if (so.k === 'wave'){ ups.forEach((u, j) => u.obj.rotation.z = j ? 2.6 + Math.sin(ph*0.9)*0.5 : -0.2); setFace(bot, 'happy'); }
+  if (so.k === 'chat'){ ups.forEach((u, j) => u.obj.rotation.z = (j ? 1 : -1)*(0.4 + Math.abs(Math.sin(ph*0.25 + j))*0.8)); if (bot.head.parent === root) bot.head.obj.rotation.z = Math.sin(ph*0.3)*0.15;
+    so.line -= dt; if (so.line <= 0 && so.lead){ so.line = 2.2; const pair = so.lines; const n = so.n++; if (n < 4){ const who = n % 2 ? o : bot; say(who, pair[n % 2]); setFace(who, 'happy'); if (n === 1) so.lines = pick(CHAT); } } }
+  if (so.k === 'hug' || so.k === 'kiss'){ ups.forEach((u, j) => { u.obj.rotation.z = (j ? 1 : -1)*(d < 0.7 ? 1.3 : 0.6); u.obj.rotation.x = d < 0.7 ? -1.1 : -0.3; }); setFace(bot, so.k === 'kiss' && d < 0.7 ? 'love' : 'happy');
+    if (so.k === 'kiss' && d < 0.7 && R() < dt*4) spawnHeart(bot.head.parent === root ? centerW(bot.head).add(new V(0, 0.3, 0)) : pos.clone().add(new V(0, 0.6, 0))); }
+  return true;
+}
+function endSocial(bot){ const so = bot.social; if (!so) return; bot.social = null; bot.socialCD = 15 + R()*20; bot.ups.forEach(u => { u.obj.rotation.x = 0; }); if (!bot.dead) setFace(bot, 'idle'); if (so.other.social && so.other.social.other === bot) endSocial(so.other); }
+function trySocial(bot){
+  if (bot.mon || bot.social || bot.burning || (bot.socialCD || 0) > 0 || bot.root.mode !== 'bot' || bot.root.frz > 0) return;
+  for (const o of bots){
+    if (o === bot || o.mon || o.dead || o.social || (o.socialCD || 0) > 0 || o.root.mode !== 'bot' || !mine(o.root) || o.root.frz > 0) continue;
+    const a = bot.root.obj.position, b = o.root.obj.position; if (a.distanceTo(b) > 3 || Math.abs(a.y - b.y) > 0.5 || !clearLine(a, b)) continue;
+    const k = pick(['wave', 'wave', 'chat', 'chat', 'hug', 'kiss']), t = k === 'chat' ? 9 : k === 'wave' ? 2.5 : 4.5;
+    bot.social = {other:o, k, t, lead:true, line:0.3, n:0, lines:pick(CHAT)}; o.social = {other:bot, k, t, lead:false};
+    if (k === 'wave'){ say(bot, pick(['hi!','hello friend','yoohoo'])); setTimeout(() => !o.dead && say(o, pick(['hiii','oh hey!','hello!'])), 700); }
+    if (k === 'hug') say(bot, pick(['hug time','come here buddy','bring it in']));
+    if (k === 'kiss') say(bot, pick(['hey cutie','mwah','<3']));
+    return;
+  }
+}
+const heartGeo = (() => { const s = new T3.Shape(); s.moveTo(0, -0.05); s.bezierCurveTo(-0.08, 0.01, -0.04, 0.07, 0, 0.03); s.bezierCurveTo(0.04, 0.07, 0.08, 0.01, 0, -0.05); return new T3.ShapeGeometry(s); })();
+const heartMat = new T3.MeshBasicMaterial({color:0xff4f8f, side:T3.DoubleSide, transparent:true}), hearts = [];
+function spawnHeart(at){ const m = new T3.Mesh(heartGeo, heartMat.clone()); m.position.copy(at); scene.add(m); hearts.push({m, t:0}); }
+function updateHearts(dt){ for (let i = hearts.length-1; i >= 0; i--){ const h = hearts[i]; h.t += dt; h.m.position.y += dt*0.35; h.m.position.x += Math.sin(h.t*5)*dt*0.1; h.m.lookAt(lastPlayer); h.m.material.opacity = Math.max(0, 1 - h.t/1.6); if (h.t > 1.6){ scene.remove(h.m); h.m.material.dispose(); hearts.splice(i, 1); } } }
+// the red chest button: give it a gentle poke
+function buttonPokes(){
+  if (mode !== 'game') return;
+  for (const b of bots){ if (b.dead || b.mon || !b.root || b.root.mode !== 'bot') continue;
+    const btn = subtree(b.root).find(q => q.name === 'button' && q.press); if (!btn) continue; const c = centerW(btn);
+    for (const i of [0,1]) if (!me.lost[i] && handW[i].distanceTo(c) < 0.07 && hv[i].length() < 2.5 && clock - (b.pokeT || 0) > 1.5){ b.pokeT = clock; pulse(i, 0.3, 30); if (AC) tone('square', 1200, 1600, 0.12, 0.08);
+      say(b, pick(['beep boop!','do not press that','*happy noises*','ACTIVATE DANCE MODE','that tickles'])); b.spin = 1.2; if (!mine(b.root)) {} } }
+}
+
+// ================= the BACKROOMS MONSTER =================
+// Only comes out when the lights go out in the backrooms. Long, wobbly and dark, with big shiny eyes.
+// It pathfinds to whoever it hears (chainsaws, flamethrowers, lasers and smashing are LOUD), rips arms off,
+// and an armless player is done. Chop it up: cut its head off (or cut its body in half) to kill it.
+// Lost limbs keep it coming (it crawls), and if you're slow it grows them back.
+var noise = 0;
+const MG = (() => { const c = {}; const g = (k, f) => () => c[k] || (c[k] = f()); return {
+  body:g('b', () => new T3.SphereGeometry(1, 14, 10)), head:g('h', () => new T3.SphereGeometry(0.23, 16, 12)), eye:g('e', () => new T3.SphereGeometry(0.075, 12, 8)), pup:g('p', () => new T3.SphereGeometry(0.035, 10, 6)),
+  shine:g('s', () => new T3.SphereGeometry(0.014, 6, 4)), cheek:g('c', () => new T3.CircleGeometry(0.035, 10)), smile:g('m', () => new T3.TorusGeometry(0.045, 0.01, 4, 12, Math.PI)),
+  limb:g('l', () => { const gg = new T3.CylinderGeometry(0.03, 0.04, 0.55, 7); gg.translate(0, -0.275, 0); return gg; }), claw:g('k', () => new T3.ConeGeometry(0.018, 0.12, 5)), foot:g('f', () => new T3.SphereGeometry(0.06, 8, 6)),
+  dark:g('d', () => new T3.MeshLambertMaterial({color:0x1d1b26})), eyeM:g('em', () => new T3.MeshBasicMaterial({color:0xffffff, fog:false})), pupM:g('pm', () => new T3.MeshBasicMaterial({color:0x101018, fog:false})),
+  cheekM:g('cm', () => new T3.MeshBasicMaterial({color:0xff8fb8, fog:false, side:T3.DoubleSide})) }; })();
+function monLimb(bot, s, kind){
+  const leg = kind === 'leg', n = bot.gn++, id = bot.id + '.g' + n;
+  const a = mkPart(leg ? 'leg' : 'arm', 0.07, new V(0, -0.27, 0)); mesh(a, MG.limb(), MG.dark());
+  const b = mkPart(leg ? 'foot' : 'forearm', 0.07, new V(0, -0.27, 0)); mesh(b, MG.limb(), MG.dark());
+  if (leg) mesh(b, MG.foot(), MG.dark(), 0, -0.56, 0.03); else for (const dx of [-0.03, 0, 0.03]) mesh(b, MG.claw(), MG.dark(), dx, -0.6, 0).rotation.x = Math.PI;
+  attach(bot.root, a, s*(leg ? 0.09 : 0.2), leg ? -0.34 : 0.26, 0); attach(a, b, 0, -0.55, 0);
+  for (const [q, k] of [[a, 'a'], [b, 'b']]){ q.bot = bot; q.id = id + k; partsById.set(q.id, q); q.owner = bot.root.owner; }
+  return a;
+}
+function makeMonster(color, pos, id){
+  id = id || (NET.id.slice(0,6) + '-' + (botCounter++));
+  const bot = {color, mon:true, dead:false, t:0, sayT:4, blinkT:9, sp:null, spT:0, speed:3.1, prev:null, face:'idle', deadT:0, path:null, pathT:0, hunt:null, huntT:0, hitT:0, gn:0, wander:null};
+  const body = mkPart('body', 0.24); const bm = mesh(body, MG.body(), MG.dark()); bm.scale.set(0.19, 0.38, 0.15);
+  const head = mkPart('head', 0.24, new V(0, 0.2, 0)); mesh(head, MG.head(), MG.dark(), 0, 0.2, 0);
+  for (const s of [-1, 1]){ mesh(head, MG.eye(), MG.eyeM(), s*0.085, 0.24, 0.17); mesh(head, MG.pup(), MG.pupM(), s*0.085, 0.235, 0.235); mesh(head, MG.shine(), MG.eyeM(), s*0.085 + 0.015, 0.255, 0.265); const ch = mesh(head, MG.cheek(), MG.cheekM(), s*0.15, 0.16, 0.19); ch.rotation.y = s*0.6; }
+  const sm = mesh(head, MG.smile(), MG.pupM(), 0, 0.14, 0.215); sm.rotation.z = Math.PI;
+  const scr = new T3.Mesh(MG.pup(), FACES.idle); scr.visible = false; head.obj.add(scr);
+  attach(body, head, 0, 0.36, 0);
+  Object.assign(bot, {root:body, head, faceP:head, screen:scr, id});
+  for (const [p, n] of [[body, 0], [head, 1]]){ p.bot = bot; p.id = id + '.' + n; partsById.set(p.id, p); }
+  body.owner = NET.id; body.mode = 'bot'; body.obj.position.set(pos.x, (pos.y || 0) - STAND + 1.5, pos.z); scene.add(body.obj);
+  bot.slots = [];
+  for (const kind of ['arm', 'leg']) for (const s of [-1, 1]) bot.slots.push({kind, s, top:monLimb(bot, s, kind), t:0});
+  bot.ups = bot.slots.filter(x => x.kind === 'arm').map(x => x.top); bot.legs = bot.slots.filter(x => x.kind === 'leg').map(x => x.top);
+  const c = cellOf(new V(pos.x, NAV.lv[0], pos.z)); bot.cell = c; bot.target = cellPos(...c);
+  bots.push(bot); return bot;
+}
+function growLimb(bot, i, remote){
+  const sl = bot.slots[i]; if (!sl || bot.dead || bot.root.obj.userData.dead) return;
+  sl.top = monLimb(bot, sl.s, sl.kind); sl.t = 0; bot.ups = bot.slots.filter(x => x.kind === 'arm').map(x => x.top); bot.legs = bot.slots.filter(x => x.kind === 'leg').map(x => x.top);
+  const at = centerW(sl.top); spawnSparks(at, 20, 1.5); emitAsh(at, 10, 0.1); if (AC && at.distanceTo(lastPlayer) < 12) tone('sine', 200, 600, 0.4, 0.08);
+  if (!remote && netGame) netSend('ev', {t:'mon', k:'grow', b:bot.id, s:i, n:bot.gn - 1});
+}
+function monsterTargets(){
+  const out = [];
+  if (mode === 'game') out.push({id:NET.id, pos:loco.headPos(), noise});
+  for (const [id, p] of Object.entries(NET.peers)) if (p.P && p.g === netGame && p.m === 'game' && !p.headless) out.push({id, pos:p.P.head.clone(), noise:p.noise || 0});
+  return out;
+}
+function monsterHitMe(by){
+  lastCombat = clock; pulse(0, 1, 250); pulse(1, 1, 250); scream();
+  const arms = [0,1].filter(i => !me.lost[i]);
+  if (arms.length){ const i = pick(arms); me.lost[i] = true; release(i, true); hs[i] = {mode:'none'}; debris(handW[i], 0x3c4048); showMsg('The monster ripped your arm off! RUN!');
+    const away = loco.headPos().sub(by || loco.headPos()).setY(0); if (away.length() > 0.01) loco.S.velocity.add(away.setLength(4)).add(new V(0, 2.5, 0)); }
+  else { netSend('ev', {t:'mon', k:'ate'}); if (MAPS.backrooms.monsterDone) MAPS.backrooms.monsterDone('ate'); die('the backrooms monster'); }
+}
+function monLegs(bot){ return bot.slots.filter(x => x.kind === 'leg' && x.top.parent === bot.root && !x.top.obj.userData.dead && x.top.kids.length).length; }
+function updateMonster(bot, dt){
+  const root = bot.root;
+  if (root.obj.userData.dead){ if (!bot.dead) killBot(bot); return; }
+  if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); }
+  if (bot.dead || !mine(root)) return;
+  bot.t += dt; bot.hitT -= dt; bot.pathT -= dt; bot.sayT -= dt;
+  // what it lost grows back if you're too slow
+  bot.slots.forEach((sl, i) => { const ok = sl.top.parent === root && !sl.top.obj.userData.dead; if (ok){ sl.t = 0; return; } sl.t += dt; if (sl.t > 8) growLimb(bot, i); });
+  const ph = bot.t*9, legs = monLegs(bot), arms = bot.slots.filter(x => x.kind === 'arm' && x.top.parent === root).length;
+  if (root.mode === 'held'){ bot.ups.forEach((u, j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(1.5 + Math.sin(ph*2 + j)*1.0); }); if (R() < dt*0.5) say(bot, pick(['put me down >:(','hehe','wheee'])); return; }
+  if (root.mode === 'free'){
+    if (root.v.length() < 0.35 && root.grounded) root.still += dt; else root.still = 0;
+    if (root.still > 0.7 && bot.head.parent === root){ const c = reachableCell(root.obj.position, 0) || cellOf(root.obj.position); const e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ');
+      root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y, 0)); for (const k of subtree(root)) if (k !== root){ k.obj.position.copy(k.rest); k.obj.quaternion.copy(k.restQ); }
+      bot.cell = c; bot.target = cellPos(...c); bot.path = null; root.mode = 'bot'; }
+    return;
+  }
+  if (bot.stunT > 0){ bot.stunT -= dt; return; }
+  const pos = root.obj.position, flatPos = new V(pos.x, 0, pos.z);
+  // listening: close = it knows; far away it has to hear you
+  if (bot.pathT <= 0){
+    bot.pathT = 0.45;
+    let best = null, bd = 1e9;
+    for (const t of monsterTargets()){ const d = Math.hypot(t.pos.x - pos.x, t.pos.z - pos.z);
+      const heard = d < 5 || (t.id === bot.hunt && bot.huntT > 0) || R() < (0.03 + t.noise*0.22)*(1/(1 + d/14));
+      if (heard && d < bd){ bd = d; best = t; } }
+    if (best){ if (best.id !== bot.hunt && bot.sayT < 0){ bot.sayT = 6; say(bot, pick(['i can hear youuu','found you :3','hiii','wanna play?','hehehe','there you are'])); } bot.hunt = best.id; bot.huntT = 8; bot.goal = best.pos.clone(); }
+    else if (!bot.wander || flatPos.distanceTo(new V(bot.wander.x, 0, bot.wander.z)) < 1){ bot.wander = farCell(pos); }
+    const goal = bot.huntT > 0 && bot.goal ? bot.goal : bot.wander;
+    const gc = goal ? reachableCell(goal, bot.cell[2]) || cellOf(goal) : null;
+    if (gc) bot.path = navPath(bot.cell, gc) || bot.path;
+  }
+  bot.huntT -= dt;
+  const frz = 1 - 0.92*Math.min(1, root.frz || 0), spd = (legs === 2 ? bot.speed : legs === 1 ? 2.0 : arms ? 1.4 : 0.8)*frz*(bot.huntT > 0 ? 1 : 0.45);
+  // walk the path; the last bit straight at you if nothing's in the way
+  let tgt = null;
+  if (bot.path && bot.path.length){ tgt = cellPos(...bot.path[0]); if (Math.hypot(tgt.x - pos.x, tgt.z - pos.z) < 0.12){ bot.cell = bot.path.shift(); tgt = bot.path.length ? cellPos(...bot.path[0]) : null; } }
+  const tg = bot.huntT > 0 ? monsterTargets().find(t => t.id === bot.hunt) : null;
+  if (tg && Math.hypot(tg.pos.x - pos.x, tg.pos.z - pos.z) < 2.6 && clearLine(pos, tg.pos)) tgt = tg.pos.clone();
+  if (tgt){ const to = tgt.clone().sub(pos); to.y = 0; const L = to.length();
+    if (L > 0.01){ pos.addScaledVector(to.divideScalar(L), Math.min(L, spd*dt)); const want = Math.atan2(to.x, to.z), e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ'); let d = want - e.y; d = Math.atan2(Math.sin(d), Math.cos(d));
+      root.obj.quaternion.setFromEuler(new T3.Euler(legs ? 0 : 1.1, e.y + d*Math.min(1, dt*8), 0, 'YXZ')); } }
+  const lv = NAV.lv[(bot.cell && bot.cell[2]) || 0];
+  pos.y = lv + (legs === 2 ? 1.42 : legs === 1 ? 1.05 : 0.32) + Math.abs(Math.sin(ph))*0.05;
+  bot.legs.forEach((l, j) => { if (l.parent === root){ l.obj.rotation.x = (j ? -1 : 1)*Math.sin(ph)*0.6; if (l.kids[0]) l.kids[0].obj.rotation.x = 0.3 + Math.max(0, Math.sin(ph + (j ? 0 : Math.PI)))*0.6; } });
+  bot.ups.forEach((u, j) => { if (u.parent === root){ u.obj.rotation.x = bot.huntT > 0 ? -1.3 + Math.sin(ph + j*3)*0.5 : Math.sin(ph + j*3)*0.4; u.obj.rotation.z = (j ? 1 : -1)*0.25; } });
+  if (bot.head.parent === root) bot.head.obj.rotation.z = Math.sin(ph*0.4)*0.25;
+  // grab and rip
+  if (tg && bot.hitT <= 0 && arms > 0){ const d = Math.hypot(tg.pos.x - pos.x, tg.pos.z - pos.z); if (d < 0.95 && Math.abs(tg.pos.y - pos.y) < 1.8){ bot.hitT = 1.3; say(bot, pick(['gotcha!','boop','mine now','hehe sorry'])); spawnSparks(tg.pos, 30, 4);
+    if (tg.id === NET.id) monsterHitMe(pos.clone()); else netSend('ev', {t:'mon', k:'hit', x:r3(pos.toArray())}, [tg.id]); } }
+}
+
 // ================= players ripping players =================
 // Grab another player with both claws and pull: arms come off, and a ripped-off head scraps
 // them back to the lobby. Same rule as the bots: no head, no robot.
@@ -4600,7 +4822,7 @@ function worldStep(dt, player){
   for (let i = bots.length-1; i >= 0; i--){ const b = bots[i]; if (b.dead && b.deadT > 6 && (b.chkT = (b.chkT || 0) - dt) <= 0){ b.chkT = 2; if (!parts.some(p => p.bot === b && !p.obj.userData.dead)) bots.splice(i,1); } }
 
   scene.updateMatrixWorld();
-  updateClips(); updateKerfs(); updateMines(dt); updateBooms(dt); updateWindows(dt); updateIce(dt); updateStuck();
+  updateClips(); updateKerfs(); updateMines(dt); updateBooms(dt); updateWindows(dt); updateIce(dt); updateStuck(); updateHearts(dt); buttonPokes();
   ropes(dt);
   netTick(dt);
   updateBurning(dt); updateFire(dt);
@@ -4668,7 +4890,7 @@ function onPose(a, from){
   if (!p.P) p.P = tgt; p.T = tgt;
   p.lost[0] = !!a[28]; p.lost[1] = !!a[29]; p.wType = [a[30] || 0, a[31] || 0]; p.wAct = [a[32] || 0, a[33] || 0]; p.burnV = a.length > 36 ? [a[34], a[35], a[36]] : [-1, -1, -1];
   p.charV = a.length > 40 ? {arm0:a[37], arm1:a[38], head:a[39], torso:a[40]} : {}; p.hookP = a.length > 46 ? [0,1].map(i => a[42 + i*3] > -900 ? new V(a[41 + i*3], a[42 + i*3], a[43 + i*3]) : null) : [null, null];
-  p.boomP = a.length > 52 ? [0,1].map(i => a[48 + i*3] > -900 ? new V(a[47 + i*3], a[48 + i*3], a[49 + i*3]) : null) : [null, null]; p.frz = a.length > 53 ? a[53] : 0;
+  p.boomP = a.length > 52 ? [0,1].map(i => a[48 + i*3] > -900 ? new V(a[47 + i*3], a[48 + i*3], a[49 + i*3]) : null) : [null, null]; p.frz = a.length > 53 ? a[53] : 0; p.noise = a.length > 54 ? a[54] : 0;
 }
 function updateRemoteAvatars(){
   for (const p of Object.values(NET.peers)){
@@ -4714,7 +4936,7 @@ function sendPose(){
   a.push(myChar.arm0, myChar.arm1, myChar.head, myChar.torso);
   for (const i of [0,1]){ const h = hooks[i]; a.push(...(h ? h.p.toArray() : [0, -999, 0])); }
   for (const i of [0,1]){ const b = booms_[i]; a.push(...(b ? b.p.toArray() : [0, -999, 0])); }
-  a.push(mode === 'game' ? (myIce ? 1 : myFrz*0.99) : 0);
+  a.push(mode === 'game' ? (myIce ? 1 : myFrz*0.99) : 0, Math.round(noise*10)/10);
   netSend('pose', r3(a));
 }
 // world state: every root I own is streamed; everyone else eases toward it
@@ -4750,8 +4972,9 @@ function applyRemoteState(){
 function onEvent(ev, from){
   { const pg = NET.peers[from]; if (netGame && pg && pg.g && pg.g !== netGame && ev.t !== 'need') return; }   // someone in a different game
   const p = ev.p ? partsById.get(ev.p) : null;
+  if (ev.t === 'mon'){ if (ev.k === 'grow'){ const b = bots.find(x => x.id === ev.b); if (b){ b.gn = ev.n; growLimb(b, ev.s, true); } } else if (ev.k === 'hit'){ if (mode === 'game') monsterHitMe(ev.x ? new V().fromArray(ev.x) : null); } else if (MAPS.backrooms.monEv) MAPS.backrooms.monEv(ev, from); return; }
   if (ev.t === 'mapev'){ const M = MAPS[ev.m]; if (M && M.onEv && ev.m === curMap) M.onEv(ev, from); return; }
-  if (ev.t === 'spawn'){ if (!bots.some(b => b.id === ev.b) && mode === 'game' && netGame && (!NET.peers[from] || NET.peers[from].g === netGame)) { const b = makeBot(ev.c, new V(ev.x, ev.y != null ? ev.y : STAND, ev.z), ev.b); b.root.owner = from; } }
+  if (ev.t === 'spawn'){ if (!bots.some(b => b.id === ev.b) && mode === 'game' && netGame && (!NET.peers[from] || NET.peers[from].g === netGame)) { const b = makeBot(ev.c, new V(ev.x, ev.y != null ? ev.y : STAND, ev.z), ev.b, ev.k); b.root.owner = from; } }
   else if (ev.t === 'det'){ if (p && p.parent){ detach(p, new V().fromArray(ev.v), from); } if (p) p.owner = from; }
   else if (ev.t === 'claim'){ const r = partsById.get(ev.r); if (r && !r.parent){ for (const i of [0,1]) if (hs[i].root === r) release(i, true); r.owner = from; } }
   else if (ev.t === 'slice'){ if (p && !p.parent) slicePart(p, new V().fromArray(ev.n), ev.d, ev.ids, from, ev.v ? new V().fromArray(ev.v) : null); }
@@ -4803,7 +5026,7 @@ function onEvent(ev, from){
 function sendSnapshot(to){
   const list = bots.map(b => {
     const all = []; for (let n=0;n<15;n++) all.push(b.id + '.' + n);
-    return {b:b.id, c:b.color, dead:b.dead, gone:all.filter(id => !partsById.has(id)),
+    return {b:b.id, c:b.color, k:b.mon ? 'mon' : undefined, dead:b.dead, gone:all.filter(id => !partsById.has(id)),
       det:all.filter(id => { const q = partsById.get(id); return q && !q.parent && q !== b.root; }).map(id => [id, partsById.get(id).owner || NET.id]),
       o:b.root.owner || NET.id};
   });
@@ -4840,7 +5063,8 @@ function loadSnapshot(ev){
   for (const [i, t] of ev.wins || []){ const w = WINS.find(x => x.map === curMap && x.i === i); if (w && w.st !== 'gone'){ breakWindow(w, null, true); w.t = t; } }
   for (const s of ev.bots){
     if (bots.some(b => b.id === s.b)) continue;
-    const b = makeBot(s.c, farCell(SPAWN), s.b); b.root.owner = s.o;
+    if (s.k === 'mon' && curMap !== 'backrooms') continue;
+    const b = makeBot(s.c, farCell(SPAWN), s.b, s.k); b.root.owner = s.o;
     for (const [id, o] of s.det){ const q = partsById.get(id); if (q && q.parent){ const par = q.parent; par.kids.splice(par.kids.indexOf(q),1); q.parent = null; scene.attach(q.obj); q.mode = 'free'; q.owner = o; } }
     if (s.dead) killBot(b, true);
   }
@@ -4940,7 +5164,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124073718';
+const BUILD = '20261124074404';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
