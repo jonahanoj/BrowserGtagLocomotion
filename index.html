@@ -41,7 +41,7 @@ li{margin:3px 0}
 <body>
 <canvas id="c"></canvas>
 <div class="rec"><i></i>REC · LEVEL 0</div>
-<div class="score" id="score">SCRAPPED 0</div>
+<div class="score" id="score"></div>
 <div id="pcmsg"></div>
 <div class="panel">
   <h1>Backrooms Bot Scrap</h1>
@@ -390,7 +390,8 @@ const WIN = {z0:1.1, z1:5.9, y1:2.5};              // mirror opening
 const PED = {x:-18.9, z:2.3, top:0.55, cap:0.2};    // PLAY button pedestal (front-right of spawn)
 const LOBBY_SPAWN = new V(-17.9, 0, 3.6), LOBBY_YAW = Math.PI/2;
 const PED2 = {x:-18.9, z:4.9, top:0.55, cap:0.2};   // PLAY TOGETHER (front-left of spawn)
-const SKB = {x:-18.9, z:3.6, top:0.55, cap:0.16};    // which robot you are: scary or cute
+const SKB = {x:-18.9, z:3.15, top:0.55, cap:0.16};   // GAME MODE button: free play / imposter
+const ROLEB = {x:-18.9, z:4.05, top:0.55, cap:0.16}; // IMPOSTER role wish: random / seeker / hider
 // weapon buttons along the north wall: the claw that presses one gets that weapon
 const WPN = ['none','hammer','saw','flame','mine','laser','hook','freeze','glue','boomer','blower'].map((k, i) => ({k, x:-14.2 - i*0.4, col:[0x9aa0a6,0xff9a2a,0xff3b2f,0x3aa0ff,0x5fd35a,0xff3050,0xb0905a,0x8fe0ff,0xe8e070,0xd0d6de,0x7fd0a0][i]})).map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
 addBox([LB.x0-1,-1,LB.z0-1],[LB.x1+1,0,LB.z1+1]); addBox([LB.x0-1,H,LB.z0-1],[LB.x1+1,H+1,LB.z1+1]);
@@ -410,7 +411,7 @@ addBox([PED2.x-0.25,0,PED2.z-0.25],[PED2.x+0.25,PED2.top,PED2.z+0.25]);
 const MAPBTN = [{k:'backrooms', x:-19.6, col:0xe2cf72}, {k:'forest', x:-19.0, col:0x4caf50}, {k:'city', x:-18.4, col:0x9aa7b8}, {k:'cave', x:-17.8, col:0xb0703c}, {k:'house', x:-17.2, col:0xe08a5a}, {k:'sewer', x:-16.6, col:0x6a8a4a}, {k:'market', x:-16.0, col:0x3a9ad8}, {k:'station', col:0x6ad0ff}, {k:'factory', col:0xf2c230}, {k:'mansion', col:0x8a6ab8}, {k:'volcano', col:0xff5a1a}].map((w, i) => Object.assign(w, {x:-19.6 + i*0.44, z:6.35, top:0.55, cap:0.15}));
 for (const w of WPN.concat(MAPBTN)){ addBox([w.x-0.2,0,w.z-0.2],[w.x+0.2,w.top,w.z+0.2]); addBox([w.x-w.cap,w.top,w.z-w.cap],[w.x+w.cap,w.top+0.06,w.z+w.cap]); }
 addBox([PED2.x-PED2.cap,PED2.top,PED2.z-PED2.cap],[PED2.x+PED2.cap,PED2.top+0.08,PED2.z+PED2.cap]);
-addBox([SKB.x-0.2,0,SKB.z-0.2],[SKB.x+0.2,SKB.top,SKB.z+0.2]); addBox([SKB.x-SKB.cap,SKB.top,SKB.z-SKB.cap],[SKB.x+SKB.cap,SKB.top+0.06,SKB.z+SKB.cap]);
+for (const B_ of [SKB, ROLEB]){ addBox([B_.x-0.2,0,B_.z-0.2],[B_.x+0.2,B_.top,B_.z+0.2]); addBox([B_.x-B_.cap,B_.top,B_.z-B_.cap],[B_.x+B_.cap,B_.top+0.06,B_.z+B_.cap]); }
 
 // ================= renderer / scene =================
 const canvas = $('c');
@@ -650,7 +651,7 @@ const playTex = signTex(512, 200, (g,W,Hh) => { g.fillStyle = '#ff3b2f'; g.font 
 const titleTex = signTex(768, 220, (g,W,Hh) => { g.fillStyle = '#e2cf72'; g.font = 'bold 88px VT323, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('BACKROOMS BOT SCRAP', W/2, Hh/2+4); });
 const helpTex = signTex(640, 400, (g,W,Hh) => {
   g.fillStyle = '#fff8d8'; g.font = '34px Rubik, sans-serif'; g.textBaseline = 'top';
-  ['HOLD GRIP  grab a bot or any part','GRAB WITH BOTH HANDS  pull to rip it apart','SWING FAST  punch parts off','THROW  smash parts on the walls','PRESS Y  come back to this lobby','PUSH THE RED BUTTON  play']
+  ['RED button  play alone','BLUE button  play together','PINK button  game mode','GRIP  grab · both hands: rip','SWING  punch parts off','Y  back to this lobby']
     .forEach((s,i) => g.fillText(s, 34, 36 + i*58));
 });
 const boardCanvas = document.createElement('canvas'); boardCanvas.width = 512; boardCanvas.height = 300;
@@ -666,8 +667,11 @@ function drawBoard(lines){
 drawBoard(['Looking for players on the network...']);
 const rangeTex = signTex(600, 240, (g,W,Hh) => { g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 60px VT323, monospace'; g.fillText('TARGET RANGE', W/2, 66);
   g.font = 'bold 40px VT323, monospace'; [['DUMMIES','#ff9a3a'],['WALK','#5ab4ff'],['CLEAR','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/3, 150); }); g.fillStyle = '#fff8d8'; g.font = '26px Rubik, sans-serif'; g.fillText('push with a claw', W/2, 210); });
-const skinTex = signTex(500, 200, (g,W,Hh) => { g.textAlign = 'center'; g.fillStyle = '#ff9fc8'; g.font = 'bold 54px VT323, monospace'; g.fillText('CUTE ROBOT', W/2, 80); g.fillStyle = '#fff8d8'; g.font = '30px Rubik, sans-serif'; g.fillText('play as a friendly bot', W/2, 130); g.fillText('(no weapons)', W/2, 172); });
-const skCaps = [];
+let lobbyMode = (() => { try { return localStorage.getItem('gmode') || 'free'; } catch(e){ return 'free'; } })(), rolePref = (() => { try { return localStorage.getItem('role') || 'random'; } catch(e){ return 'random'; } })();
+const skCaps = [], roleCaps = [];
+const labelCanvas = (draw) => { const c = document.createElement('canvas'); c.width = c.height = 256; const t = new T3.CanvasTexture(c); t.encoding = T3.sRGBEncoding; t.redraw = () => { const g = c.getContext('2d'); g.fillStyle = '#16120a'; g.fillRect(0,0,256,256); g.strokeStyle = '#e2cf72'; g.lineWidth = 8; g.strokeRect(6,6,244,244); g.textAlign = 'center'; draw(g); t.needsUpdate = true; }; t.redraw(); return t; };
+const modeTex = labelCanvas(g => { g.fillStyle = '#c9cdd2'; g.font = 'bold 36px VT323, monospace'; g.fillText('GAME MODE', 128, 62); g.fillStyle = lobbyMode === 'imp' ? '#ff6a5e' : '#7fe07a'; g.font = 'bold 44px VT323, monospace'; g.fillText(lobbyMode === 'imp' ? 'IMPOSTER' : 'FREE PLAY', 128, 140); g.fillStyle = '#fff8d8'; g.font = '26px Rubik, sans-serif'; g.fillText('push to change', 128, 210); });
+const roleTex = labelCanvas(g => { g.fillStyle = '#c9cdd2'; g.font = 'bold 34px VT323, monospace'; g.fillText('I WANT TO BE', 128, 62); g.fillStyle = '#c0a0ff'; g.font = 'bold 48px VT323, monospace'; g.fillText(rolePref.toUpperCase(), 128, 140); g.fillStyle = '#fff8d8'; g.font = '26px Rubik, sans-serif'; g.fillText('(imposter only)', 128, 210); });
 const mapTex = signTex(1900, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK A MAP', W/2, 62);
   g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('then RED = play solo,  BLUE = play online', W/2, 108);
@@ -722,9 +726,10 @@ function buildLobby(parent, real){
   const cap2 = new T3.Mesh(new T3.CylinderGeometry(PED2.cap, PED2.cap, 0.08, 32), new T3.MeshLambertMaterial({color:0x1f7bff, emissive:0x05204a}));
   cap2.position.set(PED2.x, PED2.top+0.04, PED2.z); parent.add(cap2); caps2.push(cap2);
   const board = plane(parent, boardTex, 1.1, 0.645, PED2.x - 0.35, 1.25, PED2.z, Math.PI/2);
-  parent.add(Object.assign(wallMesh([{min:[SKB.x-0.2,0,SKB.z-0.2], max:[SKB.x+0.2,SKB.top,SKB.z+0.2]}])));
-  { const c = new T3.Mesh(new T3.CylinderGeometry(SKB.cap, SKB.cap, 0.06, 28), new T3.MeshLambertMaterial({color:0xff8fb8, emissive:0x000000})); c.position.set(SKB.x, SKB.top+0.03, SKB.z); parent.add(c); skCaps.push(c);
-    plane(parent, skinTex, 0.39, 0.156, SKB.x + 0.202, 0.36, SKB.z, Math.PI/2); }
+  for (const [B_, col, tex, caps] of [[SKB, 0xff8fb8, modeTex, skCaps], [ROLEB, 0xb08aff, roleTex, roleCaps]]){
+    parent.add(Object.assign(wallMesh([{min:[B_.x-0.2,0,B_.z-0.2], max:[B_.x+0.2,B_.top,B_.z+0.2]}])));
+    const c = new T3.Mesh(new T3.CylinderGeometry(B_.cap, B_.cap, 0.06, 28), new T3.MeshLambertMaterial({color:col, emissive:0x000000})); c.position.set(B_.x, B_.top+0.03, B_.z); parent.add(c); caps.push(c);
+    const pl = plane(parent, tex, 0.39, 0.39, B_.x + 0.202, 0.3, B_.z, Math.PI/2); (B_.labels = B_.labels || []).push(pl); }
   parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
   plane(parent, weaponTex, 4.4, 0.58, -16.2, 1.45, LB.z0+TW/2+0.006, 0);
   plane(parent, mapTex, 4.84, 0.55, -17.4, 1.45, LB.z1-TW/2-0.006, Math.PI);
@@ -1844,7 +1849,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     else if (ev.k === 'ate' || ev.k === 'off') MAPS.backrooms.monsterDone(ev.k === 'ate' ? 'ate' : 'off');
   };
   MAPS.backrooms.update = (dt, inGame) => {
-    if (!inGame){ if (st !== 'on') lightsOn(); clearMonsters(); return; }
+    if (!inGame || impGame()){ if (st !== 'on') lightsOn(); clearMonsters(); return; }
     t -= dt;
     const boss = !netGame || isHost();
     if (st === 'on' && t <= 0 && boss){ st = 'flicker'; t = 1.6; if (netGame) netSend('ev', {t:'mon', k:'flick'}); }
@@ -2792,7 +2797,7 @@ function killBot(bot, remote){
   if (bot.social) endSocial(bot);
   if (bot.dummy) return;
   if (bot.mon){ say(bot, pick(['noooo','ow ow ow :(','i just wanted a hug'])); if (MAPS.backrooms.monsterDone) MAPS.backrooms.monsterDone('killed'); return; }
-  if (!netGame || isHost()) respawnTimers.push(3);
+  if ((!netGame || isHost()) && !impGame()) respawnTimers.push(3);
 }
 function detach(p, vel, remote){
   const parent = p.parent; if (!parent) return;
@@ -2946,7 +2951,7 @@ function makeScary(parent, full){
 const me = makeScary(scene, false), meMirror = makeScary(mirrorWorld, true);
 // the CUTE skin: the same body parts, dressed as one of the friendly robots (no legs, no weapons)
 const myColor = () => BOT_COLORS[[...(myName || 'x')].reduce((a, ch) => a + ch.charCodeAt(0), 0) % BOT_COLORS.length];
-let mySkin = (() => { try { return localStorage.getItem('skin') || 'scary'; } catch(e){ return 'scary'; } })();
+let mySkin = 'scary';
 const CUTE = (() => { const c = {}; return k => c[k] || (c[k] = ({
   white:() => new T3.MeshLambertMaterial({color:0xeef0f2}), grey:() => new T3.MeshLambertMaterial({color:0xb8bec6}), dark:() => new T3.MeshLambertMaterial({color:0x2a2c30}),
   head:() => new T3.BoxGeometry(0.32, 0.27, 0.28), scr:() => new T3.PlaneGeometry(0.24, 0.17), ear:() => new T3.CylinderGeometry(0.045, 0.045, 0.04, 14), ant:() => new T3.CylinderGeometry(0.008, 0.008, 0.1, 6), ball:() => new T3.SphereGeometry(0.03, 10, 8),
@@ -3004,7 +3009,7 @@ function updateWristVis(){ const n = new V(-1,0,0).applyQuaternion(me.claws[0].g
 let startT = performance.now(), lastWrist = '';
 function drawWrist(){
   const s = Math.floor((performance.now()-startT)/1000), cl = typeof lastCombat === 'number' ? Math.ceil(10 - (clock - lastCombat)) : 0;
-  const txt = `SCRAPPED ${score}|` + (mode === 'game' && cl > 0 ? `COMBAT ${cl}s` : `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`);
+  const txt = (mode === 'game' ? (cl > 0 ? `LEAVE IN ${cl}s` : 'Y = LEAVE') : 'LOBBY') + '|' + `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
   if (txt === lastWrist) return; lastWrist = txt;
   const g = wristCanvas.getContext('2d'), [a,b] = txt.split('|');
   g.fillStyle = '#16090a'; g.fillRect(0,0,256,128); g.fillStyle = '#ff3b2f'; g.textAlign = 'center';
@@ -3243,6 +3248,7 @@ function punches(dt){
 
 // ================= bot AI & free-body physics =================
 function updateBot(bot, dt, player){
+  if (bot.fakeOf) return updateFake(bot, dt);
   if (bot.root.parent && !bot.dead){                 // glued onto something: it's stuck there, it can only wriggle
     bot.t += dt; if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); }
     if (bot.root.mode === 'bot') bot.root.mode = 'free';
@@ -4871,6 +4877,132 @@ function updateMonster(bot, dt){
     if (tg.id === NET.id) monsterHitMe(pos.clone()); else netSend('ev', {t:'mon', k:'hit', x:r3(pos.toArray())}, [tg.id]); } }
 }
 
+// ================= IMPOSTER =================
+// One seeker, everyone else hides as a robot among the robots. Hiders see their own VR body; everyone else
+// sees them as an ordinary robot walking on the robots' paths (it follows where you are, on the ground).
+// 10 s to hide (the seeker is blindfolded), then 60 s to find them. ANY touch on a robot is a guess:
+// punching, grabbing, any weapon, the leaf blower... Guesses: number of hiders + 2. Wrong guesses pop.
+const IMP = {on:false, phase:'wait', t:0, seeker:null, hiders:[], found:{}, guesses:0, used:0, msg:'', waitT:0, endT:0, picked:new Set(), anchor:null};
+const impGame = () => mode === 'game' && !!netGame && netGame.split('~')[3] === 'imp';
+const amSeeker = () => IMP.on && IMP.seeker === NET.id, amHider = () => IMP.on && IMP.hiders.includes(NET.id) && !IMP.found[NET.id];
+const IMP_HIDE = 10, IMP_SEEK = 60, IMP_END = 8;
+// a head-locked text panel (a HUD) and the seeker's blindfold
+const hudC = document.createElement('canvas'); hudC.width = 512; hudC.height = 128; const hudT = new T3.CanvasTexture(hudC); hudT.encoding = T3.sRGBEncoding;
+const hud = new T3.Mesh(new T3.PlaneGeometry(0.34, 0.085), new T3.MeshBasicMaterial({map:hudT, transparent:true, depthTest:false, fog:false})); hud.renderOrder = 1001; hud.visible = false; scene.add(hud);
+const blind = new T3.Mesh(new T3.SphereGeometry(0.35, 16, 12), new T3.MeshBasicMaterial({color:0x050508, side:T3.BackSide, depthTest:false, fog:false})); blind.renderOrder = 1000; blind.visible = false; scene.add(blind);
+let hudKey = '';
+function drawHud(a, b, col){
+  const k = a + '|' + b + '|' + col; if (k === hudKey) return; hudKey = k;
+  const g = hudC.getContext('2d'); g.clearRect(0, 0, 512, 128); g.fillStyle = 'rgba(10,8,14,0.72)'; g.beginPath(); g.roundRect ? g.roundRect(4, 4, 504, 120, 24) : g.rect(4, 4, 504, 120); g.fill();
+  g.textAlign = 'center'; g.fillStyle = col || '#ffd23d'; g.font = 'bold 50px VT323, monospace'; g.fillText(a, 256, 56); g.fillStyle = '#fff8d8'; g.font = '34px VT323, monospace'; g.fillText(b, 256, 104); hudT.needsUpdate = true;
+}
+function placeHud(head){
+  const q = me.head.getWorldQuaternion(new Q()), f = new V(0, 0, -1).applyQuaternion(q), u = new V(0, 1, 0).applyQuaternion(q);
+  hud.position.copy(head).addScaledVector(f, 0.55).addScaledVector(u, 0.17); hud.quaternion.copy(q); blind.position.copy(head);
+}
+function randomCell(){ for (let k=0;k<400;k++){ const x = Math.floor(R()*NAV.nx), y = Math.floor(R()*NAV.nz), l = Math.floor(R()*NAV.lv.length); if (NAV.ok(x, y, l)) return [x, y, l]; } return cellOf(SPAWN); }
+const IMP_SAY = ['beep boop','just a normal robot','nothing to see here','hello fellow robots','I love walking','*whistles*','01101000 01101001','I am definitely a robot'];
+function impStart(ev){
+  Object.assign(IMP, {on:true, phase:'hide', t:0, seeker:ev.s, hiders:ev.h, found:{}, guesses:ev.n, used:0, msg:'', picked:new Set()});
+  for (const b of bots.slice()) if (!b.fakeOf){ const i = bots.indexOf(b); bots.splice(i, 1); if (!b.root.obj.userData.dead) removePart(b.root, true); }
+  for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead && p.name !== 'prop') removePart(p, true);
+  if (IMP.seeker === NET.id){ teleport(SPAWN, MAPS[curMap].yaw); IMP.anchor = rig.position.clone(); showMsg('You are the SEEKER! Wait...'); }
+  else if (IMP.hiders.includes(NET.id)){ teleport(cellPos(...randomCell()).setY(NAV.lv[0]), R()*6.28); wpn[0] = wpn[1] = 'none'; showMsg('You are a HIDER! Blend in with the robots!'); }
+  sndBoop();
+}
+function impGuess(ev){
+  IMP.used = ev.u; if (ev.hit){ IMP.found[ev.hit] = true; const f = bots.find(b => b.fakeOf === ev.hit); if (f) popBot(f, true); if (ev.hit === NET.id) showMsg('You got FOUND!'); }
+  const all = IMP.hiders.every(h => IMP.found[h]);
+  if (all) impEnd('SEEKER WINS!', 'found everyone');
+  else if (IMP.used >= IMP.guesses) impEnd('HIDERS WIN!', 'out of guesses');
+}
+function impEnd(a, b){ if (IMP.phase === 'end') return; IMP.phase = 'end'; IMP.t = 0; IMP.msg = a + '|' + b; sndBoop(); for (const b2 of bots.slice()) if (b2.fakeOf){ removeBot(b2); } }
+// a robot bursting into its parts (a wrong guess, or the hider's robot when it's found)
+function popBot(b, quiet){
+  const root = b.root; if (root.obj.userData.dead) return; const c = centerW(root);
+  if (!quiet && !mine(root)) claim(root);
+  quietFx = true; for (const q of subtree(root).reverse()) if (q.parent) detach(q, new V(R()-0.5, R()*0.8 + 0.3, R()-0.5).multiplyScalar(5), quiet); quietFx = false;
+  if (!b.dead) killBot(b, quiet); spawnSparks(c, 50, 4); sndSnap(); flash(c, 0.8);
+  if (b.fakeOf){ for (const q of parts.slice()) if (q.bot === b && !q.obj.userData.dead) removePart(q, true); const i = bots.indexOf(b); if (i >= 0) bots.splice(i, 1); }
+}
+// the seeker touched a robot: that's a guess
+function impTouch(p){
+  if (!IMP.on || IMP.phase !== 'seek' || IMP.seeker !== NET.id || !p) return;
+  const b = p.bot || (rootOf(p) && rootOf(p).bot); if (!b || b.dead || IMP.picked.has(b)) return;
+  IMP.picked.add(b); IMP.used++;
+  const hit = b.fakeOf || null;
+  if (hit){ say(b, 'you got me!'); showMsg('FOUND ONE!'); } else { say(b, pick(['not me!','wrong robot!','I am innocent'])); setTimeout(() => popBot(b), 250); }
+  const ev = {t:'imp', k:'guess', u:IMP.used, hit, b:b.id}; netSend('ev', ev); impGuess(ev);
+}
+// what everyone else sees of a hider: a plain robot that goes where they go, on the ground and on the paths
+function updateFake(bot, dt){
+  const p = NET.peers[bot.fakeOf], root = bot.root; bot.t += dt;
+  if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); }
+  if (!p || !p.P || bot.dead || root.mode !== 'bot' && root.mode !== 'held') return;
+  if (root.mode === 'held') return;
+  const h = p.P.head; let tgt = new V(h.x, 0, h.z), c = cellOf(tgt);
+  if (!NAV.ok(c[0], c[1], c[2])){ const rc = reachableCell(new V(h.x, NAV.lv[c[2]] + 0.5, h.z), c[2]); if (rc){ c = rc; tgt = cellPos(...rc); } else { c = bot.cell || c; tgt = root.obj.position.clone(); } }
+  bot.cell = c;
+  const pos = root.obj.position, to = tgt.clone().sub(pos); to.y = 0; const d = to.length();
+  if (d > 5) pos.set(tgt.x, pos.y, tgt.z); else if (d > 0.01) pos.addScaledVector(to.clone().normalize(), Math.min(d, 3.2*dt));
+  pos.y = NAV.lv[c[2]] + STAND;
+  const sp = Math.min(1, (bot.lastD || 0)/(dt*1.4)); bot.lastD = Math.min(d, 3.2*dt);
+  const e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ'); let want = e.y;
+  if (d > 0.05) want = Math.atan2(to.x, to.z); else { const hy = new T3.Euler().setFromQuaternion(p.P.yawQ || p.P.headQ, 'YXZ').y; want = hy + Math.PI; }
+  let dd = want - e.y; dd = Math.atan2(Math.sin(dd), Math.cos(dd)); root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y + dd*Math.min(1, dt*6), 0));
+  const ph = bot.t*11; bot.legs.forEach((l, j) => { if (l.parent === root) l.obj.rotation.x = (j ? -1 : 1)*Math.sin(ph)*0.6*sp; }); bot.ups.forEach((u, j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(0.15 + Math.sin(ph)*0.15*sp); });
+  bot.blinkT -= dt; if (bot.blinkT < 0) bot.blinkT = 2 + R()*3; setFace(bot, bot.blinkT < 0.12 ? 'blink' : 'idle');
+}
+let stickPrev = false;
+function updateImposter(dt, head){
+  const inImp = impGame();
+  if (!inImp){ if (IMP.on){ IMP.on = false; for (const b of bots.slice()) if (b.fakeOf) removeBot(b); } hud.visible = blind.visible = false; return; }
+  hud.visible = true; placeHud(head);
+  IMP.t += dt;
+  const members = gameMembers().filter(id => id === NET.id || NET.peers[id] && NET.peers[id].m === 'game');
+  if (!IMP.on || IMP.phase === 'wait'){
+    IMP.phase = 'wait'; blind.visible = false;
+    if (members.length < 2){ IMP.waitT = 0; drawHud('IMPOSTER', 'waiting for players (' + members.length + '/2)'); return; }
+    IMP.waitT += dt; drawHud('IMPOSTER', 'round starts in ' + Math.max(0, Math.ceil(6 - IMP.waitT)));
+    if (IMP.waitT > 6 && isHost()){ IMP.waitT = -99;
+      // roles: people who asked to seek first, otherwise anyone who didn't ask to hide, otherwise anyone
+      const pref = id => id === NET.id ? rolePref : (NET.peers[id].rp || 'random');
+      const pool = members.filter(id => pref(id) === 'seeker'), pool2 = members.filter(id => pref(id) !== 'hider');
+      const seeker = pick(pool.length ? pool : pool2.length ? pool2 : members), hiders = members.filter(id => id !== seeker);
+      const ev = {t:'imp', k:'start', s:seeker, h:hiders, n:hiders.length + 2}; netSend('ev', ev); impStart(ev);
+      const total = 10 + Math.floor((members.length - 2)/2);
+      for (let k=0;k<total - hiders.length;k++){ const pos = cellPos(...randomCell()), b = makeBot(pick(BOT_COLORS), pos); netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(pos.x), y:r3(pos.y), z:r3(pos.z)}); }
+    }
+    return;
+  }
+  if (IMP.phase === 'hide' && IMP.t >= IMP_HIDE){ IMP.phase = 'seek'; IMP.t = 0; if (amSeeker()) showMsg('GO! Find the imposters! Touching a robot = a guess'); }
+  if (IMP.phase === 'seek' && IMP.t >= IMP_SEEK) impEnd('HIDERS WIN!', 'time ran out');
+  if (IMP.phase === 'end' && IMP.t >= IMP_END){ IMP.on = false; IMP.phase = 'wait'; IMP.waitT = 0; }
+  // fakes for the hiders (not for yourself)
+  for (const id of IMP.hiders){ if (id === NET.id || IMP.found[id] || IMP.phase === 'end') continue; const p = NET.peers[id]; if (!p || !p.P) continue;
+    if (!bots.some(b => b.fakeOf === id)){ const b = makeBot(BOT_COLORS[[...id].reduce((a, ch) => a + ch.charCodeAt(0), 0) % BOT_COLORS.length], new V(p.P.head.x, STAND, p.P.head.z), 'imp-' + id); b.fakeOf = id; b.root.owner = id; } }
+  // the seeker can't see or move while the hiders hide
+  blind.visible = amSeeker() && IMP.phase === 'hide';
+  if (blind.visible && IMP.anchor){ rig.position.copy(IMP.anchor); loco.S.velocity.set(0, 0, 0); }
+  // hiders: push the thumbstick in to make your robot talk
+  const stick = !!(io.pads[1] && io.pads[1].buttons && io.pads[1].buttons[3] && io.pads[1].buttons[3].pressed) || !!(io.pads[0] && io.pads[0].buttons && io.pads[0].buttons[3] && io.pads[0].buttons[3].pressed);
+  if (stick && !stickPrev && amHider()){ const s = pick(IMP_SAY); netSend('ev', {t:'imp', k:'say', s}); showMsg('Your robot says: ' + s); }
+  stickPrev = stick;
+  // the HUD
+  const left = Math.max(0, Math.ceil((IMP.phase === 'hide' ? IMP_HIDE : IMP_SEEK) - IMP.t)), mm = Math.floor(left/60) + ':' + String(left % 60).padStart(2, '0');
+  const g = 'guesses ' + Math.max(0, IMP.guesses - IMP.used) + '/' + IMP.guesses, nf = IMP.hiders.filter(h => IMP.found[h]).length + '/' + IMP.hiders.length + ' found';
+  if (IMP.phase === 'end'){ const [a, b] = IMP.msg.split('|'); drawHud(a, b + ' - next round soon', a.startsWith('SEEKER') ? '#ff6a5e' : '#7fe07a'); }
+  else if (amSeeker()) drawHud(IMP.phase === 'hide' ? 'HIDERS ARE HIDING ' + left : 'SEEK ' + mm, IMP.phase === 'hide' ? 'you are the seeker' : g + '   ' + nf, '#ff6a5e');
+  else if (amHider()) drawHud(IMP.phase === 'hide' ? 'HIDE! ' + left : 'BLEND IN ' + mm, 'stick click: say something   ' + g, '#7fe07a');
+  else drawHud(IMP.phase === 'hide' ? 'HIDING ' + left : 'SEEK ' + mm, IMP.found[NET.id] ? 'you were found - watch!' : nf, '#c9cdd2');
+}
+function impEv(ev, from){
+  if (!impGame()) return;
+  if (ev.k === 'start') impStart(ev);
+  else if (ev.k === 'guess') impGuess(ev);
+  else if (ev.k === 'say'){ const f = bots.find(b => b.fakeOf === from); if (f) say(f, ev.s); }
+}
+
 // ================= players ripping players =================
 // Grab another player with both claws and pull: arms come off, and a ripped-off head scraps
 // them back to the lobby. Same rule as the bots: no head, no robot.
@@ -5088,11 +5220,12 @@ function vrStep(dt){
     let pressed2 = false;
     for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-PED2.x, h.z-PED2.z) < PED2.cap+0.04 && h.y < PED2.top+0.08+0.05+0.02) pressed2 = true; }
     caps2.forEach(c => c.position.y = PED2.top + (pressed2 ? 0.015 : 0.04));
-    { let by = -1; for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-SKB.x, h.z-SKB.z) < SKB.cap+0.04 && h.y < SKB.top+0.06+0.05+0.02) by = i; }
-      skCaps.forEach(c => { c.position.y = SKB.top + (by >= 0 ? 0.01 : 0.03); c.material.emissive.setHex(mySkin === 'cute' ? 0x552233 : 0x000000); });
-      if (by >= 0 && !SKB.down){ mySkin = mySkin === 'cute' ? 'scary' : 'cute'; try { localStorage.setItem('skin', mySkin); } catch(e){} sndBoop(); pulse(by, 0.8, 90); setSkin(me, mySkin === 'cute', myColor()); setSkin(meMirror, mySkin === 'cute', myColor());
-        if (mySkin === 'cute'){ chooseWeapon('none', 0); chooseWeapon('none', 1); } netHello(); }
-      SKB.down = by >= 0; }
+    for (const B_ of [SKB, ROLEB]){ let by = -1; for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-B_.x, h.z-B_.z) < B_.cap+0.04 && h.y < B_.top+0.06+0.05+0.02) by = i; }
+      const caps = B_ === SKB ? skCaps : roleCaps, show = B_ === SKB || lobbyMode === 'imp'; caps.forEach(c => { c.visible = show; c.position.y = B_.top + (by >= 0 ? 0.01 : 0.03); }); (B_.labels || []).forEach(l => l.visible = show);
+      if (by >= 0 && !B_.down && show){ sndBoop(); pulse(by, 0.8, 90);
+        if (B_ === SKB){ lobbyMode = lobbyMode === 'imp' ? 'free' : 'imp'; try { localStorage.setItem('gmode', lobbyMode); } catch(e){} modeTex.redraw(); boardKey = ''; }
+        else { rolePref = {random:'seeker', seeker:'hider', hider:'random'}[rolePref]; try { localStorage.setItem('role', rolePref); } catch(e){} roleTex.redraw(); netHello(); } }
+      B_.down = by >= 0; }
     for (const w of WPN){
       let by = -1; for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-w.x, h.z-w.z) < w.cap+0.04 && h.y < w.top+0.06+0.05+0.02) by = i; }
       w.caps.forEach(c => c.position.y = w.top + (by >= 0 ? 0.01 : 0.03));
@@ -5109,7 +5242,8 @@ function vrStep(dt){
       const sel = selMap === w.k; w.caps.forEach(c => c.material.emissive.setHex(sel ? 0x553311 : 0x000000));
       (w.models || []).forEach(m => { m.rotation.y += sel ? 0.03 : 0.006; });
     }
-    if (pressed){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); netGame = null; goto('game'); }
+    if (pressed && lobbyMode === 'imp'){ if (!PED.warned){ PED.warned = true; showMsg('Imposter needs 2+ players: use the BLUE button (play together)'); setTimeout(() => PED.warned = false, 2500); } }
+    else if (pressed){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); netGame = null; goto('game'); }
     else if (pressed2){ sndBoop(); pulse(0, 0.8, 80); pulse(1, 0.8, 80); playTogether(); }
   }
   if (mode === 'game' && io.yBtn && !yPrev){
@@ -5131,7 +5265,7 @@ function vrStep(dt){
   // fade
   if (fadeDir){ fade += fadeDir*dt*4; if (fade >= 1){ fade = 1; fadeAction && fadeAction(); fadeAction = null; fadeDir = -1; } if (fade <= 0){ fade = 0; fadeDir = 0; } }
   fadeMesh.material.opacity = fade; fadeMesh.position.copy(head);
-  drawWrist(); updateWristVis();
+  drawWrist(); updateWristVis(); updateImposter(dt, head);
   return head;
 }
 
@@ -5186,17 +5320,17 @@ function hostId(){
   return c.slice().sort()[0];
 }
 function isHost(){ return !netGame || hostId() === NET.id; }
-function claim(root){ root.owner = NET.id; if (room() && root.id) netSend('ev', {t:'claim', r:root.id}); }
+function claim(root){ impTouch(root); root.owner = NET.id; if (room() && root.id) netSend('ev', {t:'claim', r:root.id}); }
 function resetWorld(){
   for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead) removePart(p, true);
   bots.length = 0; respawnTimers.length = 0; wires.length = 0;
 }
 const gameMap = g => (g && g.split('~')[2]) || 'backrooms';
-function netHello(target){ netSend('hi', {n:myName, sk:mySkin, m:mode, g:netGame, ga:mode === 'game' && netGame ? (performance.now() - gameJoinT)/1000 : -1}, target); }
+function netHello(target){ netSend('hi', {n:myName, sk:mySkin, rp:rolePref, m:mode, g:netGame, ga:mode === 'game' && netGame ? (performance.now() - gameJoinT)/1000 : -1}, target); }
 function playTogether(){
   const others = Object.entries(NET.peers);
-  const live = others.find(([id,p]) => p.g && gameMap(p.g) === selMap);
-  netGame = live ? live[1].g : NET.id + '~' + Date.now().toString(36) + '~' + selMap;
+  const live = others.find(([id,p]) => p.g && gameMap(p.g) === selMap && (p.g.split('~')[3] || 'free') === lobbyMode);
+  netGame = live ? live[1].g : NET.id + '~' + Date.now().toString(36) + '~' + selMap + (lobbyMode === 'imp' ? '~imp' : '');
   goto('game');
 }
 function nearestPlayerFn(me){
@@ -5238,7 +5372,8 @@ function updateRemoteAvatars(){
     P.head.lerp(T.head, 0.4); P.headQ.slerp(T.headQ, 0.4); P.yawQ.slerp(T.yawQ, 0.4);
     for (const i of [0,1]){ P.hands[i].lerp(T.hands[i], 0.45); P.handQ[i].slerp(T.handQ[i], 0.45); }
     P.trig = T.trig; P.gripV = T.gripV; P.thumb = T.thumb; P.grip = T.grip;
-    const here = p.m === mode && (mode === 'lobby' || (p.g && p.g === netGame));
+    let here = p.m === mode && (mode === 'lobby' || (p.g && p.g === netGame));
+    if (IMP.on && IMP.phase !== 'end' && IMP.hiders.includes(p.id) && !IMP.found[p.id]) here = false;
     if (p.skinOn !== p.sk){ p.skinOn = p.sk; const col = BOT_COLORS[[...(p.n || 'x')].reduce((a, ch) => a + ch.charCodeAt(0), 0) % BOT_COLORS.length]; setSkin(p.av, p.sk === 'cute', col); if (p.avM) setSkin(p.avM, p.sk === 'cute', col); }
     setAvVisible(p.av, here); setAvVisible(p.avM, here && mode === 'lobby'); p.tag.visible = here && !p.headless;
     if (p.headless){ p.av.head.visible = false; }
@@ -5316,6 +5451,7 @@ function onEvent(ev, from){
   { const pg = NET.peers[from]; if (netGame && pg && pg.g && pg.g !== netGame && ev.t !== 'need') return;   // someone in a different game
     if (pg && pg.m && ev.t !== 'need' && ((pg.m === 'lobby') !== (mode === 'lobby'))) return; }         // lobby stuff stays in the lobby
   if (ev.t === 'rng'){ if (mode === 'lobby') rangeEv(ev, from); return; }
+  if (ev.t === 'imp'){ impEv(ev, from); return; }
   const p = ev.p ? partsById.get(ev.p) : null;
   if (ev.t === 'mon'){ if (ev.k === 'grow'){ const b = bots.find(x => x.id === ev.b); if (b){ b.gn = ev.n; growLimb(b, ev.s, true); } } else if (ev.k === 'hit'){ if (mode === 'game') monsterHitMe(ev.x ? new V().fromArray(ev.x) : null); } else if (MAPS.backrooms.monEv) MAPS.backrooms.monEv(ev, from); return; }
   if (ev.t === 'mapev'){ const M = MAPS[ev.m]; if (M && M.onEv && ev.m === curMap) M.onEv(ev, from); return; }
@@ -5438,8 +5574,8 @@ let boardKey = '';
 function updateBoard(){
   const others = Object.values(NET.peers);
   const lines = lastDeath && mode === 'lobby' ? ['You got SCRAPPED by', lastDeath + '!', 'Push the blue button to rejoin.'] : !NET.ready ? ['Connecting...'] : !others.length ? ['Nobody else online yet.', 'Open this page on another headset', 'on the same Wi-Fi.'] :
-    others.map(p => `${p.n || 'Robot'}  ${p.g ? 'is in ' + MAPS[gameMap(p.g)].name : 'is in the lobby'}`).concat([others.some(p => p.g && gameMap(p.g) === selMap) ? 'Blue button: JOIN them in ' + MAPS[selMap].name : 'Blue button: START ' + MAPS[selMap].name + ' online']);
-  const key = lines.join('|') + selMap; if (key === boardKey) return; boardKey = key; drawBoard(lines);
+    others.map(p => `${p.n || 'Robot'}  ${p.g ? 'is in ' + MAPS[gameMap(p.g)].name + (p.g.split('~')[3] === 'imp' ? ' (imposter)' : '') : 'is in the lobby'}`).concat([(others.some(p => p.g && gameMap(p.g) === selMap && (p.g.split('~')[3] || 'free') === lobbyMode) ? 'Blue: JOIN ' : 'Blue: START ') + (lobbyMode === 'imp' ? 'IMPOSTER in ' : '') + MAPS[selMap].name]);
+  const key = lines.join('|') + selMap + lobbyMode; if (key === boardKey) return; boardKey = key; drawBoard(lines);
   const html = !NET.ready ? 'Connecting to multiplayer...' : others.length ? `<b>${others.length + 1}</b> players online: ${[myName].concat(others.map(p => p.n)).join(', ')}` : `Multiplayer ready. You are ${myName}.`;
   const el = $('net'); if (el) el.innerHTML = html;
 }
@@ -5463,7 +5599,7 @@ function onHello(d, from){
   const p = NET.peers[from] || (NET.peers[from] = {lost:{0:false, 1:false}});
   if (p.g !== d.g) p.headless = false;
   const wasMember = netGame && p.g === netGame;
-  Object.assign(p, {n:d.n, m:d.m, g:d.g, sk:d.sk || 'scary', seen:performance.now()});
+  Object.assign(p, {id:from, n:d.n, m:d.m, g:d.g, sk:d.sk || 'scary', rp:d.rp || 'random', seen:performance.now()});
   p.gt = d.g && d.ga != null && d.ga >= 0 ? performance.now()/1000 - d.ga : null;
   if (p.tag && p.tagName !== d.n){ p.tag.parent && p.tag.parent.remove(p.tag); p.tag = nameTag(d.n); scene.add(p.tag); }
   p.tagName = d.n;
@@ -5511,7 +5647,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124181236';
+const BUILD = '20261124182619';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
