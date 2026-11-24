@@ -318,17 +318,47 @@ for (let y=0;y<=N;y++){ vx.push(Array(N+1).fill(true)); hz.push(Array(N).fill(tr
   for (let y=1;y<N;y++) for (let x=0;x<N;x++) if (hz[y][x] && rnd()<0.45) hz[y][x]=false;
   const m = Math.floor(N/2); vx[m][m]=vx[m][m+1]=hz[m][m]=hz[m+1][m]=false;
 }
-const open = (x,y,dx,dy) => dx===1 ? !vx[y][x+1] : dx===-1 ? !vx[y][x] : dy===1 ? !hz[y+1][x] : !hz[y][x];
+// A tall hall (3x3 cells) with a balcony floor you reach by a ramp
+const HALL = {x0:1, x1:4, y0:6, y1:9}, H2 = 5.6, HW = {x0:HALL.x0*C, x1:HALL.x1*C, z0:HALL.y0*C, z1:HALL.y1*C};
+const inHall = (x,y) => x >= HALL.x0 && x < HALL.x1 && y >= HALL.y0 && y < HALL.y1;
+for (let y=HALL.y0;y<HALL.y1;y++) for (let x=HALL.x0+1;x<HALL.x1;x++) vx[y][x] = false;
+for (let y=HALL.y0+1;y<HALL.y1;y++) for (let x=HALL.x0;x<HALL.x1;x++) hz[y][x] = false;
+// some walls are only waist-high: jump or climb over them (bots still treat them as walls)
+const HALF = 1.0;
+const halfV = vx.map(r => r.map(() => false)), halfH = hz.map(r => r.map(() => false));
+for (let y=0;y<N;y++) for (let x=1;x<N;x++) if (vx[y][x] && rnd() < 0.3) halfV[y][x] = true;
+for (let y=1;y<N;y++) for (let x=0;x<N;x++) if (hz[y][x] && rnd() < 0.3) halfH[y][x] = true;
+const navBlock = new Set(['1,6,1','2,6,1']);          // the ramp sits between these cells
+const open = (x,y,dx,dy) => !navBlock.has(`${x},${y},${dy}`) && !navBlock.has(`${x+dx},${y+dy},${-dy}`) && (dx===1 ? !vx[y][x+1] : dx===-1 ? !vx[y][x] : dy===1 ? !hz[y+1][x] : !hz[y][x]);
 const boxes = [], mazeWalls = [];
 const addBox = (a,b,list) => { const bx = {min:a, max:b}; boxes.push(bx); if (list) list.push(bx); return bx; };
-addBox([-1,-1,-1],[SIZE+1,0,SIZE+1]); addBox([-1,H,-1],[SIZE+1,H+1,SIZE+1]);
-for (let x=0;x<=N;x++){ let y=0; while (y<N){ if (!vx[y][x]){ y++; continue; } let e=y; while (e<N && vx[e][x]) e++;
-  addBox([x*C-TW/2,0,y*C-TW/2],[x*C+TW/2,H,e*C+TW/2], mazeWalls); y=e; } }
-for (let y=0;y<=N;y++){ let x=0; while (x<N){ if (!hz[y][x]){ x++; continue; } let e=x; while (e<N && hz[y][e]) e++;
-  addBox([x*C-TW/2,0,y*C-TW/2],[e*C+TW/2,H,y*C+TW/2], mazeWalls); x=e; } }
-for (let y=1;y<N;y++) for (let x=1;x<N;x++)
-  if (!vx[y-1][x] && !vx[y][x] && !hz[y][x-1] && !hz[y][x] && rnd()<0.5) addBox([x*C-0.35,0,y*C-0.35],[x*C+0.35,H,y*C+0.35], mazeWalls);
+addBox([-1,-1,-1],[SIZE+1,0,SIZE+1]);
+// ceiling with a hole over the hall, and the hall's own high ceiling
+addBox([-1,H,-1],[SIZE+1,H+1,HW.z0]); addBox([-1,H,HW.z1],[SIZE+1,H+1,SIZE+1]);
+addBox([-1,H,HW.z0],[HW.x0,H+1,HW.z1]); addBox([HW.x1,H,HW.z0],[SIZE+1,H+1,HW.z1]);
+addBox([HW.x0,H2,HW.z0],[HW.x1,H2+1,HW.z1]);
+for (let x=0;x<=N;x++){ let y=0; while (y<N){ if (!vx[y][x]){ y++; continue; } let e=y; const hf = halfV[y][x]; while (e<N && vx[e][x] && halfV[e][x] === hf) e++;
+  addBox([x*C-TW/2,0,y*C-TW/2],[x*C+TW/2,hf ? HALF : H,e*C+TW/2], mazeWalls); y=e; } }
+for (let y=0;y<=N;y++){ let x=0; while (x<N){ if (!hz[y][x]){ x++; continue; } let e=x; const hf = halfH[y][x]; while (e<N && hz[y][e] && halfH[y][e] === hf) e++;
+  addBox([x*C-TW/2,0,y*C-TW/2],[e*C+TW/2,hf ? HALF : H,y*C+TW/2], mazeWalls); x=e; } }
+for (let y=1;y<N;y++) for (let x=1;x<N;x++){
+  const insideHall = x > HALL.x0 && x < HALL.x1 && y > HALL.y0 && y < HALL.y1;
+  if (!insideHall && !vx[y-1][x] && !vx[y][x] && !hz[y][x-1] && !hz[y][x] && rnd()<0.5) addBox([x*C-0.35,0,y*C-0.35],[x*C+0.35,H,y*C+0.35], mazeWalls);
+}
+// the hall's upper walls (above the normal ceiling line)
+for (const [a,b] of [[[HW.x0-TW/2,H,HW.z0-TW/2],[HW.x0+TW/2,H2,HW.z1+TW/2]], [[HW.x1-TW/2,H,HW.z0-TW/2],[HW.x1+TW/2,H2,HW.z1+TW/2]],
+                     [[HW.x0,H,HW.z0-TW/2],[HW.x1,H2,HW.z0+TW/2]], [[HW.x0,H,HW.z1-TW/2],[HW.x1,H2,HW.z1+TW/2]]]) addBox(a, b, mazeWalls);
+// balcony, landing, railings and the ramp (ramp collision is a fine staircase under a smooth slab)
+const BAL = {z1:HW.z0+3.5, y0:2.35, y1:2.6}, RAMP = {x0:HW.x0+2, x1:HW.x1-2.5, z0:HW.z0+3.5, z1:HW.z0+5};
+const balconyBoxes = [
+  addBox([HW.x0+TW/2, BAL.y0, HW.z0+TW/2], [HW.x1-TW/2, BAL.y1, BAL.z1]),
+  addBox([RAMP.x1, BAL.y0, RAMP.z0], [HW.x1-TW/2, BAL.y1, RAMP.z1])];
+const railBoxes = [
+  addBox([HW.x0+TW/2, BAL.y1, BAL.z1-0.05], [RAMP.x1-0.3, BAL.y1+0.75, BAL.z1+0.05]),
+  addBox([RAMP.x1, BAL.y1, RAMP.z1-0.05], [HW.x1-TW/2, BAL.y1+0.75, RAMP.z1+0.05])];
+{ const n = 30; for (let i=0;i<n;i++) addBox([RAMP.x0 + i*(RAMP.x1-RAMP.x0)/n, 0, RAMP.z0], [RAMP.x1, (i+0.5)*BAL.y1/n, RAMP.z1]); }
 const SPAWN = new V((Math.floor(N/2)+0.5)*C, 0, (Math.floor(N/2)+0.5)*C);
+const halfWalls = mazeWalls.filter(b => b.max[1] < H - 0.01 && b.max[1] <= HALF + 0.01);
 
 // ================= lobby (separate room, west of the maze) =================
 const LB = {x0:-20, x1:-12, z0:0, z1:7};
@@ -377,11 +407,13 @@ const wallpaper = canvasTex(256, 256, (g,w,h) => {
   for (let y=8;y<h;y+=32) for (let x=0;x<w;x+=32){ g.beginPath(); g.moveTo(x+22,y); g.lineTo(x+27,y+6); g.lineTo(x+22,y+12); g.lineTo(x+17,y+6); g.closePath(); g.stroke(); }
   for (let i=0;i<900;i++){ g.fillStyle = `rgba(90,70,20,${R()*0.06})`; g.fillRect(R()*w, R()*h, 2, 2); }
 }, true);
-const carpet = canvasTex(256, 256, (g,w,h) => {
+const carpet = canvasTex(512, 512, (g,w,h) => {
   g.fillStyle = '#9a8740'; g.fillRect(0,0,w,h);
-  for (let i=0;i<9000;i++){ const v = R(); g.fillStyle = v<.5 ? `rgba(70,55,15,${v*0.35})` : `rgba(200,180,100,${(v-.5)*0.25})`; g.fillRect(R()*w, R()*h, 1.5, 1.5); }
-  for (let i=0;i<3;i++){ const x=R()*w, y=R()*h, r=20+R()*30, gr=g.createRadialGradient(x,y,0,x,y,r);
-    gr.addColorStop(0,'rgba(60,48,12,.28)'); gr.addColorStop(1,'rgba(60,48,12,0)'); g.fillStyle=gr; g.fillRect(x-r,y-r,r*2,r*2); }
+  for (let i=0;i<60;i++){ const x=R()*w, y=R()*h, r=20+R()*90, gr=g.createRadialGradient(x,y,0,x,y,r), dark = R()<0.5;
+    gr.addColorStop(0, dark ? 'rgba(80,64,20,.05)' : 'rgba(190,170,95,.05)'); gr.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=gr; g.fillRect(x-r,y-r,r*2,r*2); }
+  for (let i=0;i<45000;i++){ const v = R(); g.fillStyle = v<.5 ? `rgba(70,55,15,${v*0.32})` : `rgba(200,180,100,${(v-.5)*0.22})`; g.fillRect(R()*w, R()*h, 1.5, 1.5); }
+  g.strokeStyle = 'rgba(70,55,15,.05)'; g.lineWidth = 1;
+  for (let i=0;i<400;i++){ const x=R()*w, y=R()*h, a=R()*6.3; g.beginPath(); g.moveTo(x,y); g.lineTo(x+Math.cos(a)*6, y+Math.sin(a)*6); g.stroke(); }
 }, true);
 const tiles = canvasTex(128, 128, (g,w,h) => {
   g.fillStyle = '#d8d0a4'; g.fillRect(0,0,w,h);
@@ -400,11 +432,12 @@ function wallMesh(list){
     const faces = [
       [[x1,y0,z0],[x1,y0,z1],[x1,y1,z1],[x1,y1,z0],[1,0,0]], [[x0,y0,z1],[x0,y0,z0],[x0,y1,z0],[x0,y1,z1],[-1,0,0]],
       [[x1,y0,z1],[x0,y0,z1],[x0,y1,z1],[x1,y1,z1],[0,0,1]], [[x0,y0,z0],[x1,y0,z0],[x1,y1,z0],[x0,y1,z0],[0,0,-1]]];
+    if (y1 < H - 0.01) faces.push([[x0,y1,z0],[x1,y1,z0],[x1,y1,z1],[x0,y1,z1],[0,1,0]]);   // top of a half wall
     for (const [a,bb,c,d,n] of faces){
       const base = pos.length/3;
       for (const p of [a,bb,c,d]){
         pos.push(...p); nor.push(...n);
-        uv.push((n[0] ? p[2] : p[0]) / 1.6, p[1] / 1.6);
+        uv.push((n[0] ? p[2] : p[0]) / 1.6, (n[1] ? p[2] : p[1]) / 1.6);
         const s = p[1] < 0.01 ? 0.55 : 1.0; col.push(s, s*0.98, s*0.92);
       }
       const e1 = [bb[0]-a[0], bb[1]-a[1], bb[2]-a[2]], e2 = [c[0]-a[0], c[1]-a[1], c[2]-a[2]];
@@ -427,14 +460,108 @@ function floorCeil(parent, x0, z0, w, d){
   const c = new T3.Mesh(cg, ceilMat); c.position.set(x0+w/2, H, z0+d/2); parent.add(c);
 }
 scene.add(wallMesh(mazeWalls));
-floorCeil(scene, 0, 0, SIZE, SIZE);
+{ // floor: subdivided so a slow colour drift breaks up the carpet repeat
+  const seg = 88, fg = new T3.PlaneGeometry(SIZE, SIZE, seg, seg); fg.rotateX(-Math.PI/2);
+  const u = fg.attributes.uv, pos = fg.attributes.position, cols = [];
+  const ph = [0,1,2,3,4,5].map(() => rnd()*6.28);
+  for (let i=0;i<u.count;i++){
+    u.setXY(i, u.getX(i)*SIZE/2.7, u.getY(i)*SIZE/2.7);
+    const x = pos.getX(i), z = pos.getZ(i);
+    const n = 0.5*Math.sin(x*0.23+ph[0])*Math.sin(z*0.19+ph[1]) + 0.3*Math.sin(x*0.61+z*0.37+ph[2]) + 0.2*Math.sin(z*0.83-x*0.29+ph[3]);
+    const k = 0.88 + 0.1*n + (rnd()-0.5)*0.03; cols.push(k, k*(0.99 + 0.02*Math.sin(x*0.4+ph[4])), k*(0.95 + 0.05*Math.sin(z*0.3+ph[5])));
+  }
+  fg.setAttribute('color', new T3.Float32BufferAttribute(cols, 3));
+  const f = new T3.Mesh(fg, new T3.MeshLambertMaterial({map:carpet, vertexColors:true})); f.position.set(SIZE/2, 0, SIZE/2); scene.add(f);
+  const ceil = (x0,z0,x1,z1,y) => { const g = new T3.PlaneGeometry(x1-x0, z1-z0); g.rotateX(Math.PI/2); const cu = g.attributes.uv;
+    for (let i=0;i<cu.count;i++) cu.setXY(i, cu.getX(i)*(x1-x0)/1.2, cu.getY(i)*(z1-z0)/1.2);
+    const m = new T3.Mesh(g, ceilMat); m.position.set((x0+x1)/2, y, (z0+z1)/2); scene.add(m); };
+  ceil(0, 0, SIZE, HW.z0, H); ceil(0, HW.z1, SIZE, SIZE, H); ceil(0, HW.z0, HW.x0, HW.z1, H); ceil(HW.x1, HW.z0, SIZE, HW.z1, H); ceil(HW.x0, HW.z0, HW.x1, HW.z1, H2);
+}
+{ // balcony, railings, ramp
+  const flat = new T3.MeshLambertMaterial({map:carpet}), side = new T3.MeshLambertMaterial({color:0xb7a55a});
+  for (const b of balconyBoxes){ const g = new T3.BoxGeometry(b.max[0]-b.min[0], b.max[1]-b.min[1], b.max[2]-b.min[2]); const m = new T3.Mesh(g, [side,side,flat,side,side,side]); m.position.set((b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2); scene.add(m); }
+  const railMat = new T3.MeshLambertMaterial({color:0x6b6450});
+  for (const b of railBoxes){ const g = new T3.BoxGeometry(b.max[0]-b.min[0], b.max[1]-b.min[1], b.max[2]-b.min[2]); const m = new T3.Mesh(g, railMat); m.position.set((b.min[0]+b.max[0])/2,(b.min[1]+b.max[1])/2,(b.min[2]+b.max[2])/2); scene.add(m); }
+  const L = RAMP.x1 - RAMP.x0, ang = Math.atan2(BAL.y1, L), len = Math.hypot(L, BAL.y1), w = RAMP.z1 - RAMP.z0;
+  const slab = new T3.Mesh(new T3.BoxGeometry(len, 0.12, w), [side,side,flat,side,side,side]);
+  slab.position.set((RAMP.x0+RAMP.x1)/2, BAL.y1/2 - 0.06*Math.cos(ang), (RAMP.z0+RAMP.z1)/2); slab.rotation.z = ang; scene.add(slab);
+  const tri = new T3.BufferGeometry(); const zs = [RAMP.z0, RAMP.z1];
+  const tv = []; for (const z of zs) tv.push(RAMP.x0,0,z, RAMP.x1,0,z, RAMP.x1,BAL.y1,z);
+  tv.push(RAMP.x1,0,RAMP.z0, RAMP.x1,0,RAMP.z1, RAMP.x1,BAL.y1,RAMP.z1, RAMP.x1,0,RAMP.z0, RAMP.x1,BAL.y1,RAMP.z1, RAMP.x1,BAL.y1,RAMP.z0);
+  tri.setAttribute('position', new T3.Float32BufferAttribute(tv, 3)); tri.computeVertexNormals();
+  scene.add(new T3.Mesh(tri, new T3.MeshLambertMaterial({color:0xa8974f, side:T3.DoubleSide})));
+}
 const lightMat = new T3.MeshBasicMaterial({color:0xfffbe2}), deadMat = new T3.MeshBasicMaterial({color:0x8a8466});
 const panelGeo = new T3.PlaneGeometry(1.2, 0.6); panelGeo.rotateX(Math.PI/2);
 const flickers = [];
 for (let y=0;y<N;y++) for (let x=0;x<N;x++){
   const r = rnd(), m = new T3.Mesh(panelGeo, r < 0.08 ? deadMat : r < 0.16 ? lightMat.clone() : lightMat);
-  m.position.set((x+0.5)*C, H-0.004, (y+0.5)*C); scene.add(m);
+  m.position.set((x+0.5)*C, inHall(x,y) ? H2-0.004 : H-0.004, (y+0.5)*C); scene.add(m);
+  if (inHall(x,y) && y === HALL.y0){ const u = new T3.Mesh(panelGeo, lightMat); u.position.set((x+0.5)*C, BAL.y0-0.004, HW.z0+1.75); scene.add(u); }
   if (r >= 0.08 && r < 0.16) flickers.push(m);
+}
+
+// ----- damp patches on the carpet, water stains on the ceiling -----
+function mergeGeos(list){
+  const pos = [], nor = [], uv = [];
+  for (const {geo, m} of list){
+    const g = geo.clone().applyMatrix4(m).toNonIndexed();
+    pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array);
+    if (g.attributes.uv) uv.push(...g.attributes.uv.array); else for (let i=0;i<g.attributes.position.count;i++) uv.push(0,0);
+  }
+  const out = new T3.BufferGeometry();
+  out.setAttribute('position', new T3.Float32BufferAttribute(pos,3)); out.setAttribute('normal', new T3.Float32BufferAttribute(nor,3)); out.setAttribute('uv', new T3.Float32BufferAttribute(uv,2));
+  return out;
+}
+{
+  const blot = (r,g,b,a) => canvasTex(128, 128, (c) => {
+    for (let k=0;k<9;k++){ const x = 64+(R()-0.5)*50, y = 64+(R()-0.5)*50, rr = 18+R()*30, gr = c.createRadialGradient(x,y,0,x,y,rr);
+      gr.addColorStop(0, `rgba(${r},${g},${b},${a})`); gr.addColorStop(0.7, `rgba(${r},${g},${b},${a*0.6})`); gr.addColorStop(1, `rgba(${r},${g},${b},0)`); c.fillStyle = gr; c.fillRect(0,0,128,128); }
+  });
+  const decal = (tex, n, y, up, area, sizeMin, sizeMax) => {
+    const list = [], pg = new T3.PlaneGeometry(1,1); pg.rotateX(up ? -Math.PI/2 : Math.PI/2);
+    for (let i=0;i<n;i++){ const [x0,z0,x1,z1] = area(), s = sizeMin + rnd()*(sizeMax-sizeMin);
+      list.push({geo:pg, m:new M4().compose(new V(x0+rnd()*(x1-x0), y, z0+rnd()*(z1-z0)), new Q().setFromAxisAngle(UP, rnd()*6.3), new V(s*(0.6+rnd()*0.8), 1, s))}); }
+    const mat = new T3.MeshLambertMaterial({map:tex, transparent:true, depthWrite:false, polygonOffset:true, polygonOffsetFactor:-2});
+    const m = new T3.Mesh(mergeGeos(list), mat); m.renderOrder = 1; scene.add(m);
+  };
+  const damp = blot(70,56,18,0.16), stain = blot(120,92,40,0.2);
+  decal(damp, 70, 0.003, true, () => [0,0,SIZE,SIZE], 0.7, 2.8);
+  decal(damp, 6, BAL.y1+0.003, true, () => [HW.x0+0.3, HW.z0+0.3, HW.x1-0.3, BAL.z1-0.3], 0.6, 1.4);
+  decal(stain, 40, H-0.006, false, () => [0,0,SIZE,SIZE], 0.5, 1.8);
+}
+
+// ----- office junk: chairs, filing cabinets and water coolers glitched into the walls -----
+{
+  const mats = {fabric:new T3.MeshLambertMaterial({color:0x3d4656}), metal:new T3.MeshLambertMaterial({color:0x8d9298}), black:new T3.MeshLambertMaterial({color:0x1e1f22}),
+    beige:new T3.MeshLambertMaterial({color:0xc9bf9e}), white:new T3.MeshLambertMaterial({color:0xe9e7df}), blue:new T3.MeshLambertMaterial({color:0x7fb6e0, transparent:true, opacity:0.75})};
+  const bins = {}; for (const k in mats) bins[k] = [];
+  const piece = (mat, geo, x, y, z, rx, ry, rz) => ({mat, geo, m:new M4().compose(new V(x,y,z), new Q().setFromEuler(new T3.Euler(rx||0, ry||0, rz||0)), new V(1,1,1))});
+  const chair = () => {
+    const p = [piece('fabric', new T3.BoxGeometry(0.46,0.08,0.44), 0,0.47,0), piece('fabric', new T3.BoxGeometry(0.44,0.52,0.07), 0,0.78,-0.21, -0.12),
+      piece('metal', new T3.CylinderGeometry(0.025,0.025,0.32,8), 0,0.29,0)];
+    for (let k=0;k<5;k++){ const a = k*Math.PI*2/5; p.push(piece('metal', new T3.BoxGeometry(0.3,0.03,0.04), Math.cos(a)*0.14,0.1,Math.sin(a)*0.14, 0,-a,0)); p.push(piece('black', new T3.SphereGeometry(0.03,6,4), Math.cos(a)*0.28,0.035,Math.sin(a)*0.28)); }
+    for (const sx of [-1,1]) p.push(piece('black', new T3.BoxGeometry(0.04,0.04,0.3), sx*0.24,0.66,0.02), piece('black', new T3.BoxGeometry(0.03,0.18,0.03), sx*0.24,0.56,0.1));
+    return p;
+  };
+  const cabinet = () => { const p = [piece('beige', new T3.BoxGeometry(0.46,1.25,0.6), 0,0.625,0)];
+    for (let k=0;k<4;k++){ p.push(piece('black', new T3.BoxGeometry(0.4,0.008,0.01), 0,0.32+k*0.3,0.301), piece('metal', new T3.BoxGeometry(0.12,0.02,0.02), 0,0.25+k*0.3,0.31)); } return p; };
+  const cooler = () => [piece('white', new T3.BoxGeometry(0.34,0.95,0.34), 0,0.475,0), piece('blue', new T3.CylinderGeometry(0.15,0.15,0.42,14), 0,1.16,0), piece('black', new T3.BoxGeometry(0.1,0.06,0.05), 0,0.75,0.19)];
+  const place = (parts, pos, rot) => { const T = new M4().compose(pos, new Q().setFromEuler(rot), new V(1,1,1)); for (const p of parts) bins[p.mat].push({geo:p.geo, m:T.clone().multiply(p.m)}); };
+  const walls = mazeWalls.filter(b => b.max[1] <= H + 0.01 && (b.max[0]-b.min[0] > 1 || b.max[2]-b.min[2] > 1));
+  for (let i=0;i<34;i++){
+    const b = walls[Math.floor(rnd()*walls.length)], alongX = b.max[0]-b.min[0] > b.max[2]-b.min[2], side = rnd() < 0.5 ? -1 : 1;
+    const t = 0.1 + rnd()*0.8, x = alongX ? b.min[0] + t*(b.max[0]-b.min[0]) : (side < 0 ? b.min[0] : b.max[0]) + side*(0.05 - rnd()*0.3);
+    const z = alongX ? (side < 0 ? b.min[2] : b.max[2]) + side*(0.05 - rnd()*0.3) : b.min[2] + t*(b.max[2]-b.min[2]);
+    const kind = rnd(), stuck = rnd() < 0.45, wallTop = b.max[1];
+    const y = stuck ? 0.2 + rnd()*Math.max(0.1, wallTop - 1.0) : 0;
+    const rot = stuck ? new T3.Euler((rnd()-0.5)*2.2, rnd()*6.3, (rnd()-0.5)*2.2) : new T3.Euler(0, rnd()*6.3, (rnd()-0.5)*0.15);
+    place(kind < 0.7 ? chair() : kind < 0.9 ? cabinet() : cooler(), new V(x, y, z), rot);
+  }
+  for (let i=0;i<10;i++){ const cx = Math.floor(rnd()*N), cy = Math.floor(rnd()*N); if (inHall(cx,cy) && cy === HALL.y0) continue;
+    place(chair(), new V((cx+0.2+rnd()*0.6)*C, 0, (cy+0.2+rnd()*0.6)*C), new T3.Euler(0, rnd()*6.3, rnd() < 0.2 ? Math.PI/2 : 0)); }
+  for (let i=0;i<5;i++) place(rnd() < 0.6 ? chair() : cabinet(), new V(HW.x0+1+rnd()*(HW.x1-HW.x0-2), BAL.y1, HW.z0+0.6+rnd()*2.2), new T3.Euler(0, rnd()*6.3, 0));
+  for (const k in bins) if (bins[k].length) scene.add(new T3.Mesh(mergeGeos(bins[k]), mats[k]));
 }
 
 // ----- lobby visuals (built twice: once for real, once mirrored behind the glass) -----
@@ -893,7 +1020,7 @@ function poseAvatar(av, P){
 const wristCanvas = document.createElement('canvas'); wristCanvas.width = 256; wristCanvas.height = 128;
 const wristTex = new T3.CanvasTexture(wristCanvas); wristTex.encoding = T3.sRGBEncoding;
 const wrist = new T3.Mesh(new T3.PlaneGeometry(0.11, 0.055), new T3.MeshBasicMaterial({map:wristTex}));
-wrist.position.set(-0.027, 0.062, 0); wrist.rotation.y = -Math.PI/2; wrist.rotation.z = Math.PI/2; me.claws[0].add(wrist);
+wrist.position.set(-0.038, 0.072, 0); wrist.rotation.y = -Math.PI/2; wrist.rotation.z = Math.PI/2; me.claws[0].add(wrist);
 let startT = performance.now(), lastWrist = '';
 function drawWrist(){
   const s = Math.floor((performance.now()-startT)/1000), txt = `SCRAPPED ${score}|${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
@@ -963,7 +1090,7 @@ function grab(i){
   if (me.lost[i]) return;
   const np = nearestPart(i, true);
   let bt = null, btd = Infinity;
-  for (const t of playerTargets()){ const d = t.dist(handW[i]); if (d < 0.08 && d < btd){ btd = d; bt = t; } }
+  if (carriedT <= 0) for (const t of playerTargets()){ const d = t.dist(handW[i]); if (d < 0.08 && d < btd){ btd = d; bt = t; } }
   if (bt && btd < np.d + 0.05){                    // a player within reach wins over loose debris
     hs[i] = {mode:'player', id:bt.id, k:bt.k};
     const o = hs[1-i]; if (o.mode === 'player' && o.id === bt.id && o.k !== bt.k){ const d0 = handW[0].distanceTo(handW[1]); hs[i].d0 = o.d0 = d0; }
@@ -1051,11 +1178,38 @@ function updateHolds(dt){
   setStrain(strain);
 }
 const heldBy = p => hs.some(h => (h.part && isAnc(p, h.part)) || (h.k && isAnc(p, h.k)));
+// Swinging or throwing anything into a friend shoves them; a hard hit knocks an arm off,
+// and with both arms gone, a hard hit takes the head.
+function hitPlayers(root){
+  if (!netGame || mode !== 'game' || !mine(root)) return;
+  const ts = playerTargets(); if (!ts.length) return;
+  for (const p of subtree(root)){
+    const c = centerW(p);
+    for (const t of ts){
+      if (t.dist(c) > p.r) continue;
+      const peer = NET.peers[t.id]; if (!peer || clock - (peer.hitT || -1) < 0.3) continue;
+      if (hs.some(h => h.mode === 'player' && h.id === t.id)) continue;          // you're holding them already
+      const sp = root.v.length(); if (sp < BANG_SPARK) continue;
+      peer.hitT = clock;
+      spawnSparks(c, 8 + sp*5, sp*0.6); flash(c, 0.25); sndClank(sp*1.6);
+      for (const i of [0,1]) if (hs[i].root === root) pulse(i, Math.min(1, sp/6), 80);
+      const imp = root.v.clone().multiplyScalar(0.45).add(new V(0, 0.8 + sp*0.1, 0)); if (imp.length() > 5) imp.setLength(5);
+      netSend('ev', {t:'hit', v:r3(imp.toArray())}, [t.id]);
+      if (sp >= BANG_BREAK){
+        const arms = [0,1].filter(i => !peer.lost[i]);
+        let k = t.k[0] === 'a' && !peer.lost[+t.k[3]] ? t.k : arms.length ? 'arm' + pick(arms) : t.k === 'head' || t.k === 'torso' ? 'head' : null;
+        if (k) ripPlayer(t.id, k, -1, root.v.clone().multiplyScalar(0.6));
+      }
+      return;
+    }
+  }
+}
 // Things in your hands bump into each other; a hard bang knocks pieces off, a light tap only clanks.
 const BANG_SPARK = 2.2, BANG_BREAK = 4.5;
 function bash(root){
   const held = root.mode === 'held';
   if (!held && root.v.lengthSq() < 9) return;
+  hitPlayers(root);
   if (clock - (root.bashT || -1) < 0.12) return;
   const mineParts = subtree(root);
   for (const p of mineParts){
@@ -1236,6 +1390,8 @@ function targetPos(id, k){
   const i = +k[3]; if (p.lost[i]) return null; const [a, b] = armEnds(p.av, i); return a.lerp(b, 0.6);
 }
 function updatePlayerGrabs(dt){
+  for (const p of Object.values(NET.peers)) p.pull = null;
+  if (carriedT > 0) for (const i of [0,1]) if (hs[i].mode === 'player') hs[i] = {mode:'none'};
   for (const i of [0,1]){
     const s = hs[i]; if (s.mode !== 'player') continue;
     const tp = targetPos(s.id, s.k);
@@ -1262,20 +1418,24 @@ function updatePlayerGrabs(dt){
     if (ri < 0) return;
     const tp = targetPos(hs[ri].id, hs[ri].k); if (!tp) return;
     const x = Math.max(0, st/0.35);
-    if (st > 0.02) taut.push({a:tp, b:handW[ri].clone()});
+    // the grabbed part visibly stretches out toward your claw, wires showing, like the bots
+    const off = handW[ri].clone().sub(tp).multiplyScalar(0.85); if (off.length() > 0.32) off.setLength(0.32);
+    const peer = NET.peers[hs[ri].id]; if (peer && st > 0.02) peer.pull = {k:hs[ri].k, off};
+    if (st > 0.02) taut.push({a:tp, b:tp.clone().add(off)});
     pulse(0, 0.15 + x*0.7, 20); pulse(1, 0.15 + x*0.7, 20); setStrain(x);
     if (x > 0.5 && R() < 0.3) spawnSparks(tp, 3, 2);
     if (st > 0.35) ripPlayer(hs[ri].id, hs[ri].k, ri);
   }
 }
 let lastDeath = '', carryT = 0, carriedT = 0;
-const carryAcc = {}, handPrevC = [new V(), new V()], carryPending = new V();
-function ripPlayer(id, k, hand){
+const carryAcc = {}, handPrevC = [new V(), new V()], carryPending = new V(), knockV = new V(); let knockT = 0;
+function ripPlayer(id, k, hand, vel){
   const pos = targetPos(id, k); if (!pos) return;
   const tid = NET.id.slice(0,6) + '-t' + (botCounter++);
   netSend('ev', {t:'prip', v:id, k, id:tid, n:myName, p:r3(pos.toArray())});
   applyRip(id, k, tid, NET.id, pos);
   const tr = partsById.get(tid); tr.obj.updateMatrixWorld(true);
+  if (hand < 0){ tr.mode = 'free'; tr.v.copy(vel || new V()); tr.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(10); if (k === 'head') score++; return; }
   hs[0] = {mode:'none'}; hs[1] = {mode:'none'}; startHold(hand, tr, tr);
   if (k === 'head') score++;
   pulse(0, 1, 160); pulse(1, 1, 160);
@@ -1375,7 +1535,10 @@ function vrStep(dt){
   if (!inited){ inited = true; mode = 'lobby'; teleport(LOBBY_SPAWN, LOBBY_YAW); showAvatar(true); }
   for (const i of [0,1]) if (me.lost[i]) io.handLocal[i].copy(io.headLocal);   // a ripped-off arm can't push you around any more
   const was = loco.S.wasTouching.slice();
-  if (carriedT > 0){
+  if (knockT > 0 && carriedT <= 0){                 // got hit: shoved back for a moment
+    knockT -= dt; rig.position.addScaledVector(knockV, dt); knockV.y -= 9.8*dt;
+    loco.InitializeValues(); if (knockT <= 0) loco.S.velocity.copy(knockV).multiplyScalar(0.5);
+  } else if (carriedT > 0){
     carriedT -= dt;
     const step_ = carryPending.clone().multiplyScalar(0.5); carryPending.sub(step_); rig.position.add(step_);
     loco.InitializeValues();                       // hands don't stick to anything while you're being carried
@@ -1510,7 +1673,14 @@ function updateRemoteAvatars(){
     const here = p.m === mode && (mode === 'lobby' || (p.g && p.g === netGame));
     setAvVisible(p.av, here); setAvVisible(p.avM, here && mode === 'lobby'); p.tag.visible = here && !p.headless;
     if (p.headless){ p.av.head.visible = false; }
-    if (here){ poseAvatar(p.av, P); if (mode === 'lobby') poseAvatar(p.avM, P); p.tag.position.copy(P.head).add(new V(0, 0.32, 0)); p.head.copy(P.head); }
+    if (here){
+      poseAvatar(p.av, P); if (mode === 'lobby') poseAvatar(p.avM, P); p.tag.position.copy(P.head).add(new V(0, 0.32, 0)); p.head.copy(P.head);
+      if (p.pull){
+        const jit = new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.012);
+        if (p.pull.k === 'head') p.av.head.position.add(p.pull.off).add(jit);
+        else if (p.pull.k[0] === 'a'){ const i = +p.pull.k[3], [a, b] = armEnds(p.av, i); segTo(p.av.arms[i].up, a, b.add(p.pull.off).add(jit)); p.av.claws[i].position.add(p.pull.off).add(jit); }
+      }
+    }
   }
 }
 function sendPose(){
@@ -1565,7 +1735,13 @@ function onEvent(ev, from){
       else { const i = +ev.k[3]; me.lost[i] = true; release(i, true); hs[i] = {mode:'none'}; applyRip('__self', ev.k, ev.id, from, pos); showMsg(ev.n + ' ripped your arm off!'); }
     } else applyRip(ev.v, ev.k, ev.id, from, pos);
   }
-  else if (ev.t === 'carry'){ carryPending.add(new V().fromArray(ev.d)); carriedT = 0.25; }
+  else if (ev.t === 'carry'){
+    const holdingThem = hs.some(h => h.mode === 'player' && h.id === from);
+    if (holdingThem && NET.id < from) return;          // both grabbed each other: the lower id keeps holding, the other is carried
+    for (const i of [0,1]) if (hs[i].mode === 'player') hs[i] = {mode:'none'};   // can't hold anyone while you're held
+    carryPending.add(new V().fromArray(ev.d)); carriedT = 0.25;
+  }
+  else if (ev.t === 'hit'){ knockV.fromArray(ev.v); knockT = 0.18; pulse(0, 0.9, 120); pulse(1, 0.9, 120); sndClank(6); spawnSparks(loco.headPos().add(new V(0,-0.2,0)), 20, 3); }
   else if (ev.t === 'throw'){ carriedT = 0; carryPending.set(0,0,0); loco.S.velocity.fromArray(ev.v).multiplyScalar(1.1); }
   else if (ev.t === 'need'){ if (isHost()) sendSnapshot(from); }
   else if (ev.t === 'snap'){ loadSnapshot(ev, from); }
@@ -1652,7 +1828,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124005612';
+const BUILD = '20261124011720';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
