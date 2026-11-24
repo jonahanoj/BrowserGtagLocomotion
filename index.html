@@ -4937,7 +4937,18 @@ function popBot(b, quiet){
 // the seeker touched a robot: that's a guess
 function impTouch(p){
   if (!IMP.on || IMP.phase !== 'seek' || IMP.seeker !== NET.id || !p) return;
-  const b = p.bot || (rootOf(p) && rootOf(p).bot); if (!b || b.dead || IMP.picked.has(b)) return;
+  impPick(p.bot || (rootOf(p) && rootOf(p).bot));
+}
+// anything the seeker does to a robot (punch, grab, freeze, burn, blow up, glue, hook, poke...) is a guess
+function impDisturbed(b){
+  const r = b.root;
+  if (b.dead || r.obj.userData.dead || r.mode !== 'bot' || r.parent || (r.frz || 0) > 0.02 || b.burning || b.spin > 0 || (b.stunT || 0) > 0) return true;
+  if (b.head.parent !== r || b.legs.some(l => l.parent !== r) || b.ups.some(u => u.parent !== r)) return true;
+  for (const q of subtree(r)) if ((q.char || 0) > 0.03 || q.burning) return true;
+  return false;
+}
+function impPick(b){
+  if (!b || b.mon || b.dummy || !IMP.on || IMP.phase !== 'seek' || IMP.seeker !== NET.id || IMP.picked.has(b)) return;
   IMP.picked.add(b); IMP.used++;
   const hit = b.fakeOf || null;
   if (hit){ say(b, 'you got me!'); showMsg('FOUND ONE!'); } else { say(b, pick(['not me!','wrong robot!','I am innocent'])); setTimeout(() => popBot(b), 250); }
@@ -4960,19 +4971,21 @@ function updateFake(bot, dt){
   if (root.mode !== 'bot'){ if (root.mode === 'held') return; bot.freeT = (bot.freeT || 0) + dt; if (bot.freeT < 0.8) return;   // knocked over: back on its feet
     root.mode = 'bot'; root.v.set(0, 0, 0); root.w.set(0, 0, 0); root.obj.quaternion.set(0, 0, 0, 1); for (const k of subtree(root)) if (k !== root){ k.obj.position.copy(k.rest); k.obj.quaternion.copy(k.restQ); } }
   bot.freeT = 0;
-  // follow the hider on the floor they're on; stick to the robot paths when possible, but never get left behind
-  const h = fakeTarget(p); let tgt = new V(h.x, h.y - 1.3, h.z), c = cellOf(tgt);
-  if (!NAV.ok(c[0], c[1], c[2])){ const rc = reachableCell(new V(h.x, NAV.lv[c[2]] + 0.5, h.z), c[2]); if (rc && Math.hypot(cellPos(...rc).x - h.x, cellPos(...rc).z - h.z) < 1.2){ c = rc; tgt = cellPos(...rc); } }
-  tgt.y = 0; bot.cell = c;
-  const pos = root.obj.position, ex = tgt.x - pos.x, ez = tgt.z - pos.z;
-  if (Math.hypot(ex, ez) > 4){ pos.set(tgt.x, pos.y, tgt.z); bot.mdir = null; bot.v = 0; }
+  // follow the hider: straight down from their head onto whatever they're over (floor, table, wall top),
+  // so the robot stands where they stand and doesn't jump when they jump
+  const h = fakeTarget(p), tgt = new V(h.x, 0, h.z), pos = root.obj.position, ex = tgt.x - pos.x, ez = tgt.z - pos.z;
+  const fy = floorBelow(new V(pos.x, h.y - 0.25, pos.z));          // under the robot, from the hider's height down
+  if (bot.fy == null) bot.fy = fy > -50 ? fy : 0;
+  if (fy > -50) bot.fy += (fy - bot.fy)*Math.min(1, dt*(fy < bot.fy ? 9 : 14));
+  if (Math.hypot(ex, ez) > 30){ pos.set(tgt.x, pos.y, tgt.z); bot.mdir = null; bot.v = 0; }        // only for a respawn-sized jump
+  bot.cell = cellOf(new V(pos.x, bot.fy + 0.1, pos.z));
   // walk like the robots do: straight lines, heading rounded to the nearest 45 degrees
   const d = Math.hypot(ex, ez), aim = Math.atan2(ex, ez);
   if (bot.mdir == null) bot.mdir = snap45(aim);
   { let da = aim - bot.mdir; da = Math.atan2(Math.sin(da), Math.cos(da)); if (Math.abs(da) > Math.PI*0.17 && d > 0.25) bot.mdir = snap45(aim); }
   const mx = Math.sin(bot.mdir), mz = Math.cos(bot.mdir), proj = ex*mx + ez*mz;
-  const want = d > 0.18 && proj > 0.05 ? Math.min(2.4, Math.max(1.0, d*1.6)) : 0;          // a steady robot pace, catching up if needed
-  bot.v = (bot.v || 0) + (want - (bot.v || 0))*Math.min(1, dt*5);
+  const want = d > 0.18 && proj > 0.05 ? Math.min(14, Math.max(1.0, d*1.8)) : 0;          // a steady robot pace; races to catch up (never teleports)
+  bot.v = (bot.v || 0) + (want - (bot.v || 0))*Math.min(1, dt*(want > bot.v ? 6 : 5));
   const step = Math.min(Math.max(proj, 0), bot.v*dt); pos.x += mx*step; pos.z += mz*step;
   // facing: rounded to 45 degrees too
   const moving = bot.v > 0.3;
@@ -4984,7 +4997,7 @@ function updateFake(bot, dt){
   // the same walk the robots do, with the step rate following the speed
   const run = Math.min(1, bot.v/bot.speed), amp = Math.min(1, bot.v/0.4);
   bot.ph = (bot.ph || 0) + dt*11*Math.max(run, 0.45)*amp;
-  pos.y = NAV.lv[c[2]] + STAND + Math.abs(Math.sin(bot.ph))*0.08*Math.max(run, 0.5)*amp;
+  pos.y = bot.fy + STAND + Math.abs(Math.sin(bot.ph))*0.08*Math.max(run, 0.5)*amp;
   bot.legs.forEach((l, j) => { if (l.parent === root) l.obj.rotation.x = (j ? -1 : 1)*Math.sin(bot.ph)*0.7*amp; });
   const ph = bot.t*11; bot.ups.forEach((u, j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(0.2 + Math.sin(ph)*0.2); });
   if (bot.head.parent === root) bot.head.obj.rotation.z = Math.sin(ph*0.5)*0.12;
@@ -5022,6 +5035,7 @@ function updateImposter(dt, head){
     else if (isHost()) for (const id of members) if (!IMP.known.has(id)){ IMP.known.add(id);
       netSend('ev', {t:'imp', k:'sync', ph:IMP.phase, tt:IMP.t, s:IMP.seeker, h:IMP.hiders, f:IMP.found, n:IMP.guesses, u:IMP.used, st:IMP.seekT}, [id]); }
   }
+  if (IMP.phase === 'seek' && amSeeker()) for (const b of bots.slice()) if (!IMP.picked.has(b) && impDisturbed(b)) impPick(b);
   if (IMP.phase === 'hide' && IMP.t >= IMP_HIDE){ IMP.phase = 'seek'; IMP.t = 0; if (amSeeker()) showMsg('GO! Find the imposters! Touching a robot = a guess'); }
   if (IMP.phase === 'seek' && IMP.t >= IMP.seekT) impEnd('HIDERS WIN!', 'time ran out');
   if (IMP.phase === 'end' && IMP.t >= IMP_END){ IMP.on = false; IMP.phase = 'wait'; IMP.waitT = 0; }
@@ -5707,7 +5721,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124202155';
+const BUILD = '20261124210105';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
