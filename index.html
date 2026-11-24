@@ -4915,6 +4915,9 @@ function impStart(ev){
   Object.assign(IMP, {on:true, phase:'hide', t:0, seeker:ev.s, hiders:ev.h, found:{}, guesses:ev.n, used:0, msg:'', picked:new Set(), seekT:ev.st || seekTime(ev.h.length), known:new Set(gameMembers())});
   for (const b of bots.slice()) if (!b.fakeOf){ const i = bots.indexOf(b); bots.splice(i, 1); if (!b.root.obj.userData.dead) removePart(b.root, true); }
   for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead && p.name !== 'prop') removePart(p, true);
+  // everyone starts the round in one piece: arms back, no burns, no ice
+  me.lost[0] = me.lost[1] = false; myChar.arm0 = myChar.arm1 = myChar.head = myChar.torso = 0; myFrz = 0; myIce = false; myBurn = null;
+  for (const pr of Object.values(NET.peers)){ pr.lost = {0:false, 1:false}; pr.headless = false; }
   if (IMP.seeker === NET.id){ teleport(SPAWN, MAPS[curMap].yaw); IMP.anchor = rig.position.clone(); showMsg('You are the SEEKER! Wait...'); }
   else if (IMP.hiders.includes(NET.id)){ teleport(cellPos(...randomCell()).setY(NAV.lv[0]), R()*6.28); showMsg('You are a HIDER! Blend in with the robots!'); }
   sndBoop();
@@ -5721,7 +5724,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124210105';
+const BUILD = '20261124210446';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
