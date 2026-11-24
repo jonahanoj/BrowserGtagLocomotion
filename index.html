@@ -2655,7 +2655,7 @@ function killBot(bot, remote){
 }
 function detach(p, vel, remote){
   const parent = p.parent; if (!parent) return;
-  if (!remote && netGame && p.id) netSend('ev', {t:'det', p:p.id, v:vel ? r3(vel.toArray()) : [0,0,0]});
+  if (!remote && room() && p.id) netSend('ev', {t:'det', p:p.id, v:vel ? r3(vel.toArray()) : [0,0,0]});
   p.owner = remote || NET.id;
   const S = parent.obj.localToWorld(p.rest.clone());
   parent.kids.splice(parent.kids.indexOf(p), 1); p.parent = null;
@@ -2675,7 +2675,7 @@ function detach(p, vel, remote){
   return S;
 }
 function removePart(root, quiet){
-  if (!quiet && netGame && root.id) netSend('ev', {t:'rm', p:root.id});
+  if (!quiet && room() && root.id) netSend('ev', {t:'rm', p:root.id});
   for (const p of subtree(root)){ p.obj.userData.dead = true; const i = parts.indexOf(p); if (i >= 0) parts.splice(i,1); if (p.id) partsById.delete(p.id); }
   root.obj.parent && root.obj.parent.remove(root.obj);
   for (const i of [0,1]) if (hs[i].root === root) hs[i] = {mode:'none'};
@@ -2691,7 +2691,7 @@ function makeChunk(id, s, hex, owner){
 function shatter(p, remote, specs, vel){
   const hex = firstMat(p).color ? firstMat(p).color.getHex() : 0x8d939a;
   specs = specs || Array.from({length:4 + Math.floor(R()*3)}, (_, k) => ({id:p.id ? p.id + 'c' + k : null, s:0.025 + R()*0.03}));
-  if (!remote && netGame && p.id) netSend('ev', {t:'shat', p:p.id, c:specs, v:vel ? r3(vel.toArray()) : null});
+  if (!remote && room() && p.id) netSend('ev', {t:'shat', p:p.id, c:specs, v:vel ? r3(vel.toArray()) : null});
   const c = centerW(p);
   for (const sp of specs){
     const s = sp.s, ch = makeChunk(sp.id, s, hex, remote || NET.id);
@@ -2913,7 +2913,7 @@ function grab(i){
   let p = np.p;
   for (const m of mines){ if (!m.obj.userData.dead && centerW(m).distanceTo(handW[i]) < 0.11 && !(hs[1-i].root === m)){ p = m; break; } }
   if (!p) return;
-  if (p.name !== 'mine' && rootOf(p).stuck){ const r = rootOf(p); r.stuck = null; r.mode = 'free'; r.asleep = false; if (netGame && r.id) netSend('ev', {t:'unglue', r:r.id}); }
+  if (p.name !== 'mine' && rootOf(p).stuck){ const r = rootOf(p); r.stuck = null; r.mode = 'free'; r.asleep = false; if (room() && r.id) netSend('ev', {t:'unglue', r:r.id}); }
   if (p.name === 'mine' && (p.parent || p.stuck)){ freeMine(p); claim(p); p.obj.updateMatrixWorld(true); startHold(i, p, p); pulse(i, 0.5, 50); sndTap(0.2); return; }
   let root = rootOf(p); const o = hs[1-i];
   if (!mine(root)){
@@ -3419,11 +3419,11 @@ function startCut(i, root, contact, A, B, dir, nBar, bv){
   const a0 = A.clone().sub(P).dot(dir), a1 = B.clone().sub(P).dot(dir); j.a0 = Math.min(a0, a1) - 0.01; j.a1 = Math.max(a0, a1) + 0.01;
   kerfExtent(j); j.tip = j.near;
   cutJobs[i] = j;
-  if (netGame && root.id) netSend('ev', {t:'kerf', r:root.id, f:r3([...PL.toArray(), ...nL.toArray(), ...dL.toArray(), ...uL.toArray()])});
+  if (room() && root.id) netSend('ev', {t:'kerf', r:root.id, f:r3([...PL.toArray(), ...nL.toArray(), ...dL.toArray(), ...uL.toArray()])});
   const b = root.bot; if (b && !b.dead && root === b.root){ setFace(b, 'scared'); if (R() < 0.5) say(b, pick(['AAAAA','not the saw!','this is so unsafe'])); }
   if (!mine(root) && root.mode !== 'held') claim(root);
 }
-function abortCut(i){ const j = cutJobs[i]; cutJobs[i] = null; if (!j) return; kerfEnd(j); if (netGame && j.root.id) netSend('ev', {t:'kerfx', r:j.root.id}); }
+function abortCut(i){ const j = cutJobs[i]; cutJobs[i] = null; if (!j) return; kerfEnd(j); if (room() && j.root.id) netSend('ev', {t:'kerfx', r:j.root.id}); }
 function advanceCut(i, dt, A, B){
   const j = cutJobs[i], root = j.root;
   const {P, d, u} = kerfFrame(j);
@@ -3435,7 +3435,7 @@ function advanceCut(i, dt, A, B){
   const bite = P.clone().addScaledVector(u, j.tip).addScaledVector(d, Math.max(j.dLo, Math.min(j.dHi, A.clone().lerp(B, 0.5).sub(P).dot(d))));
   spawnSparks(bite, 6, 3.5); if (R() < 0.5) emitAsh(bite, 1, 0.01);
   if (root.mode !== 'held' && mine(root)){ root.obj.position.add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.005)); if (root.bot && root === root.bot.root) root.bot.stunT = 0.3; }
-  j.sendT -= dt; if (j.sendT <= 0 && netGame && root.id){ j.sendT = 0.1; netSend('ev', {t:'kerfp', r:root.id, x:r3([j.tip, j.a0, j.a1])}); }
+  j.sendT -= dt; if (j.sendT <= 0 && room() && root.id){ j.sendT = 0.1; netSend('ev', {t:'kerfp', r:root.id, x:r3([j.tip, j.a0, j.a1])}); }
   if (j.tip >= j.far - 0.01) finishCut(j);
 }
 function finishCut(j){
@@ -3454,7 +3454,7 @@ function finishCut(j){
       info.cut[q.id] = [...r3(nL.toArray()), Math.round(nL.dot(q.obj.worldToLocal(P.clone()))*10000)/10000];
     } else (dd >= 0 ? info.A : info.B).push(q.id);
   }
-  if (netGame && root.id) netSend('ev', {t:'aslice', r:root.id, n:r3(n.toArray()), info});
+  if (room() && root.id) netSend('ev', {t:'aslice', r:root.id, n:r3(n.toArray()), info});
   sliceAssembly(root, n, info, NET.id);
 }
 function sliceAssembly(root, nW, info, owner){
@@ -3578,12 +3578,12 @@ function ignitePart(p, remote){
     if (o.parent === p.obj){ const e = new T3.Mesh(o.geometry, p.ember); e.position.copy(o.position); e.quaternion.copy(o.quaternion); e.scale.copy(o.scale); e.userData.ember = true; p.obj.add(e); }
     p.loose.push(o);
   }
-  if (!remote && netGame && p.id) netSend('ev', {t:'burn', p:p.id});
+  if (!remote && room() && p.id) netSend('ev', {t:'burn', p:p.id});
   const b = p.bot; if (b && !b.dead){ b.burning = true; setFace(b, 'scared'); if (!b.screamT || clock - b.screamT > 2.5){ b.screamT = clock; say(b, pick(SCREAMS)); scream(); } }
 }
 function ashPart(p, remote){
   if (p.obj.userData.dead) return;
-  if (!remote && netGame && p.id) netSend('ev', {t:'ash', p:p.id});
+  if (!remote && room() && p.id) netSend('ev', {t:'ash', p:p.id});
   const c = centerW(p); emitAsh(c, 30 + Math.round(p.r*150), p.r*0.8);
   for (const k of p.kids.slice()) detach(k, new V((R()-0.5)*0.5, 0.3, (R()-0.5)*0.5), remote || undefined);
   if (p.parent){ p.parent.kids.splice(p.parent.kids.indexOf(p), 1); p.parent = null; scene.attach(p.obj); }
@@ -3956,7 +3956,7 @@ function updateLaser(i, dt){
     else if (!p.fire){
       charPart(p, dt/(0.9 + p.r*5)); lastCombat = clock;
       const b = p.bot; if (b && !b.dead && R() < dt*0.7){ setFace(b, 'scared'); say(b, pick(['ow ow ow','it burns!!','LASER!','stop pointing that at me'])); }
-      if (netGame && p.id && clock - (charSent.get(p) || 0) > 0.15){ charSent.set(p, clock); netSend('ev', {t:'char', p:p.id, c:r3(p.char)}); }
+      if (room() && p.id && clock - (charSent.get(p) || 0) > 0.15){ charSent.set(p, clock); netSend('ev', {t:'char', p:p.id, c:r3(p.char)}); }
       if (p.char >= 1) ashPart(p);
     }
   }
@@ -4087,7 +4087,7 @@ function setFreeze(root, f, remote, it){
   if (f >= 1 && !root.ice){ encase(root, it != null ? it : BOT_ICE); force = true; }
   if (root.ice && it != null) root.iceT = it;
   if (Math.abs(was - f) > 0.015 || force || f === 0) tintTree(root);
-  if (!remote && netGame && root.id && (force || f === 0 || clock - (root.frzSent || 0) > 0.15)){ root.frzSent = clock; netSend('ev', {t:'frz', r:root.id, f:r3(f), it:root.ice ? r3(root.iceT) : undefined}); }
+  if (!remote && room() && root.id && (force || f === 0 || clock - (root.frzSent || 0) > 0.15)){ root.frzSent = clock; netSend('ev', {t:'frz', r:root.id, f:r3(f), it:root.ice ? r3(root.iceT) : undefined}); }
 }
 function encase(root, it){
   root.ice = true; root.iceT = it;
@@ -4108,7 +4108,7 @@ function thawRoot(root, remote){
   removeIce(root); root.frz = 0.35; root.frzHitT = clock; tintTree(root);
   for (let k=0;k<25;k++) frostPuff(at.clone().add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.5)));
   if (AC) noiseHit(0.5, 1200, 0.6, 0.15);
-  if (!remote && netGame && root.id) netSend('ev', {t:'thaw', r:root.id});
+  if (!remote && room() && root.id) netSend('ev', {t:'thaw', r:root.id});
   const b = root.bot; if (b && !b.dead && b.root === root){ setFace(b, 'idle'); say(b, pick(['I c-c-can move again','that was cold','never again'])); }
 }
 function meltRoot(root, amt){
@@ -4119,7 +4119,7 @@ function meltRoot(root, amt){
 function shatterIce(root, vel, remote){
   if (!root.ice) return;
   const c = root.iceM.position.clone(), sz = Math.max(root.iceM.scale.x, root.iceM.scale.y)*0.6;
-  if (!remote && netGame && root.id) netSend('ev', {t:'ism', r:root.id});
+  if (!remote && room() && root.id) netSend('ev', {t:'ism', r:root.id});
   removeIce(root); root.frz = 0; frozenRoots.delete(root); iceBurst(c, sz, 1.6, vel); flash(c, 0.6); lastCombat = clock;
   if (remote) return;                               // the pieces arrive as their own events
   if (!mine(root) && root.mode !== 'held') claim(root);
@@ -4251,7 +4251,7 @@ const glueSpots = [];
 function addGlueSpot(p, local, remote){
   const m = new T3.Mesh(new T3.SphereGeometry(0.03, 8, 6), glueMat); m.position.copy(local); m.scale.set(1, 0.7, 1); m.userData.ember = true; p.obj.add(m);
   glueSpots.push({p, local:local.clone(), m, t:10, age:0});
-  if (!remote && netGame && p.id) netSend('ev', {t:'gspot', r:p.id, l:r3(local.toArray())});
+  if (!remote && room() && p.id) netSend('ev', {t:'gspot', r:p.id, l:r3(local.toArray())});
 }
 function updateGlue(i, dt){
   const trig = io.trig[i] > 0.5, press = trig && !gluePrev[i]; gluePrev[i] = trig;
@@ -4261,7 +4261,7 @@ function updateGlue(i, dt){
   const [tip0, dir] = weaponRay(gg, -0.2), tip = tip0.clone().addScaledVector(dir, -0.15), held = [0,1].map(k => hs[k].mode === 'hold' && k === i ? hs[k].root : null)[i];
   const hit = rayPart(tip, dir, 0.6, held);
   if (!hit || hit.p.name === 'mine'){ frostPuff(tip.clone().addScaledVector(dir, 0.1)); return; }
-  const p = hit.p; if (!p.id && netGame){ p.id = NET.id.slice(0,6) + '-p' + (botCounter++); partsById.set(p.id, p); }
+  const p = hit.p; if (!p.id && room()){ p.id = NET.id.slice(0,6) + '-p' + (botCounter++); partsById.set(p.id, p); }
   p.obj.updateMatrixWorld(true);
   addGlueSpot(p, p.obj.worldToLocal(tip.clone().addScaledVector(dir, hit.t)));
 }
@@ -4282,12 +4282,12 @@ function glueAttach(piece, spotW){
   const mineQ = subtree(piece); let best = null, bd = 0.035;
   for (const q of parts){ if (q.obj.userData.dead || q.name === 'mine' || mineQ.includes(q) || rootOf(q).stuck) continue; const d = centerW(q).distanceTo(spotW) - q.r; if (d < bd){ bd = d; best = q; } }
   if (!best) return false;
-  const tp = best; if (!tp.id && netGame){ tp.id = NET.id.slice(0,6) + '-p' + (botCounter++); partsById.set(tp.id, tp); }
+  const tp = best; if (!tp.id && room()){ tp.id = NET.id.slice(0,6) + '-p' + (botCounter++); partsById.set(tp.id, tp); }
   for (const i of [0,1]) if (hs[i].root === piece){ release(i, true); hs[i] = {mode:'none'}; }
   tp.obj.updateMatrixWorld(true); piece.obj.updateMatrixWorld(true);
   const l = tp.obj.worldToLocal(piece.obj.getWorldPosition(new V())), lq = tp.obj.getWorldQuaternion(new Q()).invert().multiply(piece.obj.getWorldQuaternion(new Q()));
   const ev = {t:'glue', r:piece.id, at:{k:'part', pid:tp.id, l:r3(l.toArray()), q:r3(lq.toArray()), nb:1}};
-  glueApply(ev, piece, tp); if (netGame) netSend('ev', ev); glueSplat(spotW); return true;
+  glueApply(ev, piece, tp); if (room()) netSend('ev', ev); glueSplat(spotW); return true;
 }
 function updateGlueSpots(dt){
   for (let k = glueSpots.length - 1; k >= 0; k--){
@@ -4366,7 +4366,7 @@ function bladeCut(root, P, v){
   for (const i of [0,1]) if (hs[i].root === root) hs[i] = {mode:'none'};
   if (root.frz > 0){ removeIce(root); root.frz = 0; }
   if (root.parent) detach(root, null);
-  if (netGame && root.id) netSend('ev', {t:'aslice', r:root.id, n:r3(n.toArray()), info});
+  if (room() && root.id) netSend('ev', {t:'aslice', r:root.id, n:r3(n.toArray()), info});
   sliceAssembly(root, n, info, NET.id); spawnSparks(P, 40, 4); sndSnap(); lastCombat = clock;
   return true;
 }
@@ -4486,34 +4486,53 @@ function buttonPokes(){
 const range = {on:false, move:false, slots:[1.5, 3.5, 5.5].map(z => ({z, b:null, t:3}))};
 const inRange = () => mode === 'lobby' && loco.headPos().x > LB.x1 + 0.05;
 const armed = () => mode === 'game' || inRange();
-function removeBot(b){ if (!b) return; if (b.root && !b.root.obj.userData.dead) removePart(b.root, true); const i = bots.indexOf(b); if (i >= 0) bots.splice(i, 1); }
+function removeBot(b, loud){ if (!b) return; if (b.root && !b.root.obj.userData.dead) removePart(b.root, !loud); const i = bots.indexOf(b); if (i >= 0) bots.splice(i, 1); }
 function rangeClear(){ for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead && !(p.bot && p.bot.dummy && !p.bot.dead && p === p.bot.root)){ const c = centerW(p); if (c.x > RG.x0 && c.x < RG.x1 + 1 && c.z > RG.z0 - 1 && c.z < RG.z1 + 1 && c.y < H + 1) removePart(p, true); } }
 function spawnDummy(sl){
   const b = makeBot(0xff8a1f, new V(-5.5, STAND, sl.z)); b.dummy = true; b.slot = sl; b.root.obj.rotation.y = -Math.PI/2; b.dir = sl.z < 3 ? 1 : -1; b.sayT = 8 + R()*10;
   spawnSparks(new V(-5.5, 0.6, sl.z), 30, 2); sl.b = b; sl.t = 0;
 }
+// in the lobby the dummies are shared: whoever has been around longest (lowest id) runs them, and the
+// buttons work for everyone
+function rangeEv(ev, from){
+  if (ev.k === 'set'){ range.on = ev.on; range.move = ev.move; if (!range.on){ for (const b of bots.slice()) if (b.dummy) removeBot(b); for (const sl of range.slots){ sl.b = null; sl.t = 3; } } }
+  if (ev.k === 'clear') rangeClear();
+  if (ev.k === 'sync'){ range.on = ev.on; range.move = ev.move;
+    for (const [id, si, c] of ev.d) if (!bots.some(b => b.id === id) && !partsById.has(id + '.0')){ const sl = range.slots[si], b = makeBot(c, new V(-5.5, STAND, sl.z), id); b.dummy = true; b.slot = sl; b.root.owner = from; b.root.obj.rotation.y = -Math.PI/2; b.dir = 1; b.sayT = 99; } }
+}
+let rangeSyncT = 0;
 function updateRange(dt){
   if (mode !== 'lobby') return;
+  const shared = !!room(), lead = !shared || lobbyLeader() === NET.id;
   for (const w of RBTN){
     let by = -1; for (const i of [0,1]){ const h = handW[i]; if (Math.hypot(h.x-w.x, h.z-w.z) < w.cap+0.04 && h.y < w.top+0.06+0.05+0.02) by = i; }
     w.caps.forEach(c => c.position.y = w.top + (by >= 0 ? 0.01 : 0.03));
     if (by >= 0 && !w.down){ sndBoop(); pulse(by, 0.8, 90);
-      if (w.k === 'dummy'){ range.on = !range.on; if (!range.on) for (const sl of range.slots){ removeBot(sl.b); sl.b = null; sl.t = 3; } }
+      if (w.k === 'dummy'){ range.on = !range.on; if (!range.on) for (const sl of range.slots){ if (sl.b && mine(sl.b.root)) removeBot(sl.b); sl.b = null; sl.t = 3; } }
       if (w.k === 'move') range.move = !range.move;
-      if (w.k === 'clear'){ rangeClear(); for (const sl of range.slots) if (sl.b && sl.b.dead){ removeBot(sl.b); sl.b = null; sl.t = 3; } } }
+      if (w.k === 'clear'){ rangeClear(); for (const sl of range.slots) if (sl.b && sl.b.dead && mine(sl.b.root)){ removeBot(sl.b); sl.b = null; sl.t = 3; } if (shared) netSend('ev', {t:'rng', k:'clear'}); }
+      if (shared && w.k !== 'clear') netSend('ev', {t:'rng', k:'set', on:range.on, move:range.move});
+      if (!range.on) for (const b of bots.slice()) if (b.dummy){ removeBot(b); } }
     w.down = by >= 0;
     const lit = w.k === 'dummy' ? range.on : w.k === 'move' ? range.move : false; w.caps.forEach(c => c.material.emissive.setHex(lit ? 0x553311 : 0x000000));
   }
-  if (!range.on) return;
+  // dummies whose runner left the lobby: the new leader takes them
+  if (shared) for (const b of bots) if (b.dummy && b.root.owner && b.root.owner !== NET.id && !roomMembers().includes(b.root.owner) && lead) for (const q of subtree(b.root)) q.owner = NET.id;
+  for (const b of bots.slice()) if (b.dummy && b.root.obj.userData.dead && !lead){ const i = bots.indexOf(b); if (i >= 0) bots.splice(i, 1); }
+  for (const sl of range.slots){ const k = range.slots.indexOf(sl); sl.b = bots.find(b => b.dummy && b.slot === sl && !b.root.obj.userData.dead) || sl.b; }
+  if (shared && lead){ rangeSyncT -= dt; if (rangeSyncT <= 0){ rangeSyncT = 2; netSend('ev', {t:'rng', k:'sync', on:range.on, move:range.move, d:bots.filter(b => b.dummy && !b.dead).map(b => [b.id, range.slots.indexOf(b.slot), b.color])}); } }
+  if (!range.on || !lead) return;
   for (const sl of range.slots){
     const b = sl.b, gone = !b || b.dead || b.root.obj.userData.dead || !bots.includes(b) || b.root.obj.position.distanceTo(new V(-5.5, 0, sl.z)) > 25;
     if (!gone){ sl.t = 0; continue; }
-    sl.t += dt; if (sl.t > 3){ if (b && bots.includes(b) && !b.root.obj.userData.dead && !b.dead) removeBot(b); else if (b){ const i = bots.indexOf(b); if (i >= 0) bots.splice(i, 1); } spawnDummy(sl); }
+    sl.t += dt; if (sl.t > 3){ if (b && bots.includes(b) && !b.root.obj.userData.dead) removeBot(b, shared); else if (b){ const i = bots.indexOf(b); if (i >= 0) bots.splice(i, 1); } spawnDummy(sl);
+      if (shared) netSend('ev', {t:'rng', k:'sync', on:range.on, move:range.move, d:[[sl.b.id, range.slots.indexOf(sl), sl.b.color]]}); }
   }
 }
 function updateDummy(bot, dt){
   const root = bot.root; bot.t += dt;
   if (bot.sp){ bot.spT -= dt; if (bot.spT <= 0) say(bot, null); }
+  if (!mine(root) && !bot.dead) return;
   if (bot.dead){ bot.deadT += dt; if (bot.deadT > 4 && bot.face !== 'off'){ bot.face = 'off'; if (!bot.faceP.obj.userData.dead) bot.screen.material = FACES.off; } return; }
   if (root.obj.userData.dead){ killBot(bot); return; }
   if (root.mode === 'held'){ bot.ups.forEach((u, j) => { if (u.parent === root && !isStretched(u)) u.obj.rotation.z = (j ? 1 : -1)*(2.2 + Math.sin(bot.t*20 + j)*0.9); }); return; }
@@ -4942,7 +4961,11 @@ const NET = {id:'local-' + Math.random().toString(36).slice(2,10), peers:{}, sen
 const myName = 'Robot-' + (1000 + Math.floor(R()*9000));
 let netGame = null, netT = 0, helloT = 0, poseT = 0, gameJoinT = 0, needT = 0, needTries = 0, gotSnap = false;
 const r3 = v => Array.isArray(v) ? v.map(x => Math.round(x*1000)/1000) : Math.round(v*1000)/1000;
-function mine(root){ return !netGame || !root.owner || root.owner === NET.id; }
+function lobbyPeers(){ return Object.keys(NET.peers).filter(id => NET.peers[id].m === 'lobby' && performance.now() - (NET.peers[id].seen || 0) < 6000); }
+function room(){ return netGame || (mode === 'lobby' && lobbyPeers().length ? 'LOBBY' : null); }
+function roomMembers(){ return mode === 'lobby' ? [NET.id].concat(lobbyPeers()) : gameMembers(); }
+function lobbyLeader(){ return roomMembers().sort()[0]; }
+function mine(root){ return !room() || !root.owner || root.owner === NET.id; }
 function netSend(type, data, target){ if (NET.send) try { NET.send(type, data, target); } catch(e){} }
 function gameMembers(){ return [NET.id].concat(Object.keys(NET.peers).filter(id => NET.peers[id].g === netGame && netGame)); }
 // the host is whoever has been in this match the longest (someone who died and came back is the newest)
@@ -4953,7 +4976,7 @@ function hostId(){
   return c.slice().sort()[0];
 }
 function isHost(){ return !netGame || hostId() === NET.id; }
-function claim(root){ root.owner = NET.id; if (netGame && root.id) netSend('ev', {t:'claim', r:root.id}); }
+function claim(root){ root.owner = NET.id; if (room() && root.id) netSend('ev', {t:'claim', r:root.id}); }
 function resetWorld(){
   for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead) removePart(p, true);
   bots.length = 0; respawnTimers.length = 0; wires.length = 0;
@@ -5051,14 +5074,16 @@ function sendState(){
   const list = [];
   for (const p of parts){
     if (p.parent || !p.id || p.obj.userData.dead || !mine(p) || p.stuck) continue;
+    if (mode === 'lobby' && p.obj.position.x > 0) continue;
     const o = p.obj, e = {i:p.id, p:r3(o.position.toArray()), q:r3(o.quaternion.toArray()), m:p.mode};
     const kids = subtree(p).slice(1); if (kids.length) e.k = kids.map(k => [k.id, ...r3(k.obj.position.toArray()), ...r3(k.obj.quaternion.toArray())]);
     if (p.bot && p === p.bot.root){ e.f = p.bot.face; e.s = p.bot.said || ''; }
     list.push(e);
   }
-  if (list.length) netSend('st', list, gameMembers().filter(id => id !== NET.id));
+  if (list.length) netSend('st', list, roomMembers().filter(id => id !== NET.id));
 }
 function onState(list, from){
+  { const pg = NET.peers[from]; if (pg && pg.m && ((pg.m === 'lobby') !== (mode === 'lobby'))) return; }
   for (const e of list){
     const p = partsById.get(e.i); if (!p || p.obj.userData.dead) continue;
     if (p.parent) detach(p, null, from);                // we missed a rip: catch up
@@ -5076,7 +5101,9 @@ function applyRemoteState(){
   }
 }
 function onEvent(ev, from){
-  { const pg = NET.peers[from]; if (netGame && pg && pg.g && pg.g !== netGame && ev.t !== 'need') return; }   // someone in a different game
+  { const pg = NET.peers[from]; if (netGame && pg && pg.g && pg.g !== netGame && ev.t !== 'need') return;   // someone in a different game
+    if (pg && pg.m && ev.t !== 'need' && ((pg.m === 'lobby') !== (mode === 'lobby'))) return; }         // lobby stuff stays in the lobby
+  if (ev.t === 'rng'){ if (mode === 'lobby') rangeEv(ev, from); return; }
   const p = ev.p ? partsById.get(ev.p) : null;
   if (ev.t === 'mon'){ if (ev.k === 'grow'){ const b = bots.find(x => x.id === ev.b); if (b){ b.gn = ev.n; growLimb(b, ev.s, true); } } else if (ev.k === 'hit'){ if (mode === 'game') monsterHitMe(ev.x ? new V().fromArray(ev.x) : null); } else if (MAPS.backrooms.monEv) MAPS.backrooms.monEv(ev, from); return; }
   if (ev.t === 'mapev'){ const M = MAPS[ev.m]; if (M && M.onEv && ev.m === curMap) M.onEv(ev, from); return; }
@@ -5215,7 +5242,7 @@ function adoptOrphans(){
 function netTick(dt){
   helloT -= dt; if (helloT <= 0){ helloT = 1; netHello(); adoptOrphans(); for (const [id,p] of Object.entries(NET.peers)) if (performance.now() - p.seen > 6000){ dropAvatar(p); delete NET.peers[id]; } }
   if ((renderer.xr.isPresenting || window.__vr) && inited){ poseT -= dt; if (poseT <= 0){ poseT = 1/20; sendPose(); } }
-  if (netGame && mode === 'game'){ netT -= dt; if (netT <= 0){ netT = 1/12; sendState(); } }
+  if (room() && (mode === 'game' || mode === 'lobby')){ netT -= dt; if (netT <= 0){ netT = 1/12; sendState(); } }
   if (netGame && mode === 'game' && !gotSnap && needTries && needTries < 6){ needT -= dt; if (needT <= 0){ needT = 1.5; needTries++; if (!isHost()) netSend('ev', {t:'need'}); } }
   updateRemoteAvatars(); updateBoard();
 }
@@ -5271,7 +5298,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124162443';
+const BUILD = '20261124163109';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
