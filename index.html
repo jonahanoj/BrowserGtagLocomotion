@@ -71,7 +71,7 @@ function makeLoco(THREE, boxes, io){
   const UP = new V(0,1,0);
 
   // ---- broad phase: a 2 m grid so each query only tests nearby boxes ----
-  const GS = 2, GX0 = -30, GZ0 = -10, GW = 45, GD = 245, qOut = []; let grid = null, gridN = -1, stamp = 0;
+  const GS = 2, GX0 = -30, GZ0 = -10, GW = 45, GD = 365, qOut = [], dyn = (window.DYN_BOXES = window.DYN_BOXES || []); let grid = null, gridN = -1, stamp = 0;
   function buildGrid(){
     grid = Array.from({length:GW*GD}, () => []); gridN = boxes.length;
     for (const b of boxes){
@@ -85,7 +85,8 @@ function makeLoco(THREE, boxes, io){
     stamp++; qOut.length = 0;
     const x0 = Math.max(0, Math.floor((lo[0]-GX0)/GS)), x1 = Math.min(GW-1, Math.floor((hi[0]-GX0)/GS));
     const z0 = Math.max(0, Math.floor((lo[2]-GZ0)/GS)), z1 = Math.min(GD-1, Math.floor((hi[2]-GZ0)/GS));
-    for (let z=z0; z<=z1; z++) for (let x=x0; x<=x1; x++) for (const b of grid[z*GW+x]) if (b._s !== stamp){ b._s = stamp; qOut.push(b); }
+    for (let z=z0; z<=z1; z++) for (let x=x0; x<=x1; x++) for (const b of grid[z*GW+x]) if (b._s !== stamp && !b.off){ b._s = stamp; qOut.push(b); }
+    for (const b of dyn) if (!b.off && b.min[0] <= hi[0] + 0.5 && b.max[0] >= lo[0] - 0.5 && b.min[2] <= hi[2] + 0.5 && b.max[2] >= lo[2] - 0.5) qOut.push(b);
     return qOut;
   }
 
@@ -307,7 +308,7 @@ function makeLoco(THREE, boxes, io){
       const k = hs > dec ? (hs-dec)/hs : 0; S.velocity.x *= k; S.velocity.z *= k;
     }
   }
-  return {P, S, InitializeValues, Update, Physics, Turn, headPos, handPos, sphereCast, query};
+  return {P, S, InitializeValues, Update, Physics, Turn, headPos, handPos, sphereCast, query, dyn};
 }
 // ===== </loco> =====
 </script>
@@ -389,7 +390,7 @@ const PED = {x:-18.9, z:2.3, top:0.55, cap:0.2};    // PLAY button pedestal (fro
 const LOBBY_SPAWN = new V(-17.9, 0, 3.6), LOBBY_YAW = Math.PI/2;
 const PED2 = {x:-18.9, z:4.9, top:0.55, cap:0.2};   // PLAY TOGETHER (front-left of spawn)
 // weapon buttons along the north wall: the claw that presses one gets that weapon
-const WPN = [{k:'none', x:-14.4, col:0x9aa0a6, label:'NONE'}, {k:'hammer', x:-15.05, col:0xff9a2a, label:'HAMMER'}, {k:'saw', x:-15.7, col:0xff3b2f, label:'CHAINSAW'}, {k:'flame', x:-16.35, col:0x3aa0ff, label:'FLAMETHROWER'}, {k:'mine', x:-17.0, col:0x5fd35a, label:'MINE'}].map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
+const WPN = [{k:'none', x:-14.4, col:0x9aa0a6, label:'NONE'}, {k:'hammer', x:-15.05, col:0xff9a2a, label:'HAMMER'}, {k:'saw', x:-15.7, col:0xff3b2f, label:'CHAINSAW'}, {k:'flame', x:-16.35, col:0x3aa0ff, label:'FLAMETHROWER'}, {k:'mine', x:-17.0, col:0x5fd35a, label:'MINE'}, {k:'laser', x:-17.65, col:0xff3050, label:'LASER'}, {k:'hook', x:-18.3, col:0xb0905a, label:'GRAPPLE'}].map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
 addBox([LB.x0-1,-1,LB.z0-1],[LB.x1+1,0,LB.z1+1]); addBox([LB.x0-1,H,LB.z0-1],[LB.x1+1,H+1,LB.z1+1]);
 addBox([LB.x0-TW/2,0,LB.z0-TW/2],[LB.x0+TW/2,H,LB.z1+TW/2]);
 addBox([LB.x1-TW/2,0,LB.z0-TW/2],[LB.x1+TW/2,H,LB.z1+TW/2]);
@@ -399,7 +400,7 @@ addBox([PED.x-0.25,0,PED.z-0.25],[PED.x+0.25,PED.top,PED.z+0.25]);
 addBox([PED.x-PED.cap,PED.top,PED.z-PED.cap],[PED.x+PED.cap,PED.top+0.08,PED.z+PED.cap]);
 addBox([PED2.x-0.25,0,PED2.z-0.25],[PED2.x+0.25,PED2.top,PED2.z+0.25]);
 // map buttons along the south wall: pick where PLAY / PLAY TOGETHER takes you
-const MAPBTN = [{k:'backrooms', x:-19.25, col:0xe2cf72}, {k:'forest', x:-18.6, col:0x4caf50}, {k:'city', x:-17.95, col:0x9aa7b8}, {k:'cave', x:-17.3, col:0xb0703c}, {k:'house', x:-16.65, col:0xe08a5a}].map(w => Object.assign(w, {z:6.35, top:0.55, cap:0.15}));
+const MAPBTN = [{k:'backrooms', x:-19.6, col:0xe2cf72}, {k:'forest', x:-19.0, col:0x4caf50}, {k:'city', x:-18.4, col:0x9aa7b8}, {k:'cave', x:-17.8, col:0xb0703c}, {k:'house', x:-17.2, col:0xe08a5a}, {k:'sewer', x:-16.6, col:0x6a8a4a}, {k:'market', x:-16.0, col:0x3a9ad8}].map(w => Object.assign(w, {z:6.35, top:0.55, cap:0.15}));
 for (const w of WPN.concat(MAPBTN)){ addBox([w.x-0.2,0,w.z-0.2],[w.x+0.2,w.top,w.z+0.2]); addBox([w.x-w.cap,w.top,w.z-w.cap],[w.x+w.cap,w.top+0.06,w.z+w.cap]); }
 addBox([PED2.x-PED2.cap,PED2.top,PED2.z-PED2.cap],[PED2.x+PED2.cap,PED2.top+0.08,PED2.z+PED2.cap]);
 
@@ -655,15 +656,15 @@ function drawBoard(lines){
   boardTex.needsUpdate = true;
 }
 drawBoard(['Looking for players on the network...']);
-const mapTex = signTex(1060, 200, (g,W,Hh) => {
+const mapTex = signTex(1400, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK A MAP', W/2, 62);
   g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('then RED = play solo,  BLUE = play online', W/2, 108);
-  g.font = 'bold 36px VT323, monospace'; [['HOUSE','#ffb08a'],['CAVE','#e0a070'],['CITY','#c9d3e0'],['FOREST','#7fe07a'],['BACKROOMS','#e2cf72']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.1 + i*0.2), 168); });
+  g.font = 'bold 34px VT323, monospace'; [['MARKET','#8fd0ff'],['SEWERS','#a8d08a'],['HOUSE','#ffb08a'],['CAVE','#e0a070'],['CITY','#c9d3e0'],['FOREST','#7fe07a'],['BACKROOMS','#e2cf72']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/7, 168); });
 });
-const weaponTex = signTex(1060, 200, (g,W,Hh) => {
+const weaponTex = signTex(1400, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK YOUR WEAPON', W/2, 62);
   g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('one per claw: press with the claw you want it on', W/2, 108);
-  g.font = 'bold 36px VT323, monospace'; [['MINE','#7fe07a'],['FLAMER','#5ab4ff'],['CHAINSAW','#ff6a5e'],['HAMMER','#ffb04a'],['NONE','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.1 + i*0.2), 168); });
+  g.font = 'bold 36px VT323, monospace'; [['GRAPPLE','#e0c08a'],['LASER','#ff6070'],['MINE','#7fe07a'],['FLAMER','#5ab4ff'],['CHAINSAW','#ff6a5e'],['HAMMER','#ffb04a'],['NONE','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/7, 168); });
 });
 function mapIcon(k){
   const g = new T3.Group(), L = c => new T3.MeshLambertMaterial({color:c}), add = (geo, c, x, y, z) => { const m = new T3.Mesh(geo, L(c)); m.position.set(x,y,z); g.add(m); return m; };
@@ -671,6 +672,8 @@ function mapIcon(k){
   if (k === 'forest'){ add(new T3.CylinderGeometry(0.02,0.025,0.1,6), 0x6b4a2b, 0, -0.03, 0); add(new T3.ConeGeometry(0.09,0.18,7), 0x2f7d32, 0, 0.09, 0); add(new T3.SphereGeometry(0.05,8,6), 0xd8342c, 0.1, -0.05, 0.03); }
   if (k === 'city'){ add(new T3.BoxGeometry(0.08,0.24,0.08), 0x8d9bb0, -0.05, 0.04, 0); add(new T3.BoxGeometry(0.08,0.15,0.08), 0xb7c2d0, 0.05, 0, 0.02); add(new T3.BoxGeometry(0.12,0.05,0.06), 0xe8402a, 0.02, -0.05, 0.09); }
   if (k === 'cave'){ add(new T3.DodecahedronGeometry(0.1,0), 0x6d6258, 0, 0, 0); add(new T3.CylinderGeometry(0.008,0.008,0.12,5), 0x5a3a1e, 0.1, 0.02, 0.05); add(new T3.SphereGeometry(0.025,6,4), 0xffa020, 0.1, 0.09, 0.05).material = new T3.MeshBasicMaterial({color:0xffa020}); }
+  if (k === 'sewer'){ add(new T3.CylinderGeometry(0.1, 0.1, 0.03, 14), 0x4a5056, 0, -0.04, 0); add(new T3.BoxGeometry(0.18, 0.02, 0.06), 0x6a9a3a, 0, -0.07, 0.08); add(new T3.SphereGeometry(0.035, 8, 6), 0xffd23d, 0.05, 0.0, 0.0); }
+  if (k === 'market'){ add(new T3.BoxGeometry(0.2, 0.12, 0.14), 0xefe9da, 0, -0.02, 0); add(new T3.BoxGeometry(0.21, 0.04, 0.15), 0xd8302a, 0, 0.06, 0); add(new T3.SphereGeometry(0.03, 8, 6), 0x3f9a4a, 0.07, -0.06, 0.1); }
   if (k === 'house'){ add(new T3.BoxGeometry(0.18,0.12,0.14), 0xf1e3c8, 0, -0.02, 0); const r = add(new T3.ConeGeometry(0.15,0.1,4), 0xb5452f, 0, 0.09, 0); r.rotation.y = Math.PI/4; add(new T3.BoxGeometry(0.04,0.07,0.01), 0x6b4a2b, 0, -0.045, 0.071); }
   return g;
 }
@@ -694,8 +697,8 @@ function buildLobby(parent, real){
   cap2.position.set(PED2.x, PED2.top+0.04, PED2.z); parent.add(cap2); caps2.push(cap2);
   const board = plane(parent, boardTex, 1.1, 0.645, PED2.x - 0.35, 1.25, PED2.z, Math.PI/2);
   parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
-  plane(parent, weaponTex, 3.25, 0.6, -15.7, 1.45, LB.z0+TW/2+0.006, 0);
-  plane(parent, mapTex, 3.25, 0.6, -17.95, 1.45, LB.z1-TW/2-0.006, Math.PI);
+  plane(parent, weaponTex, 4.55, 0.6, -16.35, 1.45, LB.z0+TW/2+0.006, 0);
+  plane(parent, mapTex, 4.2, 0.6, -17.8, 1.45, LB.z1-TW/2-0.006, Math.PI);
   parent.add(wallMesh(MAPBTN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
   for (const w of MAPBTN){
     const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
@@ -705,7 +708,7 @@ function buildLobby(parent, real){
   for (const w of WPN){
     const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
     cap.position.set(w.x, w.top+0.03, w.z); parent.add(cap); (w.caps = w.caps || []).push(cap);
-    if (w.k !== 'none'){ const m = w.k === 'saw' ? makeSaw() : w.k === 'flame' ? makeFlamer() : w.k === 'mine' ? makeMine() : makeHammer(); if (w.k === 'saw'){ m.ext = 1; m.bar.scale.y = 1; } m.scale.setScalar(0.8); m.position.set(w.x, w.top + (w.k === 'saw' ? 0.62 : w.k === 'mine' ? 0.25 : 0.6), w.z); if (w.k === 'mine') m.scale.setScalar(1.6); m.rotation.z = 0.25; parent.add(m); (w.models = w.models || []).push(m); }
+    if (w.k !== 'none'){ const m = w.k === 'saw' ? makeSaw() : w.k === 'flame' ? makeFlamer() : w.k === 'mine' ? makeMine() : w.k === 'laser' ? makeLaser() : w.k === 'hook' ? makeHook() : makeHammer(); if (w.k === 'saw'){ m.ext = 1; m.bar.scale.y = 1; } m.scale.setScalar(0.8); m.position.set(w.x, w.top + (w.k === 'saw' ? 0.62 : w.k === 'mine' ? 0.25 : 0.6), w.z); if (w.k === 'mine') m.scale.setScalar(1.6); m.rotation.z = 0.25; parent.add(m); (w.models = w.models || []).push(m); }
   }
   plane(parent, playTex, 1.3, 0.51, PED.x, 1.25, LB.z0+TW/2+0.006, 0);
   const arrow = new T3.Mesh(new T3.ConeGeometry(0.12,0.25,4), new T3.MeshBasicMaterial({color:0xff3b2f})); arrow.rotation.x = Math.PI; arrow.position.set(PED.x, 1.05, PED.z); arrow.userData.bob = true; parent.add(arrow);
@@ -820,6 +823,13 @@ function ropes(dt){
     }
   }
 }
+// the top of whatever is under a point (floor, table, step...), or -50 if nothing
+function floorBelow(p){
+  let best = -50;
+  for (const b of loco.query([p.x-0.01, 0, p.z-0.01], [p.x+0.01, 0, p.z+0.01]))
+    if (b.min[0] <= p.x && b.max[0] >= p.x && b.min[2] <= p.z && b.max[2] >= p.z && b.max[1] <= p.y + 0.05 && b.max[1] > best) best = b.max[1];
+  return best;
+}
 function updateWires(dt){
   segN = 0;
   const snapped = [];
@@ -838,10 +848,11 @@ function updateWires(dt){
         continue;
       }
     }
+    if (!(w.fyT > clock)){ w.fyT = clock + 0.3 + R()*0.2; w.fy = floorBelow(w.pts[0]); }
     for (let j=1;j<(w.obj2 ? last : w.pts.length);j++){
       const p = w.pts[j], pv = w.prev[j], vx_ = (p.x-pv.x)*0.97, vy_ = (p.y-pv.y)*0.97, vz_ = (p.z-pv.z)*0.97;
       pv.copy(p); p.x += vx_; p.y += vy_ - 9.8*dt*dt; p.z += vz_;
-      if (p.y < 0.004) p.y = 0.004;
+      if (p.y < w.fy + 0.004) p.y = w.fy + 0.004;
     }
     for (let it=0; it<3; it++) for (let j=1;j<w.pts.length;j++){
       const a = w.pts[j-1], b = w.pts[j], d = tmpV.copy(b).sub(a), L = d.length() || 1e-6, corr = (L - w.segL)/L;
@@ -893,24 +904,214 @@ function mergeNI(list){
   out.computeBoundingSphere(); return out;
 }
 // Everything a map draws is binned by material and merged into one mesh per material.
-function mapBuilder(O){
+// Collision is axis-aligned boxes only, so every shape that isn't a box gets boxes that fit INSIDE it
+// (round things get a cross of boxes per layer): you never sink into something you can see.
+function rockGeo(sx, sy, sz, seed){
+  // a box with its corners and edges pulled in and lumpy faces; it never sticks out past the box
+  const sub = d => Math.max(2, Math.min(8, Math.ceil(d/0.7)));
+  const g = new T3.BoxGeometry(sx, sy, sz, sub(sx), sub(sy), sub(sz)), p = g.attributes.position;
+  const h = (x, y, z) => { const v = Math.sin(x*127.1 + y*311.7 + z*74.7 + seed*13.1)*43758.5453; return v - Math.floor(v); };
+  for (let i=0;i<p.count;i++){
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), ux = Math.abs(x/(sx/2)), uy = Math.abs(y/(sy/2)), uz = Math.abs(z/(sz/2));
+    const corner = Math.max(0, (ux + uy + uz - 2.2)/0.8), L = Math.hypot(x, y, z) || 1, k = 1 - (0.09*corner + 0.035*h(x, y, z))/L;
+    p.setXYZ(i, x*k, y*k, z*k);
+  }
+  g.computeVertexNormals(); return g;
+}
+const DISC = [5, 15, 25, 35, 45, 55, 65, 75, 85].map(d => [Math.cos(d*Math.PI/180), Math.sin(d*Math.PI/180)]);
+function discBoxes(cx, cz, R, y0, y1, out){
+  for (const t of DISC) out.push([[cx-R*t[0], y0, cz-R*t[1]], [cx+R*t[0], y1, cz+R*t[1]]]);
+  return out;
+}
+function ellipsoidBoxes(cx, cy, cz, rx, ry, rz, n){
+  const out = []; n = n || 10;
+  for (let k=0;k<n;k++){
+    const ya = -1 + 2*k/n, yb = ya + 2/n, ym = Math.abs(ya) > Math.abs(yb) ? ya*0.85 + yb*0.15 : yb*0.85 + ya*0.15, f = Math.sqrt(Math.max(0, 1 - ym*ym));
+    if (f < 0.15) continue;
+    for (const [lo, hi] of discBoxes(0, 0, f, cy + ya*ry, cy + yb*ry, [])) out.push([[cx + lo[0]*rx, lo[1], cz + lo[2]*rz], [cx + hi[0]*rx, hi[1], cz + hi[2]*rz]]);
+  }
+  return out;
+}
+function coneBoxes(cx, cz, R, y0, h, down){
+  const out = [];
+  const n = 10; for (let k=0;k<n;k++){ const f = 1 - (k + 0.8)/n; if (f <= 0.05) continue; const ya = y0 + (down ? -(k+1) : k)*h/n, yb = ya + h/n; discBoxes(cx, cz, R*f, ya, yb, out); }
+  return out;
+}
+function mapBuilder(O, key){
   const group = new T3.Group(), bins = {}, solids = [];
   const W = a => [a[0]+O.x, a[1]+O.y, a[2]+O.z];
-  const B = {group, O, solids, bins,
+  const B = {group, O, solids, bins, key, wins:[], props:[],
     mat(k, m){ bins[k] = {m, list:[]}; return B; },
     box(k, a, c, o){ o = o || {}; const A = W(a), C2 = W(c); if (k) bins[k].list.push(worldBox(A, C2, o.us || 1, o.skip)); if (o.solid !== false) solids.push(addBox(A, C2)); },
     solid(a, c){ solids.push(addBox(W(a), W(c))); },
+    solids_(list){ for (const [a, c] of list) B.solid(a, c); },
     geo(k, geo, x, y, z, rx, ry, rz, sx, sy, sz){ const s = sx == null ? 1 : sx; bins[k].list.push(geo.clone().applyMatrix4(new M4().compose(new V(x+O.x, y+O.y, z+O.z), new Q().setFromEuler(new T3.Euler(rx||0, ry||0, rz||0)), new V(s, sy == null ? s : sy, sz == null ? s : sz)))); },
+    // a lumpy rock filling exactly the box a..c (and solid exactly there)
+    rock(k, a, c, solid){ B.geo(k, rockGeo(c[0]-a[0], c[1]-a[1], c[2]-a[2], a[0]*7 + a[2]*3 + a[1]), (a[0]+c[0])/2, (a[1]+c[1])/2, (a[2]+c[2])/2); if (solid !== false) B.solid(a, c); },
+    // round things
+    ball(k, geo, x, y, z, rx, ry, rz, n){ B.geo(k, geo, x, y, z, 0, 0, 0, rx, ry, rz); B.solids_(ellipsoidBoxes(x, y, z, rx, ry, rz, n)); },
+    cyl(k, r0, r1, h, x, y0, z, seg){ B.geo(k, new T3.CylinderGeometry(r1, r0, h, seg || 10), x, y0 + h/2, z); const n = Math.abs(r0 - r1) > 0.03 ? 4 : 1, ap = Math.cos(Math.PI/(seg || 10));
+      for (let i=0;i<n;i++){ const t = (i + 1)/n, r = r0 > r1 ? r0 + (r1 - r0)*t : r0 + (r1 - r0)*(i/n); B.solids_(discBoxes(x, z, r*ap, y0 + h*i/n, y0 + h*(i+1)/n, [])); } },
+    window(a, c){ B.wins.push([W(a), W(c)]); },
+    prop(kind, x, y, z){ B.props.push([kind, x+O.x, y+O.y, z+O.z]); },
+    // a wall run along x (or z) between c0 and c1, t0..t1 thick, with openings [a0, a1, y0, y1];
+    // glass: openings listed by index get a breakable window
+    wallRun(keys, axis, c0, c1, t0, t1, y0, y1, holes, us, glass){
+      const seg = (a, b, ya, yb) => { if (b - a < 0.01 || yb - ya < 0.01) return; const mn = axis === 'x' ? [a, ya, t0] : [t0, ya, a], mx = axis === 'x' ? [b, yb, t1] : [t1, yb, b];
+        keys.forEach((k, i) => B.box(k, mn, mx, {us:us || 1.6, solid:i === 0})); };
+      let cur = c0;
+      (holes || []).slice().sort((p, q) => p[0] - q[0]).forEach(([a0, a1, hy0, hy1, isGlass]) => {
+        seg(cur, a0, y0, y1); seg(a0, a1, y0, hy0); seg(a0, a1, hy1, y1); cur = a1;
+        if (isGlass){ const m = (t0 + t1)/2; if (axis === 'x') B.window([a0, hy0, m - 0.025], [a1, hy1, m + 0.025]); else B.window([m - 0.025, hy0, a0], [m + 0.025, hy1, a1]); }
+      });
+      seg(cur, c1, y0, y1);
+    },
     finish(light){
       for (const k in bins){ const b = bins[k]; if (!b.list.length) continue; const geo = mergeNI(b.list);
         if (light && b.m.vertexColors){ const p = geo.attributes.position, cols = new Float32Array(p.count*3);
           for (let i=0;i<p.count;i++){ const c = light(p.getX(i), p.getY(i), p.getZ(i)); cols[i*3] = c[0]; cols[i*3+1] = c[1]; cols[i*3+2] = c[2]; }
           geo.setAttribute('color', new T3.BufferAttribute(cols, 3)); }
         group.add(new T3.Mesh(geo, b.m)); }
+      for (const [a, c] of B.wins) addWindow(key, group, a, c);
       group.visible = false; scene.add(group); return group;
     }};
   return B;
 }
+
+// ---- breakable windows ----
+// Only a hammer, an explosion, or a body flying into it breaks one (hands just bump off it).
+// It bursts into glass bits you can't pick up, and fades back in 30 s later once nobody is in the way.
+const WINS = [];
+const glassBase = 0.3;
+function addWindow(map, group, a, c){
+  const box = addBox(a, c);
+  const m = new T3.Mesh(new T3.BoxGeometry(c[0]-a[0], c[1]-a[1], c[2]-a[2]), new T3.MeshLambertMaterial({color:0xcdeeff, emissive:0x1d3442, transparent:true, opacity:glassBase, depthWrite:false}));
+  m.position.set((a[0]+c[0])/2, (a[1]+c[1])/2, (a[2]+c[2])/2); m.renderOrder = 3; group.add(m);
+  const w = {map, i:WINS.filter(x => x.map === map).length, box, mesh:m, st:'ok', t:0, a, c};
+  WINS.push(w); return w;
+}
+const SHN = 500, shardMesh = new T3.InstancedMesh(new T3.TetrahedronGeometry(1, 0), new T3.MeshLambertMaterial({color:0xd8f2ff, emissive:0x2a4a5a, transparent:true, opacity:0.75}), SHN);
+shardMesh.frustumCulled = false; shardMesh.count = 0; scene.add(shardMesh);
+const shards = [];
+function sndGlass(vol){ if (!AC) return; noiseHit(0.4, 5200, 1.5, 0.7*vol); noiseHit(0.15, 9000, 3, 0.4*vol); for (let i=0;i<5;i++) setTimeout(() => tone('sine', 2500 + R()*3000, 1800 + R()*2000, 0.08, 0.05*vol), R()*400); }
+function breakWindow(w, dir, remote){
+  if (w.st === 'gone') return;
+  w.st = 'gone'; w.t = 30; w.box.off = true; w.mesh.visible = false;
+  if (!remote && netGame) netSend('ev', {t:'win', m:w.map, i:w.i});
+  const sz = [w.c[0]-w.a[0], w.c[1]-w.a[1], w.c[2]-w.a[2]], area = Math.max(sz[0], sz[2])*sz[1];
+  const n = Math.min(110, Math.round(25 + area*30)), d = dir ? dir.clone() : new V();
+  if (d.length() > 6) d.setLength(6);
+  for (let k=0;k<n;k++){
+    if (shards.length >= SHN) shards.shift();
+    const p = new V(w.a[0] + R()*sz[0], w.a[1] + R()*sz[1], w.a[2] + R()*sz[2]);
+    shards.push({p, v:d.clone().multiplyScalar(0.4 + R()*0.6).add(new V((R()-0.5)*2.5, R()*1.5, (R()-0.5)*2.5)), q:new Q().setFromEuler(new T3.Euler(R()*6, R()*6, R()*6)), w:new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(20),
+      s:0.012 + R()*0.03, life:3.5 + R()*2.5, fy:floorBelow(p)});
+  }
+  const dist = w.mesh.position.distanceTo(lastPlayer); sndGlass(Math.min(1, 3/(1 + dist)));
+}
+function windowsHitByBox(lo, hi){ return WINS.filter(w => w.map === curMap && w.st !== 'gone' && w.a[0] <= hi[0] && w.c[0] >= lo[0] && w.a[1] <= hi[1] && w.c[1] >= lo[1] && w.a[2] <= hi[2] && w.c[2] >= lo[2]); }
+function windowDist(w, p){ const dx = Math.max(w.a[0] - p.x, 0, p.x - w.c[0]), dy = Math.max(w.a[1] - p.y, 0, p.y - w.c[1]), dz = Math.max(w.a[2] - p.z, 0, p.z - w.c[2]); return Math.hypot(dx, dy, dz); }
+let winHeadPrev = null;
+const winHeadV = new V();
+// your body (not your hands) flying into glass at speed breaks it
+function bodyWindowCheck(dt){
+  const h = loco.headPos();
+  if (winHeadPrev && dt > 0){ const iv = h.clone().sub(winHeadPrev).divideScalar(dt); if (iv.length() < 15) winHeadV.lerp(iv, 0.6); else winHeadV.set(0, 0, 0); }   // teleports aren't flying
+  winHeadPrev = h.clone();
+  if (mode !== 'game' || winHeadV.length() < 3.0) return;
+  const look = winHeadV.clone().multiplyScalar(dt*2.5);
+  for (const off of [0, -0.45, -0.85]){
+    const p = h.clone().add(new V(0, off, 0)), q = p.clone().add(look);
+    for (const w of WINS){ if (w.map !== curMap || w.st === 'gone') continue;
+      const c = w.mesh.position, toward = c.clone().sub(p).dot(winHeadV) > 0;
+      if (toward && Math.min(windowDist(w, p), windowDist(w, q)) < 0.45) breakWindow(w, winHeadV); }
+  }
+}
+function updateWindows(dt){
+  // glass bits
+  let n = 0; const ONE_ = new V(1,1,1);
+  for (let i = shards.length-1; i >= 0; i--){
+    const s = shards[i]; s.life -= dt; if (s.life <= 0){ shards.splice(i, 1); continue; }
+    s.v.y -= 9.8*dt; s.p.addScaledVector(s.v, dt);
+    if (s.p.y < s.fy + s.s){ s.p.y = s.fy + s.s; s.v.y *= -0.25; s.v.x *= 0.6; s.v.z *= 0.6; s.w.multiplyScalar(0.6); }
+    s.q.multiply(new Q().setFromEuler(new T3.Euler(s.w.x*dt, s.w.y*dt, s.w.z*dt)));
+  }
+  for (const s of shards){ const k = Math.min(1, s.life); tmpM.compose(s.p, s.q, ONE_.clone().multiplyScalar(s.s*k)); shardMesh.setMatrixAt(n++, tmpM); }
+  shardMesh.count = n; shardMesh.instanceMatrix.needsUpdate = true;
+  // broken ones come back
+  const bodies = [];
+  if (mode === 'game'){ const h = loco.headPos(); bodies.push(h, h.clone().add(new V(0, -0.5, 0)), handW[0], handW[1]); }
+  for (const p of Object.values(NET.peers)) if (p.P && p.g && p.g === netGame) bodies.push(p.P.head, p.P.head.clone().add(new V(0, -0.5, 0)), p.P.hands[0], p.P.hands[1]);
+  for (const w of WINS){
+    if (w.map !== curMap) continue;
+    if (w.st === 'gone'){ w.t -= dt; if (w.t <= 0 && !bodies.some(b => windowDist(w, b) < 0.4)){ w.st = 'fade'; w.f = 0; w.box.off = false; w.mesh.visible = true; } }
+    else if (w.st === 'fade'){ w.f += dt; w.mesh.material.opacity = glassBase*Math.min(1, w.f/1.5); if (w.f >= 1.5) w.st = 'ok'; }
+  }
+}
+function resetWindows(){ for (const w of WINS){ w.st = 'ok'; w.box.off = false; w.mesh.visible = true; w.mesh.material.opacity = glassBase; } shards.length = 0; }
+
+// ---- props: loose things in every map to pick up, throw, smash and cut ----
+const PROPK = {};
+const pmat = {};
+const PM = (c, o) => pmat[c + JSON.stringify(o || {})] || (pmat[c + JSON.stringify(o || {})] = new T3.MeshLambertMaterial(Object.assign({color:c}, o || {})));
+const pg = (geo, c, x, y, z, rx, o) => { const m = new T3.Mesh(geo, PM(c, o)); m.position.set(x||0, y||0, z||0); if (rx) m.rotation.set(...rx); return m; };
+const grp_ = (...ms) => { const g = new T3.Group(); for (const m of ms) g.add(m); return g; };
+Object.assign(PROPK, {
+  box:{r:0.17, make:() => grp_(pg(new T3.BoxGeometry(0.36, 0.34, 0.36), 0xc09a62), pg(new T3.BoxGeometry(0.37, 0.05, 0.08), 0xd8c08e, 0, 0.15, 0))},
+  bottle:{r:0.1, make:() => grp_(pg(new T3.CylinderGeometry(0.06, 0.06, 0.24, 10), 0x9fd3ff, 0, 0, 0, null, {transparent:true, opacity:0.75}), pg(new T3.CylinderGeometry(0.02, 0.02, 0.05, 8), 0x2f62c8, 0, 0.14, 0))},
+  cone:{r:0.17, make:() => grp_(pg(new T3.ConeGeometry(0.14, 0.42, 12), 0xff6a1a, 0, 0.05, 0), pg(new T3.BoxGeometry(0.34, 0.04, 0.34), 0x222222, 0, -0.15, 0), pg(new T3.CylinderGeometry(0.075, 0.095, 0.05, 12), 0xf4f4f4, 0, 0.06, 0))},
+  ball:{r:0.12, make:() => grp_(pg(new T3.SphereGeometry(0.12, 14, 10), 0xe8742a), pg(new T3.TorusGeometry(0.121, 0.004, 4, 20), 0x2a1a10))},
+  pinecone:{r:0.06, make:() => grp_(pg(new T3.ConeGeometry(0.05, 0.13, 7), 0x6b4423, 0, 0, 0, [Math.PI, 0, 0]))},
+  apple:{r:0.05, make:() => grp_(pg(new T3.SphereGeometry(0.05, 10, 8), 0xd8302a), pg(new T3.CylinderGeometry(0.004, 0.004, 0.03, 4), 0x5a3a1e, 0, 0.055, 0))},
+  stick:{r:0.05, make:() => grp_(pg(new T3.CylinderGeometry(0.02, 0.025, 0.6, 6), 0x6b4a2b, 0, 0, 0, [0, 0, Math.PI/2]))},
+  rock:{r:0.11, make:() => grp_(pg(new T3.DodecahedronGeometry(0.12, 0), 0x8b8378))},
+  crystal:{r:0.09, make:() => grp_(new T3.Mesh(new T3.OctahedronGeometry(0.09, 0), new T3.MeshBasicMaterial({color:0x7fe8ff})))},
+  pillow:{r:0.07, make:() => grp_(pg(new T3.BoxGeometry(0.45, 0.13, 0.3), 0xfbf8f0))},
+  book:{r:0.04, make:() => grp_(pg(new T3.BoxGeometry(0.16, 0.05, 0.23), 0x2f62c8), pg(new T3.BoxGeometry(0.15, 0.044, 0.225), 0xf4f0e0, 0.006, 0, 0))},
+  block:{r:0.06, make:() => grp_(pg(new T3.BoxGeometry(0.12, 0.12, 0.12), [0xd8302a, 0x2f62c8, 0xf2c230, 0x3f9a4a][Math.floor(R()*4)]))},
+  mug:{r:0.06, make:() => grp_(pg(new T3.CylinderGeometry(0.045, 0.04, 0.1, 12), 0xf2f2ee), pg(new T3.TorusGeometry(0.025, 0.008, 5, 10), 0xf2f2ee, 0.05, 0, 0))},
+  barrel:{r:0.28, make:() => grp_(pg(new T3.CylinderGeometry(0.26, 0.26, 0.6, 14), 0x2f6b35), pg(new T3.CylinderGeometry(0.265, 0.265, 0.05, 14), 0x1c1d20, 0, 0.15, 0), pg(new T3.CylinderGeometry(0.265, 0.265, 0.05, 14), 0x1c1d20, 0, -0.15, 0))},
+  duck:{r:0.08, make:() => grp_(pg(new T3.SphereGeometry(0.08, 10, 8), 0xffd23d, 0, 0, 0), pg(new T3.SphereGeometry(0.05, 10, 8), 0xffd23d, 0.06, 0.07, 0), pg(new T3.ConeGeometry(0.02, 0.05, 6), 0xff8a1f, 0.12, 0.07, 0, [0, 0, -Math.PI/2]))},
+  can:{r:0.05, make:() => grp_(pg(new T3.CylinderGeometry(0.04, 0.04, 0.12, 10), [0xd8302a, 0x2f62c8, 0x3f9a4a, 0xf2c230][Math.floor(R()*4)]), pg(new T3.CylinderGeometry(0.041, 0.041, 0.01, 10), 0xc0c4c8, 0, 0.06, 0))},
+  cereal:{r:0.07, make:() => grp_(pg(new T3.BoxGeometry(0.2, 0.28, 0.07), [0xf2c230, 0xd8302a, 0x2f62c8, 0x9a4fc8][Math.floor(R()*4)]), pg(new T3.BoxGeometry(0.12, 0.08, 0.072), 0xffffff, 0, 0.04, 0))},
+  melon:{r:0.14, make:() => grp_(pg(new T3.SphereGeometry(0.15, 14, 10), 0x2f7d32, 0, 0, 0, null), pg(new T3.TorusGeometry(0.15, 0.006, 4, 20), 0x9adf7a, 0, 0, 0, [Math.PI/2, 0, 0]))},
+  orange:{r:0.05, make:() => grp_(pg(new T3.SphereGeometry(0.05, 10, 8), 0xff9a1a))},
+  cart:{r:0.3, make:() => { const m = PM(0xa9b0b8), g = new T3.Group(); const bx = (w, h, d, x, y, z) => { const o = new T3.Mesh(new T3.BoxGeometry(w, h, d), m); o.position.set(x, y, z); g.add(o); };
+    bx(0.5, 0.02, 0.75, 0, 0.05, 0); bx(0.02, 0.35, 0.75, -0.25, 0.22, 0); bx(0.02, 0.35, 0.75, 0.25, 0.22, 0); bx(0.5, 0.35, 0.02, 0, 0.22, 0.37); bx(0.5, 0.35, 0.02, 0, 0.22, -0.37); bx(0.5, 0.03, 0.03, 0, 0.5, -0.47); bx(0.03, 0.15, 0.03, -0.22, 0.43, -0.42); bx(0.03, 0.15, 0.03, 0.22, 0.43, -0.42);
+    for (const [x, z] of [[-0.2,-0.3],[0.2,-0.3],[-0.2,0.3],[0.2,0.3]]){ const w = new T3.Mesh(new T3.CylinderGeometry(0.05, 0.05, 0.03, 8), PM(0x1c1d20)); w.rotation.z = Math.PI/2; w.position.set(x, -0.2, z); g.add(w); }
+    g.position.y = -0.05; return g; }},
+  trashcan:{r:0.25, make:() => grp_(pg(new T3.CylinderGeometry(0.25, 0.22, 0.7, 14), 0x6f777f), pg(new T3.CylinderGeometry(0.27, 0.27, 0.05, 14), 0x4a5056, 0, 0.36, 0))},
+});
+function makeProp(kind, id, owner){
+  const d = PROPK[kind] || PROPK.box, p = mkPart('prop', d.r);
+  p.obj.add(d.make()); p.kind = kind; p.id = id; partsById.set(id, p); p.owner = owner; p.spec = {type:'prop', k:kind}; p.mode = 'free';
+  scene.add(p.obj); return p;
+}
+function spawnProps(){
+  const list = MAPS[curMap].props || [];
+  list.forEach(([kind, x, y, z], k) => { const p = makeProp(kind, NET.id.slice(0,6) + '-pr' + k + '-' + (botCounter++), NET.id); p.obj.position.set(x, y + p.r, z); p.obj.rotation.y = R()*6; });
+}
+// standing in a flame (torches, the campfire): heats you up, then you're on fire. Same for robot pieces.
+let heatMe = 0;
+function fireHazard(dt, spots, rad){
+  if (mode !== 'game') return;
+  const head = loco.headPos(), at = {head, torso:head.clone().add(new V(0,-0.35,0)), arm0:handW[0], arm1:handW[1]};
+  let near = null;
+  for (const k in at){ if (k[0] === 'a' && me.lost[+k[3]]) continue; for (const t of spots) if (at[k].distanceTo(t) < rad){ near = k; break; } if (near) break; }
+  if (near && !myBurn){ heatMe += dt; if (near[0] === 'a') pulse(+near[3], 0.2 + heatMe*0.4, 20); if (R() < 0.3) partFlames(at[near], 0.06, 1.5);
+    if (heatMe > 1.4){ heatMe = 0; igniteMe(near, 'the fire'); } }
+  else heatMe = Math.max(0, heatMe - dt);
+  for (const p of parts){
+    if (p.obj.userData.dead || p.fire || p.name === 'mine' || !mine(rootOf(p))) continue;
+    const c = centerW(p); let hot = false; for (const t of spots) if (c.distanceTo(t) < rad*0.7 + p.r*0.5){ hot = true; break; }
+    if (!hot) continue; p.heat = (p.heat || 0) + dt; p.heatT = clock; heated.add(p); if (p.heat > 1.2) ignitePart(p);
+  }
+}
+// moving things you can bump into (the vacuum, sliding doors)
+function dynBox(){ const b = {min:[0,-99,0], max:[0,-99,0]}; (window.DYN_BOXES = window.DYN_BOXES || []).push(b); return b; }
+function setDyn(b, x0, y0, z0, x1, y1, z1){ b.min[0] = x0; b.min[1] = y0; b.min[2] = z0; b.max[0] = x1; b.max[1] = y1; b.max[2] = z1; }
+function announce(text){ try { if (!window.speechSynthesis) return; const u = new SpeechSynthesisUtterance(text); u.pitch = 0.8; u.rate = 0.95; u.volume = 0.8; speechSynthesis.speak(u); } catch(e){} }
+
 // Robots walk on a grid of 2 m cells: a cell is walkable where there's floor and nothing in the way.
 function buildNav(solids, O, size, c, lv){
   const nx = Math.floor(size/c), x0 = O.x, z0 = O.z;
@@ -942,7 +1143,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
 // ======================= FOREST =======================
 // Quirk: giant bouncy mushrooms. Slap one with a claw (or land on it) and you're launched into the air.
 {
-  const O = new V(0, 0, 100), B = mapBuilder(O); mapSeed = 4242;
+  const O = new V(0, 0, 100), B = mapBuilder(O, 'forest'); mapSeed = 4242;
   const grass = tex(256, 256, (g,w,h) => { g.fillStyle = '#4f8a35'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 6000, 'rgba(20,60,10,A)', 0.35); noiseFill(g, w, h, 3000, 'rgba(170,220,90,A)', 0.25);
     g.strokeStyle = 'rgba(30,80,20,.35)'; for (let i=0;i<500;i++){ const x = R()*w, y = R()*h; g.beginPath(); g.moveTo(x,y); g.lineTo(x+(R()-0.5)*4, y-4-R()*5); g.stroke(); } });
   const hedge = tex(128, 128, (g,w,h) => { g.fillStyle = '#2c5a24'; g.fillRect(0,0,w,h); for (let i=0;i<700;i++){ g.fillStyle = `rgba(${40+R()*60|0},${90+R()*70|0},${30+R()*30|0},.7)`; g.beginPath(); g.arc(R()*w, R()*h, 2+R()*5, 0, 7); g.fill(); } });
@@ -957,36 +1158,46 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   for (let i=0;i<44;i++){ const t = i/44*4, side = Math.floor(t), f = (t - side)*46 - 1, p = [[f,-3],[47,f],[46-f,47],[-3,46-f]][side];
     B.geo('pine', new T3.ConeGeometry(2.2, 6, 7), p[0], 6, p[1]); B.geo('pine', new T3.ConeGeometry(1.6, 4.5, 7), p[0], 8.5, p[1]); }
   const taken = [[22, 22, 5]];          // keep a clearing in the middle where you spawn
-  const pine = (x, z, s) => { B.geo('bark', new T3.CylinderGeometry(0.2*s, 0.28*s, 2.4*s, 7), x, 1.2*s, z); B.solid([x-0.2*s, 0, z-0.2*s], [x+0.2*s, 5*s, z+0.2*s]);
-    for (let k=0;k<3;k++) B.geo('pine', new T3.ConeGeometry((1.6 - k*0.4)*s, 2.4*s, 8), x, (2.4 + k*1.3)*s, z, 0, mr()*3, 0); };
-  const leafy = (x, z, s) => { B.geo('bark', new T3.CylinderGeometry(0.25*s, 0.38*s, 3.6*s, 7), x, 1.8*s, z); B.solid([x-0.26*s, 0, z-0.26*s], [x+0.26*s, 3.4*s, z+0.26*s]);
-    B.geo(mr() < 0.5 ? 'leaf' : 'leaf2', new T3.IcosahedronGeometry(1.9*s, 1), x, 4.3*s, z, mr(), mr(), mr(), 1, 0.8, 1);
-    B.geo('leaf', new T3.IcosahedronGeometry(1.1*s, 0), x + 0.9*s, 3.7*s, z + 0.4*s);
-    B.solid([x-1.25*s, 3.4*s, z-1.25*s], [x+1.25*s, 5.2*s, z+1.25*s]); };
+  const pine = (x, z, s) => { B.cyl('bark', 0.28*s, 0.2*s, 2.4*s, x, 0, z, 7);
+    for (let k=0;k<3;k++){ const R_ = (1.6 - k*0.4)*s, cy = (2.4 + k*1.3)*s; B.geo('pine', new T3.ConeGeometry(R_, 2.4*s, 8), x, cy, z); B.solids_(coneBoxes(x, z, R_*0.98, cy - 1.2*s, 2.4*s)); } };
+  const leafy = (x, z, s) => { B.cyl('bark', 0.38*s, 0.25*s, 3.6*s, x, 0, z, 7);
+    B.ball(mr() < 0.5 ? 'leaf' : 'leaf2', new T3.IcosahedronGeometry(1, 1), x, 4.3*s, z, 1.9*s, 1.52*s, 1.9*s);
+    B.ball('leaf', new T3.IcosahedronGeometry(1, 0), x + 0.9*s, 3.7*s, z + 0.4*s, 1.1*s, 1.1*s, 1.1*s, 3); };
   for (let i=0;i<38;i++){ const p = placeFree(taken, 2, 42, 2, 42, 1.6); if (p) (mr() < 0.55 ? pine : leafy)(p[0], p[1], 0.85 + mr()*0.45); }
   for (let i=0;i<14;i++){ const p = placeFree(taken, 2, 42, 2, 42, 1.2); if (!p) continue; const r = 0.45 + mr()*0.9;
-    B.geo('rock', new T3.DodecahedronGeometry(r, 0), p[0], r*0.35, p[1], mr(), mr()*6, mr(), 1, 0.65, 1); B.solid([p[0]-r*0.62, 0, p[1]-r*0.62], [p[0]+r*0.62, r*0.35 + r*0.5, p[1]+r*0.62]); }
+    const w = r*(1.3 + mr()*0.5), d = r*(1.3 + mr()*0.5); B.rock('rock', [p[0]-w/2, -0.1, p[1]-d/2], [p[0]+w/2, r*0.9, p[1]+d/2]); }
   for (let i=0;i<7;i++){ const p = placeFree(taken, 3, 41, 3, 41, 2.2); if (!p) continue; const L = 3 + mr()*1.5, along = mr() < 0.5;
     B.geo('log', new T3.CylinderGeometry(0.32, 0.36, L, 9), p[0], 0.32, p[1], along ? 0 : Math.PI/2, 0, along ? Math.PI/2 : 0);
-    B.solid(along ? [p[0]-L/2, 0, p[1]-0.3] : [p[0]-0.3, 0, p[1]-L/2], along ? [p[0]+L/2, 0.62, p[1]+0.3] : [p[0]+0.3, 0.62, p[1]+L/2]); }
-  for (let i=0;i<20;i++){ const p = placeFree(taken, 1, 43, 1, 43, 0.7); if (!p) continue; B.geo('bush', new T3.IcosahedronGeometry(0.55 + mr()*0.35, 0), p[0], 0.3, p[1], mr(), mr(), mr(), 1, 0.7, 1);
+    for (const [lo, hi] of discBoxes(0, 0.32, 0.32, 0, 1, [])){ const a_ = lo[0], b_ = hi[0], c_ = lo[2], d_ = hi[2];   // the log's round cross-section as boxes
+      if (along) B.solid([p[0]-L/2, c_, p[1]+a_], [p[0]+L/2, d_, p[1]+b_]); else B.solid([p[0]+a_, c_, p[1]-L/2], [p[0]+b_, d_, p[1]+L/2]); } }
+  for (let i=0;i<20;i++){ const p = placeFree(taken, 1, 43, 1, 43, 0.7); if (!p) continue; const br = 0.55 + mr()*0.35; B.geo('bush', new T3.IcosahedronGeometry(br, 0), p[0], 0.3, p[1], 0, mr()*6, 0, 1, 0.7, 1);
+    B.solids_(ellipsoidBoxes(p[0], 0.3, p[1], br*0.78, br*0.7*0.78, br*0.78, 3).filter(([lo, hi]) => hi[1] > 0));
     for (let k=0;k<3;k++) B.geo('flower', new T3.SphereGeometry(0.06, 5, 4), p[0] + (mr()-0.5)*1.4, 0.06, p[1] + (mr()-0.5)*1.4); }
   // the mushrooms: their caps are their own meshes so they can squash when they bounce you
   const capMat = lam(0xffffff, {map:capT}), shrooms = [];
   for (let i=0;i<8;i++){
     const p = i === 0 ? [27, 22] : placeFree(taken, 4, 40, 4, 40, 1.8); if (!p) continue; if (i === 0) taken.push([27, 22, 1.8]);
     const r = 0.9 + mr()*0.5, top = 1.0 + mr()*0.8;
-    B.geo('stem', new T3.CylinderGeometry(0.22, 0.32, top, 10), p[0], top/2, p[1]); B.solid([p[0]-0.22, 0, p[1]-0.22], [p[0]+0.22, top - 0.35, p[1]+0.22]);
-    B.solid([p[0]-r*0.75, top - 0.35, p[1]-r*0.75], [p[0]+r*0.75, top, p[1]+r*0.75]);
+    B.cyl('stem', 0.32, 0.22, top - 0.5*r, p[0], 0, p[1], 10);
+    B.solids_(ellipsoidBoxes(p[0], top - 0.55*r, p[1], r, 0.55*r, r, 14).filter(([lo]) => lo[1] >= top - 0.55*r - 0.01));
     const cap = new T3.Mesh(new T3.SphereGeometry(r, 16, 8, 0, Math.PI*2, 0, Math.PI/2), capMat); cap.scale.y = 0.55; cap.position.set(p[0]+O.x, top - 0.55*r, p[1]+O.z); B.group.add(cap);
     shrooms.push({x:p[0]+O.x, z:p[1]+O.z, r, top, cap, t:0});
   }
+  // a campfire by the clearing (it'll set you, robots and anything else on fire)
+  const fireAt = new V(18.6, 0, 24.6);
+  for (let k=0;k<9;k++){ const a = k/9*Math.PI*2; B.geo('rock', new T3.DodecahedronGeometry(0.16, 0), fireAt.x + Math.cos(a)*0.55, 0.08, fireAt.z + Math.sin(a)*0.55); }
+  for (let k=0;k<4;k++) B.geo('log', new T3.CylinderGeometry(0.06, 0.07, 0.8, 6), fireAt.x, 0.18, fireAt.z, 0.9, k*Math.PI/2, 0);
+  B.solid([fireAt.x - 0.62, 0, fireAt.z - 0.62], [fireAt.x + 0.62, 0.12, fireAt.z + 0.62]);
+  const fireW = fireAt.clone().add(O).setY(0.35);
+  for (let i=0;i<22;i++){ const p = placeFree(taken.slice(), 6, 38, 6, 38, 0.2); if (p) B.prop(['pinecone','apple','stick','rock'][i % 4], p[0], 0, p[1]); }
   const grp = B.finish(), nav = buildNav(B.solids, O, 44, 2, [0]);
   const bounceCD = new WeakMap(); let meCD = 0;
-  MAPS.forest = {name:'FOREST', group:grp, spawn:new V(22, 0, 22).add(O), yaw:0, nav, yMin:-5, yMax:20,
+  MAPS.forest = {name:'FOREST', group:grp, spawn:new V(22, 0, 22).add(O), yaw:0, nav, yMin:-5, yMax:20, props:B.props,
     sky:{bg:0xa9d6f0, fog:0xb6dcef, near:12, far:48, hs:0xeef8ff, hg:0x4c6b30, hi:1.0, ac:0xffffff, ai:0.32},
     update(dt, inGame){
       meCD -= dt;
+      if (fireW.distanceTo(lastPlayer) < 14) for (let k=0;k<3;k++) emitFire(fireW.clone().add(new V((R()-0.5)*0.3, -0.15, (R()-0.5)*0.3)), new V((R()-0.5)*0.3, 0.9 + R()*0.6, (R()-0.5)*0.3), 0.06 + R()*0.05, 0.5 + R()*0.3);
+      if (inGame) fireHazard(dt, [fireW, fireW.clone().add(new V(0, 0.35, 0))], 0.5);
       for (const s of shrooms){ if (s.t > 0){ s.t -= dt; const k = s.t/0.35; s.cap.scale.set(1 + 0.25*Math.sin(k*Math.PI), 0.55*(1 - 0.35*Math.sin(k*Math.PI)), 1 + 0.25*Math.sin(k*Math.PI)); } }
       if (!inGame) return;
       const on = (p, pad) => { for (const s of shrooms) if (Math.hypot(p.x - s.x, p.z - s.z) < s.r*0.95 && p.y > s.top - 0.35 && p.y < s.top + pad) return s; return null; };
@@ -1012,7 +1223,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
 // Quirk: traffic. Cars run down both streets (timed by the clock, so everyone sees the same cars) and
 // they flatten whatever's in the road: you get sent flying, robots get smashed.
 {
-  const O = new V(0, 0, 200), B = mapBuilder(O); mapSeed = 777;
+  const O = new V(0, 0, 200), B = mapBuilder(O, 'city'); mapSeed = 777;
   const asph = tex(256, 256, (g,w,h) => { g.fillStyle = '#3b3d40'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 9000, 'rgba(0,0,0,A)', 0.25); noiseFill(g, w, h, 4000, 'rgba(160,160,160,A)', 0.18); });
   const walk = tex(128, 128, (g,w,h) => { g.fillStyle = '#a9a59c'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 1500, 'rgba(60,55,50,A)', 0.2); g.strokeStyle = 'rgba(70,65,60,.5)'; g.lineWidth = 2; g.strokeRect(0,0,w,h); g.beginPath(); g.moveTo(w/2,0); g.lineTo(w/2,h); g.moveTo(0,h/2); g.lineTo(w,h/2); g.stroke(); });
   const facade = (base, win, lit) => tex(128, 256, (g,w,h) => { g.fillStyle = base; g.fillRect(0,0,w,h); noiseFill(g, w, h, 800, 'rgba(0,0,0,A)', 0.12, 3);
@@ -1020,6 +1231,12 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   B.mat('asph', lam(0xffffff, {map:asph})).mat('walk', lam(0xffffff, {map:walk})).mat('fA', lam(0xffffff, {map:facade('#a8644a', '#2a3644', 0.15)})).mat('fB', lam(0xffffff, {map:facade('#8e949b', '#1f2a36', 0.1)}))
    .mat('fC', lam(0xffffff, {map:facade('#5f7f9e', '#9cc7e8', 0.05)})).mat('roof', lam(0x55585c)).mat('paint', lam(0xf2f2ea)).mat('yellow', lam(0xf2c230)).mat('tunnel', new T3.MeshBasicMaterial({color:0x050505}))
    .mat('pole', lam(0x3c4046)).mat('lamp', new T3.MeshBasicMaterial({color:0xfff2c0})).mat('red', lam(0xc8302a)).mat('green', lam(0x2f6b35)).mat('bin', lam(0x2e5a3a)).mat('wood', lam(0x8a6a44)).mat('grassC', lam(0x5c9440)).mat('ac', lam(0xb9bdc2)).mat('leafC', lam(0x3f8f3a)).mat('barkC', lam(0x5d4027));
+  const plain = (c1, c2) => tex(128, 128, (g,w,h) => { g.fillStyle = c1; g.fillRect(0,0,w,h); noiseFill(g, w, h, 900, c2, 0.15, 2); });
+  const marble = tex(256, 256, (g,w,h) => { g.fillStyle = '#e8e4dc'; g.fillRect(0,0,w,h); g.strokeStyle = 'rgba(120,110,100,.25)'; for (let i=0;i<30;i++){ g.beginPath(); g.moveTo(R()*w, R()*h); g.bezierCurveTo(R()*w, R()*h, R()*w, R()*h, R()*w, R()*h); g.stroke(); } g.strokeStyle = 'rgba(90,80,70,.4)'; g.lineWidth = 2; g.strokeRect(0,0,w,h); g.beginPath(); g.moveTo(w/2,0); g.lineTo(w/2,h); g.moveTo(0,h/2); g.lineTo(w,h/2); g.stroke(); });
+  const carpet = tex(128, 128, (g,w,h) => { g.fillStyle = '#5a6472'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 5000, 'rgba(20,25,35,A)', 0.3, 2); });
+  B.mat('skin', lam(0xffffff, {map:plain('#7c8794', 'rgba(30,35,40,A)')})).mat('office', lam(0xffffff, {map:plain('#e6e2d6', 'rgba(120,110,90,A)')})).mat('marble', lam(0xffffff, {map:marble})).mat('carpet', lam(0xffffff, {map:carpet}))
+   .mat('ceilO', lam(0xf1efe8)).mat('panel', new T3.MeshBasicMaterial({color:0xf4f8ff})).mat('desk', lam(0xb48a5a)).mat('dark', lam(0x24272c)).mat('screen', new T3.MeshBasicMaterial({color:0x3a7bd5})).mat('metalO', lam(0xa9b0b8))
+   .mat('chairO', lam(0x2b2f36)).mat('white', lam(0xf4f4f2)).mat('stairs', lam(0x9c9488)).mat('rail', lam(0x6c7278)).mat('plantO', lam(0x3f8f3a)).mat('pot', lam(0x8a5a3a)).mat('water', lam(0x8fd0ff, {transparent:true, opacity:0.7}));
   B.box('asph', [-2,-1,-2], [46,0,46], {us:4});
   // markings: centre lines and crosswalks
   for (let x=0;x<44;x+=3) if (x < 15 || x > 28) B.box('yellow', [x, 0, 21.9], [x+1.6, 0.006, 22.1], {solid:false});
@@ -1037,18 +1254,23 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
       if ((qi + ci) % 5 === 3){       // a little park instead of a building
         B.box('grassC', [a0, 0.15, b0], [a1, 0.2, b1], {solid:false});
         const cx = (a0+a1)/2, cz = (b0+b1)/2;
-        B.geo('barkC', new T3.CylinderGeometry(0.25, 0.32, 3, 7), cx, 1.65, cz); B.solid([cx-0.25, 0, cz-0.25], [cx+0.25, 3, cz+0.25]);
-        B.geo('leafC', new T3.IcosahedronGeometry(1.8, 1), cx, 4, cz); B.solid([cx-1.2, 3.1, cz-1.2], [cx+1.2, 4.9, cz+1.2]);
+        B.cyl('barkC', 0.32, 0.25, 3.2, cx, 0.15, cz, 7);
+        B.ball('leafC', new T3.IcosahedronGeometry(1, 1), cx, 4, cz, 1.8, 1.8, 1.8);
         B.box('wood', [cx+1.2, 0.15, cz-0.9], [cx+1.7, 0.6, cz+0.9]); return; }
       const h = tall[Math.floor(mr()*tall.length)], k = ['fA','fB','fC'][Math.floor(mr()*3)];
+      if (qi === 0 && ci < 2) return;          // the office building you can go into (built below)
       B.box(k, [a0, 0, b0], [a1, h, b1], {us:3, skip:['y+','y-']}); B.box('roof', [a0, h, b0], [a1, h+0.05, b1], {solid:false});
       if (h > 4 && mr() < 0.7){ const ax = a0 + 1 + mr()*(a1-a0-3), az = b0 + 1 + mr()*(b1-b0-3); B.box('ac', [ax, h, az], [ax+1.4, h+0.9, az+1.1]); }
       if (h < 5) B.box('pole', [a0, h, b0], [a1, h+0.4, b0+0.15]);     // a little parapet to grab on low roofs
     });
     // street furniture on the sidewalk
     const sx = x0 === 0 ? x1 - 1.2 : x0 + 1.2, sz = z0 === 0 ? z1 - 1.2 : z0 + 1.2;
-    B.box('pole', [sx-0.07, 0, sz-0.07], [sx+0.07, 4.6, sz+0.07]); B.box('pole', [sx-0.05, 4.5, sz-0.05], [sx + (x0 === 0 ? 1.2 : -1.2), 4.6, sz+0.05], {solid:false});
-    B.box('lamp', [sx + (x0 === 0 ? 0.9 : -1.3), 4.4, sz-0.2], [sx + (x0 === 0 ? 1.3 : -0.9), 4.5, sz+0.2], {solid:false});
+    const ad = x0 === 0 ? 1 : -1;
+    B.box('pole', [sx-0.07, 0, sz-0.07], [sx+0.07, 4.6, sz+0.07]); B.box('pole', [Math.min(sx, sx + ad*1.3), 4.5, sz-0.05], [Math.max(sx, sx + ad*1.3), 4.6, sz+0.05]);
+    B.box('pole', [Math.min(sx + ad*0.85, sx + ad*1.35), 4.5, sz-0.22], [Math.max(sx + ad*0.85, sx + ad*1.35), 4.62, sz+0.22]);
+    B.box('lamp', [Math.min(sx + ad*0.9, sx + ad*1.3), 4.44, sz-0.18], [Math.max(sx + ad*0.9, sx + ad*1.3), 4.5, sz+0.18]);
+    for (let k=0;k<3;k++){ const p = [x0 + 1 + mr()*(x1 - x0 - 2), z0 === 0 ? z1 - 0.6 - mr()*1.6 : z0 + 0.6 + mr()*1.6]; B.prop(['cone','ball','trashcan'][(qi + k) % 3], p[0], 0.15, p[1]); }
+    B.prop('cone', x0 === 0 ? x1 + 0.6 : x0 - 0.6, 0, (z0 + z1)/2 + 2);
     const hx = x0 === 0 ? x1 - 1 : x0 + 1, hz = (z0 + z1)/2 + (mr()-0.5)*6;
     B.geo('red', new T3.CylinderGeometry(0.14, 0.16, 0.6, 8), hx, 0.45, hz); B.solid([hx-0.14, 0, hz-0.14], [hx+0.14, 0.75, hz+0.14]);
     const bx = (x0 + x1)/2 + (mr()-0.5)*6, bz = z0 === 0 ? z1 - 1 : z0 + 1;
@@ -1056,6 +1278,58 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     // dumpster in an alley
     B.box('bin', [mx-1, 0.15, mz-0.6], [mx+1, 1.35, mz+0.6]);
   });
+  // ---- an office building you can go into: lobby, two office floors, glass windows ----
+  {
+    const FL = [0.15, 3.55, 6.95], TOP = 10.35, WX0 = 0, WX1 = 15, WZ0 = 0, WZ1 = 6, T = 0.3;
+    const band = f => [f === 0 ? 0 : FL[f] - 0.25, f === 2 ? TOP : FL[f+1] - 0.25];
+    for (let f=0;f<3;f++){
+      const [y0, y1] = band(f), F = FL[f];
+      const east = f === 0 ? [[2.4, 3.6, F, F + 2.3], [0.6, 2.1, F + 0.45, F + 2.55, true], [3.9, 5.4, F + 0.45, F + 2.55, true]] : [[0.8, 2.3, F + 0.9, F + 2.5, true], [3.7, 5.2, F + 0.9, F + 2.5, true]];
+      const north = f === 0 ? [[1.5, 3.7, F + 0.45, F + 2.55, true], [6, 8.2, F + 0.45, F + 2.55, true], [10.8, 13, F + 0.45, F + 2.55, true]] : [[1, 2.7, F + 0.9, F + 2.5, true], [4.2, 5.9, F + 0.9, F + 2.5, true], [7.4, 9.1, F + 0.9, F + 2.5, true], [10.6, 12.3, F + 0.9, F + 2.5, true]];
+      B.wallRun(['office'], 'z', WZ0 + T, WZ1 - T, WX1 - T, WX1, y0, y1, east, 1.6);
+      B.wallRun(['skin'], 'z', WZ0, WZ1, WX1, WX1 + 0.03, y0, y1, east.map(h => h.slice(0, 4)), 2);
+      B.wallRun(['office'], 'x', WX0, WX1, WZ1 - T, WZ1, y0, y1, north, 1.6);
+      B.wallRun(['skin'], 'x', WX0, WX1 + 0.03, WZ1, WZ1 + 0.03, y0, y1, north.map(h => h.slice(0, 4)), 2);
+    }
+    B.box('office', [WX0, 0, WZ0], [WX1 - T, TOP, WZ0 + T]); B.box('office', [WX0, 0, WZ0 + T], [WX0 + T, TOP, WZ1 - T]);
+    B.box('roof', [WX0, TOP - 0.25, WZ0], [WX1 + 0.03, TOP, WZ1 + 0.03]); B.box('pole', [WX0, TOP, WZ1 - 0.15], [WX1, TOP + 0.6, WZ1 + 0.03]); B.box('pole', [WX1 - 0.15, TOP, WZ0], [WX1 + 0.03, TOP + 0.6, WZ1]);
+    B.box('marble', [WX0 + T, 0.15, WZ0 + T], [WX1 - T, 0.16, WZ1 - T], {solid:false, us:2});
+    // floors with a hole over each staircase
+    const holes = [null, [0.9, 7.2, 0.3, 1.75], [7.5, 13.8, 0.3, 1.75]];
+    for (const f of [1, 2]){
+      const y = FL[f], [hx0, hx1, hz0, hz1] = holes[f], pieces = [[T, hx0, T, WZ1 - T], [hx1, WX1 - T, T, WZ1 - T], [hx0, hx1, hz1, WZ1 - T]];
+      for (const [x0, x1, z0, z1] of pieces){ B.box('carpet', [x0, y - 0.25, z0], [x1, y, z1], {us:2, skip:['y-']}); B.box('ceilO', [x0, y - 0.25, z0], [x1, y - 0.24, z1], {solid:false}); }
+      B.box('rail', [hx0, y, hz1], [hx1, y + 1.0, hz1 + 0.06]); if (f === 2) B.box('rail', [hx1, y, hz0], [hx1 + 0.06, y + 1.0, hz1 + 0.06]);
+      if (f === 1) B.box('rail', [hx0 - 0.06, y, hz0], [hx0, y + 1.0, hz1 + 0.06]);
+    }
+    B.box('ceilO', [T, TOP - 0.26, T], [WX1 - T, TOP - 0.25, WZ1 - T], {solid:false});
+    // stairs: solid steps, ground -> 1 going east along the south wall, 1 -> 2 continuing east
+    const stair = (xa, y0, rise) => { for (let i=0;i<12;i++) B.box('stairs', [xa + i*0.5, y0, 0.4], [xa + (i+1)*0.5, y0 + (i+1)*rise/12, 1.6]); };
+    stair(1.0, FL[0], FL[1] - FL[0]); stair(7.6, FL[1], FL[2] - FL[1]);
+    // lobby: reception desk, elevators, couches, plants
+    B.box('desk', [10.2, 0.15, 3.7], [12.8, 1.2, 4.5]); B.box('dark', [10.1, 1.2, 3.6], [12.9, 1.25, 4.6]);
+    B.box('metalO', [WX0 + T, 0.15, 2.2], [WX0 + T + 0.02, 2.5, 3.3], {solid:false}); B.box('metalO', [WX0 + T, 0.15, 3.5], [WX0 + T + 0.02, 2.5, 4.6], {solid:false});
+    B.box('panel', [WX0 + T, 1.2, 3.33], [WX0 + T + 0.03, 1.36, 3.47], {solid:false});
+    B.box('chairO', [5.5, 0.15, 4.6], [7.7, 0.6, 5.5]); B.box('chairO', [5.5, 0.6, 5.3], [7.7, 1.0, 5.5]);
+    for (const [x, z] of [[9.2, 5.2], [13.9, 1.2], [4.6, 5.2]]){ B.cyl('pot', 0.2, 0.25, 0.45, x, 0.15, z, 8); B.ball('plantO', new T3.IcosahedronGeometry(1, 0), x, 0.95, z, 0.38, 0.45, 0.38, 3); }
+    // office floor: desks with screens and chairs, a water cooler
+    const F1 = FL[1];
+    for (const [x, z] of [[3, 3.2], [3, 4.8], [6.5, 3.2], [6.5, 4.8], [10, 3.2], [10, 4.8]]){
+      B.box('desk', [x - 0.8, F1 + 0.72, z - 0.4], [x + 0.8, F1 + 0.77, z + 0.4]); B.box('dark', [x - 0.75, F1, z - 0.35], [x - 0.7, F1 + 0.72, z + 0.35]); B.box('dark', [x + 0.7, F1, z - 0.35], [x + 0.75, F1 + 0.72, z + 0.35]);
+      B.box('dark', [x - 0.3, F1 + 0.77, z - 0.05], [x + 0.3, F1 + 1.15, z]); B.box('screen', [x - 0.27, F1 + 0.8, z + 0.001], [x + 0.27, F1 + 1.12, z + 0.01], {solid:false});
+      B.box('chairO', [x - 0.25, F1 + 0.4, z + 0.45], [x + 0.25, F1 + 0.48, z + 0.95]); B.box('chairO', [x - 0.25, F1 + 0.48, z + 0.9], [x + 0.25, F1 + 1.0, z + 0.97]); B.box('metalO', [x - 0.03, F1, z + 0.67], [x + 0.03, F1 + 0.4, z + 0.73], {solid:false});
+      B.prop(['mug','book'][Math.floor(x) % 2], x + 0.4, F1 + 0.77, z - 0.2);
+    }
+    B.box('white', [13.6, F1, 2.3], [14.2, F1 + 1.0, 2.9]); B.cyl('water', 0.17, 0.17, 0.45, 13.9, F1 + 1.0, 2.6, 10);
+    // top floor: meeting room table, whiteboard, sofas
+    const F2 = FL[2];
+    B.box('desk', [3, F2 + 0.72, 2.6], [7.5, F2 + 0.78, 4.4]); B.box('dark', [5, F2, 3.3], [5.5, F2 + 0.72, 3.7]);
+    for (let k=0;k<4;k++){ B.box('chairO', [3.3 + k*1.1, F2 + 0.4, 2.0], [3.8 + k*1.1, F2 + 0.48, 2.5]); B.box('chairO', [3.3 + k*1.1, F2 + 0.4, 4.5], [3.8 + k*1.1, F2 + 0.48, 5.0]); }
+    B.box('white', [WX0 + T, F2 + 1.0, 2.4], [WX0 + T + 0.03, F2 + 2.2, 4.8], {solid:false});
+    B.box('chairO', [9.5, F2, 4.6], [12, F2 + 0.45, 5.6]); B.box('chairO', [9.5, F2 + 0.45, 5.4], [12, F2 + 0.9, 5.6]);
+    B.prop('box', 12.5, F2, 3); B.prop('trashcan', 1.2, F1, 5.2); B.prop('box', 13.5, 0.15, 5.2);
+    for (const f of [0, 1, 2]) for (const x of [3, 7.5, 12]) B.box('panel', [x - 0.8, (f === 2 ? TOP - 0.26 : FL[f+1] - 0.26) - 0.02, 3.2], [x + 0.8, (f === 2 ? TOP - 0.26 : FL[f+1] - 0.26), 3.8], {solid:false});
+  }
   // the edge: tall buildings all round, with dark tunnels where the streets leave
   const edge = (a, b) => { B.box('fB', a, b, {us:3}); B.solid([a[0], b[1], a[2]], [b[0], 34, b[2]]); };
   edge([-1,0,-1], [0,26,18]); edge([-1,0,26], [0,26,45]); edge([44,0,-1], [45,26,18]); edge([44,0,26], [45,26,45]);
@@ -1078,7 +1352,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const sndCrash = () => { if (!AC) return; noiseHit(0.5, 700, 0.7, 0.9); noiseHit(0.2, 2400, 2, 0.5); tone('square', 300, 60, 0.3, 0.15); };
   const honk = (vol) => { if (!AC) return; const o = AC.createOscillator(), o2 = AC.createOscillator(), gg = AC.createGain(), t = AC.currentTime; o.type = o2.type = 'square'; o.frequency.value = 415; o2.frequency.value = 523;
     gg.gain.setValueAtTime(0.05*vol, t); gg.gain.setValueAtTime(0.05*vol, t+0.35); gg.gain.exponentialRampToValueAtTime(0.001, t+0.45); o.connect(gg); o2.connect(gg); gg.connect(AC.destination); o.start(t); o2.start(t); o.stop(t+0.5); o2.stop(t+0.5); };
-  MAPS.city = {name:'CITY', group:grp, spawn:new V(15.5, 0.15, 15.5).add(O), yaw:-Math.PI*0.75, nav, yMin:-5, yMax:36,
+  MAPS.city = {name:'CITY', group:grp, spawn:new V(15.5, 0.15, 15.5).add(O), yaw:-Math.PI*0.75, nav, yMin:-5, yMax:36, props:B.props,
     sky:{bg:0x9ec9ea, fog:0xb4cbe0, near:14, far:60, hs:0xffffff, hg:0x8a8070, hi:1.0, ac:0xffffff, ai:0.3},
     update(dt, inGame){
       hitMeCD -= dt;
@@ -1118,42 +1392,73 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
 // ======================= CAVE =======================
 // Quirk: torches. They light the place up, but stand in one too long and you catch fire (so do robots).
 {
-  const O = new V(0, 0, 300), B = mapBuilder(O); mapSeed = 9001;
+  const O = new V(0, 0, 300), B = mapBuilder(O, 'cave'); mapSeed = 9001;
   const rockT = tex(128, 128, (g,w,h) => { g.fillStyle = '#8a7e72'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 3000, 'rgba(30,25,20,A)', 0.35, 3); noiseFill(g, w, h, 1500, 'rgba(200,190,170,A)', 0.18, 2);
     g.strokeStyle = 'rgba(40,32,26,.35)'; for (let i=0;i<30;i++){ g.beginPath(); g.moveTo(R()*w, R()*h); g.lineTo(R()*w, R()*h); g.stroke(); } });
   const rock = lam(0xffffff, {map:rockT, vertexColors:true});
-  B.mat('rock', rock).mat('rock2', lam(0xb8aa98, {vertexColors:true})).mat('wood', lam(0x6b4423, {vertexColors:true})).mat('crystalA', new T3.MeshBasicMaterial({color:0x6fe8ff})).mat('crystalB', new T3.MeshBasicMaterial({color:0xc58bff}));
+  B.mat('rock', rock).mat('rock2', lam(0x9a8a78, {map:rockT, vertexColors:true})).mat('wood', lam(0x6b4423, {vertexColors:true})).mat('crystalA', new T3.MeshBasicMaterial({color:0x6fe8ff})).mat('crystalB', new T3.MeshBasicMaterial({color:0xc58bff}));
   const CH = 7;
   B.box('rock', [-2,-1,-2], [46,0,46], {us:3}); B.box('rock', [-2,CH,-2], [46,CH+1,46], {us:3});
-  for (const [a,b] of [[[-1,0,-1],[0,CH,45]], [[44,0,-1],[45,CH,45]], [[0,0,-1],[44,CH,0]], [[0,0,44],[44,CH,45]]]) B.box('rock', a, b, {us:3});
+  // old mine shafts: short timbered tunnels going off into the rock, with rails and a lantern
+  const SH = [{side:'e', c:10}, {side:'n', c:30}, {side:'w', c:32}, {side:'s', c:15}], TWd = 2.4, THt = 2.7, TL = 7;
+  const hole = side => SH.filter(t => t.side === side).map(t => [t.c - TWd/2, t.c + TWd/2, 0, THt]);
+  B.wallRun(['rock'], 'z', -1, 45, -1, 0, 0, CH, hole('w'), 3); B.wallRun(['rock'], 'z', -1, 45, 44, 45, 0, CH, hole('e'), 3);
+  B.wallRun(['rock'], 'x', 0, 44, -1, 0, 0, CH, hole('s'), 3); B.wallRun(['rock'], 'x', 0, 44, 44, 45, 0, CH, hole('n'), 3);
+  const lanterns = [];
+  B.mat('beam', lam(0x6b4a2b, {vertexColors:true})).mat('rail', lam(0x8a8f96, {vertexColors:true})).mat('lantern', new T3.MeshBasicMaterial({color:0xffc060}));
+  for (const t of SH){
+    // local frame: u runs into the rock, v across; (x, z) = f(u, v)
+    const f = t.side === 'e' ? (u, v) => [44 + u, t.c + v] : t.side === 'w' ? (u, v) => [-u, t.c + v] : t.side === 'n' ? (u, v) => [t.c + v, 44 + u] : (u, v) => [t.c + v, -u];
+    const bx = (k, u0, u1, v0, v1, y0, y1, o) => { const [ax, az] = f(u0, v0), [cx, cz] = f(u1, v1); B.box(k, [Math.min(ax, cx), y0, Math.min(az, cz)], [Math.max(ax, cx), y1, Math.max(az, cz)], o); };
+    bx('rock', 0, TL + 1, -TWd/2 - 1, TWd/2 + 1, -1, 0, {us:3}); bx('rock', 0, TL + 1, -TWd/2 - 1, TWd/2 + 1, THt, THt + 1, {us:3});
+    bx('rock', 0, TL, -TWd/2 - 1, -TWd/2, 0, THt, {us:3}); bx('rock', 0, TL, TWd/2, TWd/2 + 1, 0, THt, {us:3}); bx('rock', TL, TL + 1, -TWd/2 - 1, TWd/2 + 1, 0, THt, {us:3});
+    for (let u=0.3; u<TL; u+=1.6){ bx('beam', u, u + 0.18, -TWd/2, -TWd/2 + 0.18, 0, THt); bx('beam', u, u + 0.18, TWd/2 - 0.18, TWd/2, 0, THt); bx('beam', u, u + 0.18, -TWd/2, TWd/2, THt - 0.2, THt); }
+    for (const v of [-0.35, 0.35]) bx('rail', -2, TL, v - 0.03, v + 0.03, 0, 0.06, {solid:false});
+    for (let u=-1.8; u<TL; u+=0.5) bx('beam', u, u + 0.12, -0.5, 0.5, 0, 0.03, {solid:false});
+    // rubble at the end
+    for (let k=0;k<3;k++){ const [x, z] = f(TL - 0.6 - mr()*0.6, (mr()-0.5)*1.6); const rr = 0.3 + mr()*0.3; B.rock('rock2', [x - rr, 0, z - rr], [x + rr, rr*1.3, z + rr]); }
+    const [lx, lz] = f(TL*0.55, 0); B.geo('lantern', new T3.BoxGeometry(0.12, 0.18, 0.12), lx, THt - 0.35, lz); lanterns.push(new V(lx, THt - 0.4, lz));
+    const [px, pz] = f(2.2, 0.35); B.prop('box', px, 0, pz); const [qx, qz] = f(4, -0.3); B.prop('rock', qx, 0, qz);
+  }
   // lumpy rock along the walls so they don't look flat
-  for (let i=0;i<70;i++){ const t = mr()*44, side = Math.floor(mr()*4), r = 0.8 + mr()*1.6, y = mr()*CH;
-    const p = [[t, 0.2], [43.8, t], [t, 43.8], [0.2, t]][side]; B.geo('rock2', new T3.DodecahedronGeometry(r, 0), p[0], y, p[1], mr()*3, mr()*3, mr()*3, 1, 0.8 + mr()*0.6, 1); }
+  for (let i=0;i<60;i++){ const t = 1 + mr()*42, side = Math.floor(mr()*4);
+    if (SH.some(s_ => s_.side === ['s','e','n','w'][side] && Math.abs(s_.c - t) < 3.2)) continue;
+    const _ = 0, w = 1.2 + mr()*2.4, d = 0.3 + mr()*0.9, y0 = mr() < 0.5 ? 0 : mr()*(CH - 2), h = 1 + mr()*2.4;
+    if (side === 0) B.rock('rock2', [t - w/2, y0, 0], [t + w/2, y0 + h, d]); else if (side === 1) B.rock('rock2', [44 - d, y0, t - w/2], [44, y0 + h, t + w/2]);
+    else if (side === 2) B.rock('rock2', [t - w/2, y0, 44 - d], [t + w/2, y0 + h, 44]); else B.rock('rock2', [0, y0, t - w/2], [d, y0 + h, t + w/2]); }
   // bumpy ceiling with stalactites
   { const g = new T3.PlaneGeometry(44, 44, 30, 30); g.rotateX(Math.PI/2); const p = g.attributes.position;
-    for (let i=0;i<p.count;i++) p.setY(i, -(Math.sin(p.getX(i)*0.7)*Math.sin(p.getZ(i)*0.5) + 1)*0.45 - mr()*0.25);
-    g.computeVertexNormals(); B.geo('rock', g, 22, CH - 0.02, 22); }
+    for (let i=0;i<p.count;i++) p.setY(i, -(Math.sin(p.getX(i)*0.7)*Math.sin(p.getZ(i)*0.5) + 1)*0.14 - mr()*0.1);
+    g.computeVertexNormals(); B.geo('rock', g, 22, CH - 0.02, 22); B.solid([-1, CH - 0.2, -1], [45, CH, 45]); }
   const taken = [[22, 22, 6]];
   const torches = [], crystals = [];
   // big pillars floor to ceiling
   for (let i=0;i<9;i++){ const r = 1.1 + mr()*1.1, p = placeFree(taken, 4, 40, 4, 40, r + 1.6); if (!p) continue;
-    for (let k=0;k<4;k++) B.geo('rock', new T3.DodecahedronGeometry(r*(k % 2 ? 1.15 : 0.95), 1), p[0] + (mr()-0.5)*0.4, k*2.1 + 0.6, p[1] + (mr()-0.5)*0.4, mr()*3, mr()*3, 0, 1, 1.3, 1);
-    B.solid([p[0]-r*0.72, 0, p[1]-r*0.72], [p[0]+r*0.72, CH, p[1]+r*0.72]);
-    const a = mr()*6.3; torches.push(new V(p[0] + Math.cos(a)*(r*0.95 + 0.15), 1.75, p[1] + Math.sin(a)*(r*0.95 + 0.15)).add(O)); torches[torches.length-1].wall = new V(Math.cos(a), 0, Math.sin(a)); }
+    // a pillar is a stack of lumpy blocks, each one solid exactly where it's drawn
+    // a stack of boulders; each one's collision is boxes fitted inside it, so you touch what you see
+    const stack = [];
+    for (let k=0;k<4;k++){ const R_ = r*(k % 2 ? 1.15 : 0.95), cx = p[0] + (mr()-0.5)*0.4, cy = k*2.1 + 0.6, cz = p[1] + (mr()-0.5)*0.4;
+      B.geo('rock', new T3.DodecahedronGeometry(R_, 1), cx, cy, cz, 0, mr()*6, 0, 1, 1.3, 1);
+      B.solids_(ellipsoidBoxes(cx, cy, cz, R_*1.0, R_*1.3*1.0, R_*1.0, 16)); stack.push([cx, cy, cz, R_]); (window.__pil = window.__pil || []).push([cx + O.x, cy, cz + O.z, R_]); }
+    const [tx, ty, tz, tR] = stack[1], dy = 1.95 - ty, rad = tR*Math.sqrt(Math.max(0.2, 1 - (dy/(tR*1.3))**2)), a = mr()*6.283;
+    const tv = new V(tx + Math.cos(a)*(rad + 0.12), 1.95, tz + Math.sin(a)*(rad + 0.12)).add(O); tv.wall = new V(Math.cos(a), 0, Math.sin(a)); torches.push(tv); }
   // ledges to climb on
   for (let i=0;i<7;i++){ const w = 2.5 + mr()*2.5, d = 2.5 + mr()*2, h = 0.9 + mr()*1.9, p = placeFree(taken, 3, 41, 3, 41, Math.max(w,d)/2 + 1); if (!p) continue;
-    B.box('rock', [p[0]-w/2, 0, p[1]-d/2], [p[0]+w/2, h, p[1]+d/2], {us:1.5});
-    for (let k=0;k<4;k++) B.geo('rock2', new T3.DodecahedronGeometry(0.5 + mr()*0.5, 0), p[0] + (mr()-0.5)*w, h*0.7, p[1] + (mr()-0.5)*d, mr()*3, mr()*3, 0, 1, 0.6, 1); }
+    B.rock('rock', [p[0]-w/2, -0.1, p[1]-d/2], [p[0]+w/2, h, p[1]+d/2]);
+    const w2 = w*0.55, d2 = d*0.55, sx = (mr() < 0.5 ? -1 : 1)*w*0.3, sz = (mr() < 0.5 ? -1 : 1)*d*0.3;
+    B.rock('rock2', [p[0]+sx-w2/2, h - 0.15, p[1]+sz-d2/2], [p[0]+sx+w2/2, h + 0.5 + mr()*0.6, p[1]+sz+d2/2]); }
   // boulders and stalagmites
   for (let i=0;i<20;i++){ const r = 0.35 + mr()*0.7, p = placeFree(taken, 2, 42, 2, 42, r + 0.6); if (!p) continue;
-    B.geo('rock2', new T3.DodecahedronGeometry(r, 0), p[0], r*0.5, p[1], mr()*3, mr()*3, mr()*3, 1, 0.8, 1); B.solid([p[0]-r*0.6, 0, p[1]-r*0.6], [p[0]+r*0.6, r*1.05, p[1]+r*0.6]); }
+    B.rock('rock2', [p[0]-r*(0.8 + mr()*0.3), -0.05, p[1]-r*(0.8 + mr()*0.3)], [p[0]+r*(0.8 + mr()*0.3), r*(1 + mr()*0.4), p[1]+r*(0.8 + mr()*0.3)]); }
   for (let i=0;i<24;i++){ const r = 0.2 + mr()*0.3, h = 0.8 + mr()*1.6, p = placeFree(taken, 2, 42, 2, 42, r + 0.5); if (!p) continue;
-    B.geo('rock', new T3.ConeGeometry(r, h, 6), p[0], h/2, p[1]); B.solid([p[0]-r*0.5, 0, p[1]-r*0.5], [p[0]+r*0.5, h*0.75, p[1]+r*0.5]); }
-  for (let i=0;i<40;i++){ const r = 0.15 + mr()*0.35, h = 0.6 + mr()*1.8, x = 1 + mr()*42, z = 1 + mr()*42; B.geo('rock', new T3.ConeGeometry(r, h, 6), x, CH - 0.4 - h/2, z, Math.PI, 0, 0); }
+    B.geo('rock', new T3.ConeGeometry(r, h, 6), p[0], h/2, p[1]); B.solids_(coneBoxes(p[0], p[1], r*0.93, 0, h)); }
+  for (let i=0;i<40;i++){ const r = 0.15 + mr()*0.35, h = 0.6 + mr()*1.8, x = 1 + mr()*42, z = 1 + mr()*42; B.geo('rock', new T3.ConeGeometry(r, h, 6), x, CH - 0.2 - h/2, z, Math.PI, 0, 0); B.solids_(coneBoxes(x, z, r*0.93, CH - 0.2, h, true)); }
   // glowing crystals
   for (let i=0;i<12;i++){ const p = placeFree(taken, 2, 42, 2, 42, 0.6); if (!p) continue; const k = mr() < 0.5 ? 'crystalA' : 'crystalB';
     for (let j=0;j<4;j++) B.geo(k, new T3.OctahedronGeometry(0.12 + mr()*0.12, 0), p[0] + (mr()-0.5)*0.5, 0.15 + mr()*0.25, p[1] + (mr()-0.5)*0.5, mr(), mr(), mr(), 1, 2.2, 1);
+    B.solid([p[0]-0.18, 0, p[1]-0.18], [p[0]+0.18, 0.32, p[1]+0.18]);
     crystals.push({p:new V(p[0], 0.3, p[1]), c:k === 'crystalA' ? [0.25, 0.75, 1.0] : [0.7, 0.4, 1.0]}); }
+  for (let i=0;i<14;i++){ const p = placeFree(taken.slice(), 3, 41, 3, 41, 0.3); if (p) B.prop(i % 3 ? 'rock' : 'crystal', p[0], 0, p[1]); }
   // torches along the walls too
   for (let i=0;i<10;i++){ const side = i % 4, t = 4 + (i*7.3) % 36; const n = [[0,0,1],[-1,0,0],[0,0,-1],[1,0,0]][side];
     const p = [[t, 1.75, 0.25], [43.75, 1.75, t], [t, 1.75, 43.75], [0.25, 1.75, t]][side]; const v = new V(...p).add(O); v.wall = new V(...n); torches.push(v); }
@@ -1163,12 +1468,12 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const light = (x, y, z) => { let r = 0.16, g = 0.13, b = 0.12;
     for (const t of torches){ const d = Math.hypot(x - t.x, y - t.y, z - t.z), k = 1.6*Math.exp(-d/2.6); r += k; g += k*0.62; b += k*0.3; }
     for (const c of crystals){ const d = Math.hypot(x - c.p.x - O.x, y - c.p.y, z - c.p.z - O.z), k = 0.8*Math.exp(-d/1.6); r += k*c.c[0]; g += k*c.c[1]; b += k*c.c[2]; }
+    for (const l of lanterns){ const d = Math.hypot(x - l.x - O.x, y - l.y, z - l.z - O.z), k = 1.2*Math.exp(-d/2.2); r += k; g += k*0.7; b += k*0.35; }
     return [r, g, b]; };
   const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0]);
   const glow = new T3.SpriteMaterial({map:flashTex, blending:T3.AdditiveBlending, depthWrite:false, transparent:true, fog:false, color:0xffb060});
   const glows = torches.map(t => { const s = new T3.Sprite(glow); s.position.copy(t).add(new V(0, 0.08, 0)); s.scale.setScalar(0.7); grp.add(s); return s; });
-  let heatMe = 0;
-  MAPS.cave = {name:'CAVE', group:grp, spawn:new V(22, 0, 22).add(O), yaw:0, nav, yMin:-5, yMax:CH + 1.5,
+  MAPS.cave = {name:'CAVE', group:grp, spawn:new V(22, 0, 22).add(O), yaw:0, nav, yMin:-5, yMax:CH + 1.5, props:B.props,
     sky:{bg:0x000000, fog:0x050302, near:4, far:22, hs:0xffd2a0, hg:0x302015, hi:0.65, ac:0xffd0a0, ai:0.34},
     update(dt, inGame){
       for (let i=0;i<torches.length;i++){
@@ -1178,18 +1483,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
         if (R() < 0.03) spawnSparks(t, 1, 1);
       }
       if (!inGame) return;
-      // standing in a torch: it heats you up, then you're on fire
-      const head = loco.headPos(), spots = {head, torso:head.clone().add(new V(0,-0.35,0)), arm0:handW[0], arm1:handW[1]};
-      let near = null;
-      for (const k in spots){ if (k[0] === 'a' && me.lost[+k[3]]) continue; for (const t of torches) if (spots[k].distanceTo(t) < 0.42){ near = k; break; } if (near) break; }
-      if (near && !myBurn){ heatMe += dt; if (near[0] === 'a') pulse(+near[3], 0.2 + heatMe*0.4, 20); if (R() < 0.3) partFlames(spots[near], 0.06, 1.5);
-        if (heatMe > 1.4){ heatMe = 0; igniteMe(near, 'a torch'); } }
-      else heatMe = Math.max(0, heatMe - dt);
-      for (const p of parts){
-        if (p.obj.userData.dead || p.fire || p.name === 'mine' || !mine(rootOf(p))) continue;
-        const c = centerW(p); let hot = false; for (const t of torches) if (c.distanceTo(t) < 0.3 + p.r*0.5){ hot = true; break; }
-        if (!hot) continue; p.heat = (p.heat || 0) + dt; p.heatT = clock; heated.add(p); if (p.heat > 1.2) ignitePart(p);
-      }
+      fireHazard(dt, torches, 0.42);
     }};
 }
 
@@ -1197,7 +1491,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
 // Three floors (basement, ground, upstairs), furnished. Quirk: a robot vacuum does its rounds downstairs
 // and sucks up any robot bits lying on the floor (and bumps into robots). Don't let it find a mine.
 {
-  const O = new V(0, 0, 400), B = mapBuilder(O); mapSeed = 31337;
+  const O = new V(0, 0, 400), B = mapBuilder(O, 'house'); mapSeed = 31337;
   const grass = tex(256, 256, (g,w,h) => { g.fillStyle = '#5a9a3c'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 6000, 'rgba(20,60,10,A)', 0.3); noiseFill(g, w, h, 3000, 'rgba(170,220,90,A)', 0.2); });
   const woodF = tex(256, 256, (g,w,h) => { for (let y=0;y<h;y+=32){ g.fillStyle = `hsl(30,${40+R()*15}%,${38+R()*10}%)`; g.fillRect(0,y,w,32); g.fillStyle = 'rgba(40,20,5,.5)'; g.fillRect(0,y,w,2); const x = R()*w; g.fillRect(x,y,2,32); }
     noiseFill(g, w, h, 2000, 'rgba(60,30,10,A)', 0.12, 2); });
@@ -1224,28 +1518,23 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   B.box('grass', [-2,-1,-2], [46,0,FZ0], {us:3}); B.box('grass', [-2,-1,FZ1], [46,0,46], {us:3}); B.box('grass', [-2,-1,FZ0], [FX0,0,FZ1], {us:3}); B.box('grass', [FX1,-1,FZ0], [46,0,FZ1], {us:3});
   B.box('path', [21, 0, 0], [23, 0.01, FZ0], {solid:false});
   for (const [a,b] of [[[-1,0,-1],[0,1.6,45]], [[44,0,-1],[45,1.6,45]], [[0,0,-1],[44,1.6,0]], [[0,0,44],[44,1.6,45]]]){ B.box('fence', a, b, {us:2}); B.solid([a[0],1.6,a[2]], [b[0],14,b[2]]); }
-  for (const [x,z,s] of [[4,6,1],[39,5,1.2],[5,38,1.1],[40,39,0.9],[15,40,1]]){ B.geo('bark', new T3.CylinderGeometry(0.25*s, 0.35*s, 3.4*s, 7), x, 1.7*s, z); B.solid([x-0.25*s,0,z-0.25*s],[x+0.25*s,3.3*s,z+0.25*s]);
-    B.geo('leaf', new T3.IcosahedronGeometry(1.8*s, 1), x, 4.1*s, z); B.solid([x-1.2*s,3.3*s,z-1.2*s],[x+1.2*s,5*s,z+1.2*s]); }
-  // a wall along x (at z range zA..zB) or along z, with openings [a0, a1, y0, y1] cut out of it
-  const wallRun = (keys, axis, c0, c1, t0, t1, y0, y1, holes, us) => {
-    const seg = (a, b, ya, yb) => { if (b - a < 0.01 || yb - ya < 0.01) return; const mn = axis === 'x' ? [a, ya, t0] : [t0, ya, a], mx = axis === 'x' ? [b, yb, t1] : [t1, yb, b];
-      keys.forEach((k, i) => B.box(k, mn, mx, {us:us || 1.6, solid:i === 0})); };
-    let cur = c0; for (const [a0, a1, hy0, hy1] of (holes || []).slice().sort((p, q) => p[0] - q[0])){ seg(cur, a0, y0, y1); seg(a0, a1, y0, hy0); seg(a0, a1, hy1, y1); cur = a1; }
-    seg(cur, c1, y0, y1);
-  };
+  for (const [x,z,s] of [[4,6,1],[39,5,1.2],[5,38,1.1],[40,39,0.9],[15,40,1]]){ B.cyl('bark', 0.35*s, 0.25*s, 3.4*s, x, 0, z, 7);
+    B.ball('leaf', new T3.IcosahedronGeometry(1, 1), x, 4.1*s, z, 1.8*s, 1.8*s, 1.8*s); }
+  const wallRun = B.wallRun;
   // outer walls, per floor (inside paper changes per floor), with windows and the front door
   const floorKey = ['conc', 'paperA', 'paperB'];
   for (let f=0;f<3;f++){
     const y0 = L[f] - (f === 0 ? 0.6 : 0.25), y1 = f === 2 ? 6.0 : L[f+1] - 0.25 + 0.25, k = floorKey[f];
     const win = f === 0 ? [] : [[0.9, 1.0 + L[f], 2.1 + L[f]]];
-    const xs = f === 0 ? [] : [11, 15, 28, 32].map(x => [x, x + 1.4, L[f] + 0.9, L[f] + 2.1]);
-    const zs = f === 0 ? [] : [15, 19, 26].map(z => [z, z + 1.4, L[f] + 0.9, L[f] + 2.1]);
+    const xs = f === 0 ? [] : [11, 15, 28, 32].map(x => [x, x + 1.4, L[f] + 0.9, L[f] + 2.1, true]);
+    const zs = f === 0 ? [] : [15, 19, 26].map(z => [z, z + 1.4, L[f] + 0.9, L[f] + 2.1, true]);
     const front = xs.concat(f === 1 ? [[21, 23, L[1], L[1] + 2.2]] : []);
     wallRun([k], 'x', FX0, FX1, FZ0, FZ0 + T, y0, y1, front); wallRun([k], 'x', FX0, FX1, FZ1 - T, FZ1, y0, y1, xs);
     wallRun([k], 'z', FZ0 + T, FZ1 - T, FX0, FX0 + T, y0, y1, zs); wallRun([k], 'z', FZ0 + T, FZ1 - T, FX1 - T, FX1, y0, y1, zs);
     if (f > 0){ // siding skin outside (visual only)
-      wallRun(['siding'], 'x', FX0 - 0.02, FX1 + 0.02, FZ0 - 0.02, FZ0, y0 < 0 ? 0 : y0, y1, front); wallRun(['siding'], 'x', FX0 - 0.02, FX1 + 0.02, FZ1, FZ1 + 0.02, y0 < 0 ? 0 : y0, y1, xs);
-      wallRun(['siding'], 'z', FZ0, FZ1, FX0 - 0.02, FX0, y0 < 0 ? 0 : y0, y1, zs); wallRun(['siding'], 'z', FZ0, FZ1, FX1, FX1 + 0.02, y0 < 0 ? 0 : y0, y1, zs);
+      const nog = l => l.map(h => h.slice(0, 4));
+      wallRun(['siding'], 'x', FX0 - 0.02, FX1 + 0.02, FZ0 - 0.02, FZ0, y0 < 0 ? 0 : y0, y1, nog(front)); wallRun(['siding'], 'x', FX0 - 0.02, FX1 + 0.02, FZ1, FZ1 + 0.02, y0 < 0 ? 0 : y0, y1, nog(xs));
+      wallRun(['siding'], 'z', FZ0, FZ1, FX0 - 0.02, FX0, y0 < 0 ? 0 : y0, y1, nog(zs)); wallRun(['siding'], 'z', FZ0, FZ1, FX1, FX1 + 0.02, y0 < 0 ? 0 : y0, y1, nog(zs));
       for (const o of [...front, ...xs]) if (o[1] - o[0] < 2) for (const zz of [FZ0 - 0.06, FZ1 - 0.02]) B.box('trim', [o[0]-0.06, o[2]-0.08, zz], [o[1]+0.06, o[2], zz + 0.08], {solid:false});
     }
   }
@@ -1258,14 +1547,14 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   // flat roof: parapet and a chimney to climb on
   for (const [a,b] of [[[FX0,6,FZ0],[FX1,6.5,FZ0+0.25]], [[FX0,6,FZ1-0.25],[FX1,6.5,FZ1]], [[FX0,6,FZ0],[FX0+0.25,6.5,FZ1]], [[FX1-0.25,6,FZ0],[FX1,6.5,FZ1]]]) B.box('siding', a, b);
   B.box('brick', [17.5, 6, 29.6], [19.5, 7.8, 31.6]);
-  // stairs: up (ground -> upstairs) and down (ground -> basement), fine steps underneath for the feet
-  // up: bottom at the back (z 31.6, y 0), top at z 23.6 (y 3)
-  { const n = 30, dz = 8/n; for (let i=0;i<n;i++){ const za = 31.6 - (i+1)*dz, zb = 31.6 - i*dz, y = (i+1)*3/n; B.box(i % 2 ? null : 'wood', [8.35, 0, za], [10.3, y, zb]); } }
-  // down: top at z 23.6 (y 0), bottom at the back (z 31.6, y -3)
-  { const n = 30, dz = 8/n; for (let i=0;i<n;i++){ const za = 23.6 + i*dz, zb = za + dz, y = -(i+1)*3/n; B.box(i % 2 ? null : 'wood', [10.7, -3, za], [12.8, y, zb]); } }
-  // railings
+  // stairs: both start in the hallway (z 23.6) and run toward the back wall: up to the top floor, down to the basement.
+  // 12 solid steps each, 25 cm high, with a tread on top
+  for (let i=0;i<12;i++){ const za = 23.6 + i*8/12, zb = za + 8/12;
+    B.box('wood', [8.35, 0, za], [10.3, (i+1)*0.25 - 0.03, zb]); B.box('darkwood', [8.33, (i+1)*0.25 - 0.03, za - 0.02], [10.32, (i+1)*0.25, zb]);
+    B.box('wood', [10.7, -3, za], [12.8, -(i+1)*0.25 - 0.03, zb]); B.box('darkwood', [10.68, -(i+1)*0.25 - 0.03, za - 0.02], [12.82, -(i+1)*0.25, zb]); }
+  // railings (with a gap at the top of each flight to step off)
   const rail = (a, b) => B.box('darkwood', a, b);
-  rail([10.4, 0, 24.6], [10.55, 1.0, 31.6]); rail([12.85, 0, 23.6], [13.0, 1.0, 31.6]); rail([10.45, 3, 23.6], [10.6, 4.0, 31.6]);
+  rail([10.4, 0, 24.6], [10.55, 1.0, 31.6]); rail([12.85, 0, 23.6], [13.0, 1.0, 29.6]); rail([10.45, 3, 23.6], [10.6, 4.0, 29.6]); rail([8.3, 3, 23.4], [10.6, 4.0, 23.55]);
   // interior walls (gaps are doorways)
   const iw = (axis, c0, c1, at, f, gaps) => wallRun([floorKey[f]], axis, c0, c1, at - 0.08, at + 0.08, L[f], L[f] + CEIL, (gaps || []).map(([a, b]) => [a, b, L[f], L[f] + 2.15]));
   iw('z', FZ0 + T, 23.5, 18, 1, [[16, 17.6]]); iw('z', FZ0 + T, 23.5, 26, 1, [[16, 17.6]]);
@@ -1287,8 +1576,8 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     for (let r=0;r<4;r++) for (let i=0;i<8;i++){ const bw = 0.07 + mr()*0.05, bh = 0.2 + mr()*0.12; if (rotX) f(cols[(i + r) % 5], x - w/2 + 0.1 + i*(w - 0.2)/8, y + 0.15 + r*h/4.3, z + (d/2 + 0.02)*rotX, bw, bh, 0.04, false);
       else f(cols[(i + r) % 5], x + (w/2 + 0.02), y + 0.15 + r*h/4.3, z - d/2 + 0.1 + i*(d - 0.2)/8, 0.04, bh, bw, false); } };
   const bed = (x, y, z, w, l, k) => { f('darkwood', x, y, z, w, 0.35, l); f('pillow', x, y + 0.35, z, w - 0.1, 0.2, l - 0.1, false); f(k, x, y + 0.42, z + 0.25, w - 0.05, 0.16, l - 0.6, false); f('pillow', x, y + 0.55, z - l/2 + 0.3, w - 0.4, 0.14, 0.35, false); f('darkwood', x, y, z - l/2 + 0.05, w, 1.0, 0.1); };
-  const plant = (x, y, z) => { B.geo('cardboard', new T3.CylinderGeometry(0.2, 0.15, 0.35, 8), x, y + 0.17, z); B.geo('leaf', new T3.IcosahedronGeometry(0.4, 0), x, y + 0.65, z); B.solid([x - 0.2, y, z - 0.2], [x + 0.2, y + 0.9, z + 0.2]); };
-  const lampStand = (x, y, z) => { f('metal', x, y, z, 0.05, 1.5, 0.05); B.geo('lamp', new T3.CylinderGeometry(0.15, 0.25, 0.3, 10), x, y + 1.55, z); B.solid([x - 0.06, y, z - 0.06], [x + 0.06, y + 1.6, z + 0.06]); };
+  const plant = (x, y, z) => { B.cyl('cardboard', 0.15, 0.2, 0.35, x, y, z, 8); B.ball('leaf', new T3.IcosahedronGeometry(1, 0), x, y + 0.65, z, 0.4, 0.4, 0.4, 3); };
+  const lampStand = (x, y, z) => { f('metal', x, y, z, 0.05, 1.4, 0.05); B.cyl('lamp', 0.25, 0.15, 0.3, x, y + 1.4, z, 10); f('metal', x, y, z, 0.3, 0.04, 0.3); };
   // ground floor: living room (west), hall, kitchen (east), dining/den (back)
   f('rug', 13, 0, 17.6, 4, 0.01, 3, false);
   couch(13.4, 0, 21.9, 2, 'fabric'); f('wood', 13.4, 0, 18.4, 1.4, 0.42, 0.7);
@@ -1313,7 +1602,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   B.box('tile', [18.1, U, FZ0 + T], [23.9, U + 0.01, 20.9], {solid:false, us:0.6});
   f('white', 21, U, 13.2, 1.8, 0.6, 0.8); f('blue', 21, U + 0.45, 13.2, 1.6, 0.02, 0.6, false);
   f('white', 19.0, U, 20.3, 0.45, 0.45, 0.55); f('white', 19.0, U + 0.45, 20.65, 0.45, 0.4, 0.2); f('white', 22.8, U, 20.55, 0.6, 0.85, 0.5); B.box('mirror', [22.4, U + 1.2, 20.86], [23.2, U + 2.0, 20.9], {solid:false});
-  bed(31.5, U, 15.0, 1.6, 2.1, 'fabric2'); f('darkwood', 26.2, U, 13.6, 1.1, 2.0, 0.6); f('wood', 34.9, U, 19.5, 0.6, 0.9, 1.4); B.geo('yellow', new T3.SphereGeometry(0.5, 10, 6), 27.5, U + 0.3, 19.0, 0, 0, 0, 1, 0.6, 1);
+  bed(31.5, U, 15.0, 1.6, 2.1, 'fabric2'); f('darkwood', 26.2, U, 13.6, 1.1, 2.0, 0.6); f('wood', 34.9, U, 19.5, 0.6, 0.9, 1.4); B.ball('yellow', new T3.SphereGeometry(1, 12, 8), 27.5, U + 0.3, 19.0, 0.5, 0.3, 0.5, 3);
   f('green', 17, U, 27.6, 2.7, 0.76, 1.5); f('white', 17, U + 0.76, 27.6, 0.02, 0.15, 1.5, false); f('black', 22.9, U, 30.9, 0.8, 1.8, 0.7); B.geo('tv', new T3.PlaneGeometry(0.6, 0.45), 22.9, U + 1.25, 30.54, 0, Math.PI, 0);
   couch(13.4, U, 30.8, 2, 'fabric');
   f('darkwood', 34.6, U, 27.2, 1.1, 0.12, 2.1); f('darkwood', 34.6, U + 1.25, 27.2, 1.1, 0.12, 2.1); for (const dz of [-1, 1]) f('darkwood', 35.1, U, 27.2 + dz, 0.08, 2.0, 0.08);
@@ -1323,8 +1612,12 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   // basement: laundry, storage boxes, workbench, water heater, old couch
   const D = -3;
   f('white', 24, D, 13.0, 0.7, 0.9, 0.7); f('white', 24.8, D, 13.0, 0.7, 0.9, 0.7); for (const x of [24, 24.8]) B.geo('black', new T3.CylinderGeometry(0.22, 0.22, 0.02, 14), x, D + 0.5, 13.36, Math.PI/2);
-  B.geo('metal', new T3.CylinderGeometry(0.3, 0.3, 1.6, 12), 34.8, D + 0.8, 13.2); B.solid([34.5, D, 12.9], [35.1, D + 1.6, 13.5]);
+  B.cyl('metal', 0.3, 0.3, 1.6, 34.8, D, 13.2, 12);
   f('darkwood', 30, D, 31.2, 3, 0.9, 0.7); for (let i=0;i<6;i++) f('metal', 28.8 + i*0.45, D + 0.9, 31.2, 0.1, 0.1 + mr()*0.2, 0.3, false);
+  // things to grab and throw
+  for (const [k, x, y, z] of [['pillow', 11.5, U + 0.6, 14.4], ['pillow', 31.5, U + 0.6, 14.4], ['pillow', 13.4, 0.5, 21.6], ['pillow', 9.6, 0.5, 19.6], ['book', 9.3, 0, 16], ['book', 9.3, 0, 17],
+    ['mug', 30, 0.76, 17], ['mug', 29.6, 0.76, 16.8], ['mug', 24, 0.76, 27.6], ['block', 28, U, 26], ['block', 29, U, 27], ['block', 30.5, U, 26.5], ['block', 28.6, U, 28.4], ['ball', 25.8, U, 28],
+    ['box', 14, D, 20], ['box', 15, D, 21], ['ball', 22, 0, 15], ['book', 17.4, U + 0.75, 19.6]]) B.prop(k, x, y, z);
   for (let i=0;i<14;i++){ const s = 0.4 + mr()*0.3; f('cardboard', 9 + mr()*3.5 + (i > 7 ? 3 : 0), D + (i % 3 === 2 ? 0.45 : 0), 13 + mr()*6, s, s, s); }
   shelf(16.5, D, 12.6, 2.4, 0.4, 2.0, 1); couch(28, D, 20, 0, 'fabric2'); f('green', 17, D, 22, 2.7, 0.76, 1.5);
   // ceiling lights
@@ -1339,16 +1632,17 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     const top = new T3.Mesh(new T3.CylinderGeometry(0.2, 0.2, 0.012, 16), lam(0x5a5e66)); top.position.y = 0.095; vac.add(top);
     vac.light = new T3.Mesh(new T3.SphereGeometry(0.025, 8, 6), new T3.MeshBasicMaterial({color:0x40ff80})); vac.light.position.set(0, 0.1, -0.22); vac.add(vac.light);
     const bump = new T3.Mesh(new T3.CylinderGeometry(0.335, 0.335, 0.05, 20, 1, true, -1.2, 2.4), lam(0x9aa0a6)); bump.position.y = 0.05; bump.rotation.y = Math.PI; vac.add(bump); }
-  grp.add(vac);
+  grp.add(vac); const vacBox = dynBox();
   let slurpT = 0;
   const slurp = () => { if (!AC) return; noiseHit(0.35, 900, 3, 0.3); tone('sine', 300, 1400, 0.3, 0.08); };
-  MAPS.house = {name:'HOUSE', group:grp, spawn:new V(22, 0, 6).add(O), yaw:Math.PI, nav, yMin:-8, yMax:18,
+  MAPS.house = {name:'HOUSE', group:grp, spawn:new V(22, 0, 6).add(O), yaw:Math.PI, nav, yMin:-8, yMax:18, props:B.props,
     sky:{bg:0xa9d2ee, fog:0xc4dbe8, near:14, far:55, hs:0xfffaf0, hg:0x7a6a50, hi:0.95, ac:0xfff4e0, ai:0.38},
     update(dt, inGame){
       let s = ((Date.now()/1000*0.7) % total + total) % total, seg = segs[0];
       for (const g of segs){ if (s <= g.len){ seg = g; break; } s -= g.len; }
       const dir = seg.q.clone().sub(seg.p).normalize(); vac.position.copy(seg.p).addScaledVector(dir, s);
       vac.rotation.y = Math.atan2(-dir.x, -dir.z); vac.light.visible = (clock*2 % 1) < 0.7;
+      const vp = vac.position; setDyn(vacBox, vp.x - 0.3, 0, vp.z - 0.3, vp.x + 0.3, 0.11, vp.z + 0.3);
       if (!inGame) return;
       slurpT -= dt;
       for (const p of parts){
@@ -1356,7 +1650,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
         const c = centerW(p); if (c.y > 0.6 || c.y < -0.2 || Math.hypot(c.x - vac.position.x, c.z - vac.position.z) > 0.42 + p.r*0.4) continue;
         if (p.name === 'mine'){ mineTrigger(p); continue; }
         if (p.bot && !p.bot.dead && p === p.bot.root){ if (p.mode === 'bot'){ p.mode = 'free'; p.asleep = false; p.v.copy(dir).multiplyScalar(2).add(new V(0, 2.5, 0)); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(8); say(p.bot, pick(['hey! I am not dust','vacuum attack!!','rude'])); } continue; }
-        if (p.r > 0.3) continue;
+        if (p.r > 0.3 || p.name === 'prop') continue;
         removePart(p);                         // gulp (tells everyone)
         if (slurpT <= 0 && c.distanceTo(lastPlayer) < 12){ slurpT = 0.25; slurp(); }
         spawnSparks(vac.position.clone().add(new V(0, 0.1, 0)), 6, 1.5);
@@ -1382,6 +1676,207 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   MAPS.backrooms.leave = () => { st = 'on'; t = 50 + R()*30; lightsOut = false; lightMat.color.copy(lightCol); };
 }
 
+
+// ======================= BACKROOMS extras =======================
+// glass office partitions on top of some of the half walls, and stuff lying around
+{
+  mapSeed = 5150;
+  for (const b of halfWalls){
+    if (mr() > 0.45) continue;
+    const thinX = b.max[0] - b.min[0] < b.max[2] - b.min[2], cx = (b.min[0] + b.max[0])/2, cz = (b.min[2] + b.max[2])/2;
+    if (b.max[0] - b.min[0] > 6 || b.max[2] - b.min[2] > 6) continue;
+    if (thinX) addWindow('backrooms', brGroup, [cx - 0.02, b.max[1], b.min[2] + 0.02], [cx + 0.02, H - 0.02, b.max[2] - 0.02]);
+    else addWindow('backrooms', brGroup, [b.min[0] + 0.02, b.max[1], cz - 0.02], [b.max[0] - 0.02, H - 0.02, cz + 0.02]);
+  }
+  const props = [];
+  for (let k=0;k<16;k++){ const p = new V((Math.floor(mr()*N) + 0.5)*C, 0, (Math.floor(mr()*N) + 0.5)*C); props.push([['box','bottle','box','cone'][k % 4], p.x + (mr()-0.5)*1.5, 0, p.z + (mr()-0.5)*1.5]); }
+  MAPS.backrooms.props = props;
+}
+
+// ======================= SEWERS =======================
+// Brick tunnels with a stream of sewage down the middle. Quirk: the current drags anything in the
+// water along (you too, unless you hang on) and every minute there's a FLUSH: the water rises and rushes.
+{
+  const O = new V(0, 0, 500), B = mapBuilder(O, 'sewer'); mapSeed = 6060;
+  const brickT = tex(128, 128, (g,w,h) => { g.fillStyle = '#5b4a3c'; g.fillRect(0,0,w,h); for (let y=0;y<h;y+=16) for (let x=((y/16)%2)*16; x<w+32; x+=32){ g.fillStyle = `hsl(${18+R()*12},${25+R()*15}%,${26+R()*10}%)`; g.fillRect(x-30, y+1, 30, 14); } noiseFill(g, w, h, 1500, 'rgba(30,60,20,A)', 0.25, 3); });
+  const concT = tex(128, 128, (g,w,h) => { g.fillStyle = '#6d6a5e'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 3000, 'rgba(30,40,20,A)', 0.3, 2); noiseFill(g, w, h, 300, 'rgba(70,110,40,A)', 0.35, 6); });
+  const grateT = canvasTex(64, 64, (g,w,h) => { g.fillStyle = '#2a2c2e'; g.fillRect(0,0,w,h); g.fillStyle = '#6a6e72'; for (let i=0;i<w;i+=8){ g.fillRect(i, 0, 3, h); g.fillRect(0, i, w, 3); } }, true);
+  const waterTex = d => { const t = canvasTex(128, 128, (g,w,h) => { g.fillStyle = '#3f6a2a'; g.fillRect(0,0,w,h); for (let i=0;i<220;i++){ g.fillStyle = `rgba(${120+R()*80|0},${150+R()*60|0},${60+R()*40|0},${0.15+R()*0.3})`; g.fillRect(R()*w, R()*h, d ? 2 : 14, d ? 14 : 2); } }, true); return t; };
+  const wX = waterTex(0), wZ = waterTex(1);
+  B.mat('brick', lam(0xffffff, {map:brickT, vertexColors:true})).mat('conc', lam(0xffffff, {map:concT, vertexColors:true})).mat('grate', lam(0xffffff, {map:grateT, vertexColors:true}))
+   .mat('pipe', lam(0x6f7a5e, {vertexColors:true})).mat('pipe2', lam(0x8a5a3a, {vertexColors:true})).mat('rung', lam(0x9aa0a6, {vertexColors:true})).mat('bulb', new T3.MeshBasicMaterial({color:0xfff0b0})).mat('dark', new T3.MeshBasicMaterial({color:0x050805}))
+   .mat('shaft', new T3.MeshBasicMaterial({color:0xfffbe0, transparent:true, opacity:0.12, depthWrite:false, fog:false}));
+  const CEN = [6, 22, 38], HW = 3.5, CHW = 1.2, TOPY = 4, BOT = -0.9;
+  const X = [0, 4.8, 7.2, 20.8, 23.2, 36.8, 39.2, 44];
+  B.box('conc', [-2, BOT - 1, -2], [46, BOT, 46], {us:2});
+  for (let i=0;i<7;i+=2) for (let j=0;j<7;j+=2) B.box('conc', [X[i], BOT, X[j]], [X[i+1], 0, X[j+1]], {us:2});
+  B.box('brick', [-2, TOPY, -2], [46, TOPY + 1, 46], {us:2});
+  for (const [a, b] of [[[-1,BOT,-1],[0,TOPY,45]], [[44,BOT,-1],[45,TOPY,45]], [[0,BOT,-1],[44,TOPY,0]], [[0,BOT,44],[44,TOPY,45]]]) B.box('brick', a, b, {us:2});
+  const BLK = [[0, 2.5], [9.5, 18.5], [25.5, 34.5], [41.5, 44]];
+  const lamps = [];
+  for (const [x0, x1] of BLK) for (const [z0, z1] of BLK){
+    B.box('brick', [x0, 0, z0], [x1, TOPY, z1], {us:2});
+    // pipes along the tunnel-facing sides
+    if (x1 - x0 > 3){ for (const zz of [z0 - 0.16, z1 + 0.16]) if (zz > 0.5 && zz < 43.5){ const len = x1 - x0; B.geo(zz < z0 ? 'pipe' : 'pipe2', new T3.CylinderGeometry(0.15, 0.15, len, 10), (x0 + x1)/2, 3.0, zz, 0, 0, Math.PI/2); B.solids_(discBoxes(0, 0, 0.15, 0, 1, []).map(([lo, hi]) => [[x0, 3.0 + lo[0], zz + lo[2]], [x1, 3.0 + hi[0], zz + hi[2]]])); } }
+    for (const [cx, cz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) if (cx > 0.5 && cx < 43.5 && cz > 0.5 && cz < 43.5 && mr() < 0.6){
+      const ox = cx === x0 ? -0.12 : 0.12, oz = cz === z0 ? -0.12 : 0.12; lamps.push(new V(cx + ox, 3.4, cz + oz)); B.geo('bulb', new T3.SphereGeometry(0.07, 8, 6), cx + ox, 3.4, cz + oz); }
+  }
+  // bridges over the stream (grates), drains at the ends
+  const bridges = [];
+  for (const c of CEN) for (const m of [14, 30]){ B.box('grate', [m - 1.4, -0.12, c - 1.25], [m + 1.4, 0, c + 1.25], {us:1}); B.box('grate', [c - 1.25, -0.12, m - 1.4], [c + 1.25, 0, m + 1.4], {us:1}); }
+  for (const c of CEN){ B.box('dark', [c - 1.0, BOT, 0], [c + 1.0, -0.1, 0.02], {solid:false}); B.box('dark', [c - 1.0, BOT, 43.98], [c + 1.0, -0.1, 44], {solid:false});
+    B.box('dark', [0, BOT, c - 1.0], [0.02, -0.1, c + 1.0], {solid:false}); B.box('dark', [43.98, BOT, c - 1.0], [44, -0.1, c + 1.0], {solid:false}); }
+  // a ladder up to a manhole with daylight coming down
+  { const lx = 25.5, lz = 13; for (let k=0;k<11;k++) B.box('rung', [lx, 0.3 + k*0.35, lz - 0.3], [lx + 0.12, 0.34 + k*0.35, lz + 0.3]);
+    B.box('rung', [lx, 0, lz - 0.34], [lx + 0.12, TOPY, lz - 0.3]); B.box('rung', [lx, 0, lz + 0.3], [lx + 0.12, TOPY, lz + 0.34]);
+    B.geo('shaft', new T3.CylinderGeometry(0.4, 1.1, TOPY, 14, 1, true), lx + 0.6, TOPY/2, lz); B.geo('bulb', new T3.CircleGeometry(0.45, 16), lx + 0.6, TOPY - 0.01, lz, Math.PI/2); lamps.push(new V(lx + 0.6, 2, lz)); }
+  // stuff floating around
+  const props = [];
+  for (let k=0;k<14;k++){ const c = CEN[k % 3], along = 2 + mr()*40, x = k % 2 ? along : c, z = k % 2 ? c : along; B.prop(k % 3 ? 'duck' : 'barrel', x, BOT, z); }
+  for (let k=0;k<8;k++){ const c = CEN[k % 3], s = k % 2 ? 1 : -1, along = 3 + mr()*38; B.prop(['box','bottle','trashcan'][k % 3], k % 4 < 2 ? along : c + s*2.4, 0, k % 4 < 2 ? c + s*2.4 : along); }
+  const light = (x, y, z) => { let r = 0.2, g = 0.24, b = 0.16;
+    for (const t of lamps){ const d = Math.hypot(x - t.x - O.x, y - t.y, z - t.z - O.z), k = 1.3*Math.exp(-d/3.2); r += k; g += k*0.9; b += k*0.55; }
+    return [r, g, b]; };
+  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0]);
+  // the water: one strip per channel, scrolling with the flow
+  const wMat = [new T3.MeshLambertMaterial({map:wX, transparent:true, opacity:0.85, emissive:0x15240c}), new T3.MeshLambertMaterial({map:wZ, transparent:true, opacity:0.85, emissive:0x15240c})];
+  wX.repeat.set(11, 0.6); wZ.repeat.set(0.6, 11);
+  const waters = [];
+  for (const c of CEN){
+    const a = new T3.Mesh(new T3.PlaneGeometry(44, CHW*2), wMat[0]); a.rotation.x = -Math.PI/2; a.position.set(22 + O.x, 0, c + O.z); grp.add(a); waters.push([a, 0]);
+    const b = new T3.Mesh(new T3.PlaneGeometry(CHW*2, 44), wMat[1]); b.rotation.x = -Math.PI/2; b.position.set(c + O.x, 0, 22 + O.z); grp.add(b); waters.push([b, 0.006]);
+  }
+  const inChan = (x, z) => { x -= O.x; z -= O.z; for (const c of CEN){ if (Math.abs(z - c) < CHW) return [new V(1, 0, 0), c, 'x']; if (Math.abs(x - c) < CHW) return [new V(0, 0, 1), c, 'z']; } return null; };
+  let flushWas = false;
+  const rumble = () => { if (!AC) return; noiseHit(3.5, 160, 0.5, 0.9); tone('sine', 55, 40, 3, 0.4); };
+  MAPS.sewer = {name:'SEWERS', group:grp, spawn:new V(24.4, 0, 14.5).add(O), yaw:Math.PI, nav, yMin:-6, yMax:TOPY + 1.5, props:B.props,
+    sky:{bg:0x050805, fog:0x0c140a, near:3, far:24, hs:0xd8f0c0, hg:0x202a18, hi:0.55, ac:0xd0e8b0, ai:0.32},
+    update(dt, inGame){
+      const ph = (Date.now()/1000) % 60, flush = ph > 50 && ph < 58, k = flush ? Math.min(1, (ph - 50)/1.5)*Math.min(1, (58 - ph)/1.5) : 0;
+      const wl = -0.45 + k*0.38, push = 1 + k*3;
+      for (const [m, o] of waters) m.position.y = wl + o;
+      wX.offset.x -= dt*0.25*push; wZ.offset.y += dt*0.25*push;
+      if (flush && !flushWas && inGame){ rumble(); showMsg('FLUSH!'); }
+      flushWas = flush;
+      if (!inGame) return;
+      // you, if you're standing (or swimming) in the stream and not holding on
+      const h = loco.headPos(), ch = inChan(h.x, h.z);
+      if (ch && h.y - 1.0 < wl + 0.2 && !loco.S.wasTouching.some(t => t)){ const v = loco.S.velocity, along = v.dot(ch[0]); if (along < 2.2*push) v.addScaledVector(ch[0], dt*5*push); }
+      // floating pieces drift along, and go down the drain at the end (props come back at the other end)
+      for (const p of parts){
+        if (p.parent || p.obj.userData.dead || p.mode === 'held' || p.stuck || !mine(p)) continue;
+        if (p.bot && !p.bot.dead && p === p.bot.root && p.mode === 'bot') continue;
+        const c = centerW(p), cc = inChan(c.x, c.z); if (!cc || c.y > wl + 0.3) continue;
+        p.mode = 'free'; p.asleep = false; p.still = 0;
+        if (c.y < wl){ p.v.y += 22*dt*Math.min(1, (wl - c.y)/0.15); p.v.y *= 1 - 3*dt; }
+        const along = p.v.dot(cc[0]); if (along < 1.3*push) p.v.addScaledVector(cc[0], dt*3*push);
+        const side = cc[2] === 'x' ? new V(0, 0, 1) : new V(1, 0, 0), off = (cc[2] === 'x' ? c.z - O.z : c.x - O.x) - cc[1]; p.v.addScaledVector(side, -off*dt*2);
+        const end = cc[2] === 'x' ? c.x - O.x : c.z - O.z;
+        if (end > 43.3){ if (p.name === 'prop'){ p.obj.position[cc[2]] -= 41.5; p.v.set(0, 0, 0); } else removePart(p); }
+      }
+    }};
+}
+
+// ======================= SUPERMARKET =======================
+// A grocery store with a parking lot. Aisles of shelves, produce, freezers, sliding doors.
+// Quirk: the checkout belts. Put anything on a belt and it rides to the scanner and gets SOLD (+1 for you).
+{
+  const O = new V(0, 0, 600), B = mapBuilder(O, 'market'); mapSeed = 8080;
+  const asph = tex(256, 256, (g,w,h) => { g.fillStyle = '#3d3f42'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 8000, 'rgba(0,0,0,A)', 0.25); noiseFill(g, w, h, 3000, 'rgba(160,160,160,A)', 0.15); });
+  const tile = tex(128, 128, (g,w,h) => { for (let y=0;y<4;y++) for (let x=0;x<4;x++){ g.fillStyle = (x + y) % 2 ? '#e9e6df' : '#d5d1c8'; g.fillRect(x*32, y*32, 32, 32); } noiseFill(g, w, h, 600, 'rgba(90,80,70,A)', 0.12, 2); });
+  const wallT = tex(128, 128, (g,w,h) => { g.fillStyle = '#efe9da'; g.fillRect(0,0,w,h); g.fillStyle = '#3a9ad8'; g.fillRect(0, h*0.82, w, h*0.06); noiseFill(g, w, h, 500, 'rgba(90,80,70,A)', 0.08, 2); });
+  const outT = tex(128, 128, (g,w,h) => { g.fillStyle = '#c9c2b2'; g.fillRect(0,0,w,h); for (let y=0;y<h;y+=16){ g.fillStyle = 'rgba(80,70,60,.25)'; g.fillRect(0, y, w, 2); } });
+  const signT = canvasTex(1024, 160, (g,w,h) => { g.fillStyle = '#d8302a'; g.fillRect(0,0,w,h); g.fillStyle = '#fff'; g.font = 'bold 110px Rubik, sans-serif'; g.textAlign = 'center'; g.fillText('SUPER MART', w/2, 120); });
+  const beltT = canvasTex(64, 64, (g,w,h) => { g.fillStyle = '#1c1d20'; g.fillRect(0,0,w,h); g.fillStyle = '#34373c'; for (let y=0;y<h;y+=16) g.fillRect(0, y, w, 6); }, true);
+  const aisleT = k => canvasTex(128, 96, (g,w,h) => { g.fillStyle = '#2f62c8'; g.fillRect(0,0,w,h); g.fillStyle = '#fff'; g.font = 'bold 34px Rubik, sans-serif'; g.textAlign = 'center'; g.fillText('AISLE', w/2, 38); g.font = 'bold 44px Rubik, sans-serif'; g.fillText(String(k), w/2, 84); });
+  B.mat('asph', lam(0xffffff, {map:asph})).mat('tile', lam(0xffffff, {map:tile})).mat('wall', lam(0xffffff, {map:wallT})).mat('out', lam(0xffffff, {map:outT})).mat('sign', new T3.MeshBasicMaterial({map:signT}))
+   .mat('belt', lam(0xffffff, {map:beltT})).mat('paint', lam(0xf2f2ea)).mat('conc', lam(0xa9a59c)).mat('shelf', lam(0xd8dde2)).mat('shelfB', lam(0x8a929b)).mat('counter', lam(0x3a9ad8)).mat('dark', lam(0x222428))
+   .mat('screen', new T3.MeshBasicMaterial({color:0x52e06a})).mat('fridge', lam(0xf4f6f8)).mat('fglass', lam(0x9fd8ff, {transparent:true, opacity:0.45})).mat('panel', new T3.MeshBasicMaterial({color:0xf8fbff})).mat('crate', lam(0x9a7448))
+   .mat('green', lam(0x3f9a4a)).mat('hedge', lam(0x2f6b2a)).mat('ceilM', lam(0xf0eee8)).mat('pole', lam(0x4a5056)).mat('lamp', new T3.MeshBasicMaterial({color:0xfff6d8}));
+  const prodCols = [0xd8302a, 0x2f62c8, 0xf2c230, 0x3f9a4a, 0xff8a1f, 0x9a4fc8, 0xf4f4f2, 0x8a5a32];
+  prodCols.forEach((c, i) => B.mat('p' + i, lam(c)));
+  for (let k=1;k<=6;k++) B.mat('a' + k, new T3.MeshBasicMaterial({map:aisleT(k), side:T3.DoubleSide}));
+  B.box('asph', [-2, -1, -2], [46, 0, 46], {us:4});
+  // lot edge: low wall and hedge, invisible above
+  for (const [a, b] of [[[-1,0,-1],[0,1.0,45]], [[44,0,-1],[45,1.0,45]], [[0,0,-1],[44,1.0,0]], [[0,0,44],[44,1.0,45]]]){ B.box('hedge', a, b, {us:2}); B.solid([a[0],1.0,a[2]], [b[0],14,b[2]]); }
+  for (let x=2;x<42;x+=3) if (x < 19 || x > 25) for (const z0 of [2, 9]) B.box('paint', [x, 0, z0], [x + 0.1, 0.006, z0 + 4.5], {solid:false});
+  // parked cars
+  const car = (x, z, c) => { B.mat('car' + c, B.bins['car' + c] ? B.bins['car' + c].m : lam(c)); B.box('car' + c, [x - 0.9, 0.25, z - 2.1], [x + 0.9, 0.95, z + 2.1]); B.box('car' + c, [x - 0.8, 0.95, z - 1.1], [x + 0.8, 1.5, z + 0.9]);
+    B.box('fglass', [x - 0.81, 1.0, z - 1.05], [x + 0.81, 1.45, z + 0.85], {solid:false}); for (const [dx, dz] of [[-0.85,-1.35],[0.85,-1.35],[-0.85,1.35],[0.85,1.35]]) B.box('dark', [x + dx - 0.12, 0, z + dz - 0.33], [x + dx + 0.12, 0.6, z + dz + 0.33], {solid:false}); };
+  car(3.6, 4.2, 0xd23a2a); car(12.6, 11.4, 0x2a62c8); car(30.6, 4.2, 0xeeeeee); car(39.6, 11.4, 0x2f9e55);
+  for (const [x, z] of [[9, 7], [35, 7]]){ B.box('pole', [x - 0.08, 0, z - 0.08], [x + 0.08, 6, z + 0.08]); B.box('pole', [x - 0.6, 6, z - 0.15], [x + 0.6, 6.15, z + 0.15]); B.box('lamp', [x - 0.55, 5.97, z - 0.12], [x + 0.55, 6.0, z + 0.12]); }
+  B.box('pole', [26, 0, 12], [29, 0.9, 12.06]); B.box('pole', [26, 0, 13.2], [29, 0.9, 13.26]); B.box('pole', [28.94, 0, 12], [29, 0.9, 13.26]);
+  // ---- the store ----
+  const X0 = 4, X1 = 40, Z0 = 16, Z1 = 42, HT = 5.5, T = 0.3;
+  const front = [[20, 24, 0, 2.7], [5.5, 9.3, 0.4, 3.2, true], [9.6, 13.4, 0.4, 3.2, true], [13.7, 17.5, 0.4, 3.2, true], [26.5, 30.3, 0.4, 3.2, true], [30.6, 34.4, 0.4, 3.2, true], [34.7, 38.5, 0.4, 3.2, true]];
+  B.wallRun(['wall'], 'x', X0, X1, Z0, Z0 + T, 0, HT, front, 2);
+  B.wallRun(['out'], 'x', X0 - 0.03, X1 + 0.03, Z0 - 0.03, Z0, 0, HT + 1.2, front.map(h => h.slice(0, 4)), 2);
+  B.box('wall', [X0, 0, Z1 - T], [X1, HT, Z1], {us:2}); B.box('wall', [X0, 0, Z0 + T], [X0 + T, HT, Z1 - T], {us:2}); B.box('wall', [X1 - T, 0, Z0 + T], [X1, HT, Z1 - T], {us:2});
+  B.box('out', [X0 - 0.03, 0, Z0], [X0, HT + 1.2, Z1], {us:2}); B.box('out', [X1, 0, Z0], [X1 + 0.03, HT + 1.2, Z1], {us:2}); B.box('out', [X0, 0, Z1], [X1, HT + 1.2, Z1 + 0.03], {us:2});
+  B.box('out', [X0, HT, Z0], [X1, HT + 1.2, Z1]); B.box('ceilM', [X0 + T, HT - 0.01, Z0 + T], [X1 - T, HT, Z1 - T], {solid:false});
+  B.geo('sign', new T3.PlaneGeometry(9.6, 1.5), 22, 4.15, Z0 - 0.05, 0, Math.PI, 0);
+  B.box('tile', [X0 + T, 0, Z0 + T], [X1 - T, 0.02, Z1 - T], {us:2});
+  for (let x=7;x<38;x+=5) for (let z=19;z<41;z+=4) B.box('panel', [x - 0.9, HT - 0.03, z - 0.3], [x + 0.9, HT - 0.01, z + 0.3], {solid:false});
+  // checkouts with belts
+  const belts = [];
+  for (const cx of [8, 13, 31, 36]){
+    B.box('counter', [cx - 0.45, 0, 19.5], [cx + 0.45, 0.85, 23.6]); B.box('belt', [cx - 0.35, 0.85, 20.3], [cx + 0.35, 0.9, 23.5], {us:0.5});
+    B.box('dark', [cx - 0.45, 0.85, 19.5], [cx + 0.45, 1.05, 20.25]); B.box('dark', [cx + 0.25, 1.05, 19.6], [cx + 0.45, 1.6, 19.75]); B.box('screen', [cx + 0.26, 1.2, 19.75], [cx + 0.44, 1.5, 19.76], {solid:false});
+    B.box('pole', [cx - 0.02, 0.9, 23.55], [cx + 0.02, 2.0, 23.6]); B.box('lamp', [cx - 0.12, 2.0, 23.5], [cx + 0.12, 2.2, 23.65], {solid:false});
+    belts.push({x:cx + O.x, z0:20.3 + O.z, z1:23.5 + O.z, top:0.9});
+  }
+  // aisles
+  const shelves = [8.5, 13, 17.5, 26.5, 31, 35.5];
+  shelves.forEach((cx, ai) => {
+    B.box('shelfB', [cx - 0.5, 0, 26], [cx + 0.5, 2.2, 38]); B.solid([cx - 0.56, 0, 26], [cx + 0.56, 2.2, 38]);
+    for (let lv=0;lv<4;lv++){ const y = 0.15 + lv*0.5;
+      for (const sd of [-1, 1]){ B.box('shelf', [sd < 0 ? cx - 0.56 : cx + 0.46, y - 0.03, 26], [sd < 0 ? cx - 0.46 : cx + 0.56, y, 38], {solid:false});
+        for (let z=26.15; z<37.8; z+=0.3){ const k = 'p' + Math.floor(mr()*8), ph = 0.18 + mr()*0.22, pw = 0.2 + mr()*0.06; B.box(k, [sd < 0 ? cx - 0.5 : cx + 0.3, y, z], [sd < 0 ? cx - 0.3 : cx + 0.5, y + ph, z + pw], {solid:false}); } } }
+    B.geo('a' + (ai + 1), new T3.PlaneGeometry(0.8, 0.6), cx, 3.3, 26.4, 0, Math.PI, 0); B.box('pole', [cx - 0.01, 3.6, 26.38], [cx + 0.01, HT, 26.42], {solid:false});
+    for (let k=0;k<3;k++){ const z = 27 + mr()*10, sd = k % 2 ? 1 : -1, lv = 1 + Math.floor(mr()*3); B.prop(['can','cereal','bottle'][k], cx + sd*0.42, 0.15 + lv*0.5, z); }
+  });
+  // produce
+  for (const [z0, z1] of [[26, 30], [32, 36]]){ B.box('crate', [20, 0, z0], [24, 0.8, z1]); B.box('green', [20.1, 0.8, z0 + 0.1], [23.9, 0.84, z1 - 0.1], {solid:false}); }
+  for (const [k, n, z] of [['melon', 4, 27], ['apple', 5, 29], ['orange', 5, 33], ['melon', 3, 35]]) for (let i=0;i<n;i++) B.prop(k, 20.5 + i*0.7, 0.84, z + (i % 2)*0.6);
+  // freezers along the back
+  B.box('fridge', [5, 0, 40.4], [39, 2.1, 41.7]); B.box('fglass', [5, 0.3, 40.36], [39, 2.0, 40.4], {solid:false});
+  for (let x=5.2;x<39;x+=0.35) B.box('p' + Math.floor(mr()*8), [x, 0.4 + Math.floor(mr()*3)*0.5, 40.45], [x + 0.25, 0.7 + Math.floor(mr()*1)*0.5, 40.8], {solid:false});
+  // carts out front
+  for (const [x, z] of [[27, 12.6], [27.8, 12.6], [14, 13], [23, 10]]) B.prop('cart', x, 0, z);
+  const grp = B.finish(), nav = buildNav(B.solids, O, 44, 2, [0]);
+  // sliding front doors
+  const doorMat = new T3.MeshLambertMaterial({color:0xbfe6ff, emissive:0x1d3442, transparent:true, opacity:0.35, depthWrite:false});
+  const doors = [0, 1].map(i => { const m = new T3.Mesh(new T3.BoxGeometry(2, 2.7, 0.06), doorMat); m.position.set(21 + i*2 + O.x, 1.35, Z0 + T/2 + O.z); grp.add(m);
+    const fr = new T3.Mesh(new T3.BoxGeometry(2, 0.08, 0.08), lam(0x4a5056)); fr.position.y = 1.31; m.add(fr); return {m, box:dynBox(), open:0}; });
+  let saleT = 0, paT = 20;
+  const PA = ['Attention shoppers. Robots are not for sale. Unless you put them on the belt.', 'Clean up on aisle three.', 'Reminder: please do not throw the melons.', 'Today only: robot parts, buy one get one free.', 'Would the owner of the robot leaking oil please return to the checkout.'];
+  const sellBeep = () => { if (!AC) return; tone('square', 1800, 1800, 0.08, 0.12); setTimeout(() => tone('square', 2400, 2400, 0.12, 0.1), 100); };
+  MAPS.market = {name:'SUPERMARKET', group:grp, spawn:new V(22, 0, 7).add(O), yaw:Math.PI, nav, yMin:-5, yMax:16, props:B.props,
+    sky:{bg:0xa9d2ee, fog:0xc4dbe8, near:16, far:60, hs:0xffffff, hg:0x8a8070, hi:1.0, ac:0xffffff, ai:0.4},
+    update(dt, inGame){
+      // doors open when anyone (or any robot) walks up
+      const who = [lastPlayer]; for (const p of Object.values(NET.peers)) if (p.P) who.push(p.P.head); for (const b of bots) if (!b.dead) who.push(b.root.obj.position);
+      const dc = new V(22 + O.x, 1, Z0 + O.z), near = who.some(p => Math.hypot(p.x - dc.x, p.z - dc.z) < 3.3);
+      doors.forEach((d, i) => { d.open += ((near ? 1 : 0) - d.open)*Math.min(1, dt*4); const x = 21 + i*2 + (i ? 1 : -1)*d.open*1.9 + O.x; d.m.position.x = x;
+        setDyn(d.box, x - 1, 0, Z0 + O.z + 0.12, x + 1, 2.7, Z0 + O.z + 0.18); });
+      if (!inGame) return;
+      paT -= dt; if (paT <= 0){ paT = 40 + R()*30; if (lastPlayer.z > O.z + 10) announce(pick(PA)); }
+      saleT -= dt;
+      for (const p of parts){
+        if (p.parent || p.obj.userData.dead || p.mode === 'held' || p.stuck || !mine(p)) continue;
+        if (p.bot && !p.bot.dead && p === p.bot.root) continue;
+        const c = centerW(p);
+        for (const bt of belts){
+          if (Math.abs(c.x - bt.x) > 0.4 || c.z < bt.z0 - 0.1 || c.z > bt.z1 || c.y < bt.top - 0.05 || c.y > bt.top + 0.7) continue;
+          if (p.name === 'mine'){ mineTrigger(p); continue; }
+          p.obj.position.z -= 0.45*dt; p.v.multiplyScalar(0.8);
+          if (c.z < bt.z0 + 0.05){
+            spawnSparks(c, 14, 1.5); removePart(p); score++; if (saleT <= 0){ saleT = 0.3; sellBeep(); if (c.distanceTo(lastPlayer) < 8) showMsg('SOLD! +1'); }
+          }
+        }
+      }
+    }};
+}
 // ================= audio =================
 let AC = null, strainGain = null, noiseBuf = null;
 function audio(){
@@ -1743,7 +2238,10 @@ function poseAvatar(av, P){
 const wristCanvas = document.createElement('canvas'); wristCanvas.width = 256; wristCanvas.height = 128;
 const wristTex = new T3.CanvasTexture(wristCanvas); wristTex.encoding = T3.sRGBEncoding;
 const wrist = new T3.Mesh(new T3.PlaneGeometry(0.11, 0.055), new T3.MeshBasicMaterial({map:wristTex}));
-wrist.position.set(-0.038, 0.072, 0); wrist.rotation.y = -Math.PI/2; wrist.rotation.z = Math.PI/2; me.claws[0].add(wrist);
+wrist.position.set(-0.04, 0.085, 0); wrist.rotation.y = -Math.PI/2; wrist.rotation.z = -Math.PI/2; me.claws[0].add(wrist);
+wrist.material.depthTest = false; wrist.renderOrder = 20; wrist.userData.weapon = true;
+function updateWristVis(){ const n = new V(-1,0,0).applyQuaternion(me.claws[0].getWorldQuaternion(new Q())), p = wrist.getWorldPosition(new V());
+  wrist.visible = !me.lost[0] && n.dot(loco.headPos().sub(p).normalize()) > 0.35; }
 let startT = performance.now(), lastWrist = '';
 function drawWrist(){
   const s = Math.floor((performance.now()-startT)/1000), cl = typeof lastCombat === 'number' ? Math.ceil(10 - (clock - lastCombat)) : 0;
@@ -1784,8 +2282,9 @@ function goto(m){
     mode = m;
     me.lost[0] = me.lost[1] = false;
     if (m === 'game'){
-      lastDeath = '';
-      resetWorld(); setMap(netGame ? gameMap(netGame) : selMap); teleport(SPAWN, MAPS[curMap].yaw); startT = performance.now(); score = 0; lastWrist = ''; gameJoinT = performance.now(); gotSnap = false; needTries = 0;
+      lastDeath = ''; myChar.arm0 = myChar.arm1 = myChar.head = myChar.torso = 0;
+      resetWorld(); setMap(netGame ? gameMap(netGame) : selMap); resetWindows(); teleport(SPAWN, MAPS[curMap].yaw); startT = performance.now(); score = 0; lastWrist = ''; gameJoinT = performance.now(); gotSnap = false; needTries = 0;
+      if (!netGame || (isHost() && !bots.length)) spawnProps();
       if (!netGame) for (let k=0;k<4;k++) makeBot(BOT_COLORS[k], farCell(SPAWN));
       else if (isHost() && !bots.length) for (let k=0;k<4;k++){ const b = makeBot(BOT_COLORS[k], farCell(SPAWN)); netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(b.root.obj.position.x), y:r3(b.root.obj.position.y), z:r3(b.root.obj.position.z)}); }
       else if (netGame){ netSend('ev', {t:'need'}); needT = 1.5; needTries = 1; }
@@ -2141,16 +2640,36 @@ function makeHammer(){
   return g;
 }
 const wpn = ['none', 'none'], sawRun = [0, 0], sawPrevMid = [new V(), new V()], hammerPrev = [new V(), new V()], hammerVs = [new V(), new V()], hammerT = [-1, -1], cutJobs = [null, null], flameOn = [false, false], mineCD = [0, 0], minePrev = [false, false];
-function weaponSet(claw){ const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer(), mine:makeMine()}; w.mine.position.set(0, -0.12, -0.03); claw.add(w.saw, w.hammer, w.flame, w.mine); return w; }
+function weaponSet(claw){ const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer(), mine:makeMine(), laser:makeLaser(), hook:makeHook()}; w.mine.position.set(0, -0.12, -0.03);
+  for (const k in w){ w[k].userData.weapon = true; claw.add(w[k]); } return w; }
+function makeLaser(){
+  const g = new T3.Group(), add = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
+  const dark = new T3.MeshLambertMaterial({color:0x2a2d33}), metal = new T3.MeshLambertMaterial({color:0xb8bec6});
+  add(new T3.CylinderGeometry(0.03, 0.034, 0.24, 12), dark, 0, -0.1, 0.0); add(new T3.CylinderGeometry(0.038, 0.038, 0.03, 12), metal, 0, -0.02, 0); add(new T3.CylinderGeometry(0.036, 0.036, 0.02, 12), metal, 0, -0.17, 0);
+  for (const a of [0, 2.1, 4.2]){ const f = add(new T3.BoxGeometry(0.008, 0.08, 0.03), metal, Math.cos(a)*0.035, -0.08, Math.sin(a)*0.035); f.rotation.y = -a; }
+  g.lens = add(new T3.SphereGeometry(0.022, 10, 8), new T3.MeshBasicMaterial({color:0x661010, fog:false}), 0, -0.23, 0);
+  return g;
+}
+function makeHook(){
+  const g = new T3.Group(), add = (geo, mat, x, y, z, p) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); (p || g).add(m); return m; };
+  const body = new T3.MeshLambertMaterial({color:0x5a6a3a}), metal = new T3.MeshLambertMaterial({color:0xa9b0b8});
+  add(new T3.CylinderGeometry(0.035, 0.035, 0.2, 12), body, 0, -0.06, 0); add(new T3.CylinderGeometry(0.025, 0.025, 0.06, 10), metal, 0, -0.18, 0);
+  g.head = new T3.Group(); g.head.position.y = -0.22; g.add(g.head); hookHeadParts(g.head, metal);
+  return g;
+}
+function hookHeadParts(gr, metal){
+  const a = new T3.Mesh(new T3.ConeGeometry(0.018, 0.05, 8), metal); a.rotation.x = Math.PI; a.position.y = -0.02; gr.add(a);
+  for (const k of [0, 1, 2]){ const pr = new T3.Mesh(new T3.BoxGeometry(0.008, 0.05, 0.008), metal); const ang = k*2.094; pr.position.set(Math.cos(ang)*0.02, 0.005, Math.sin(ang)*0.02); pr.rotation.set(Math.sin(ang)*0.7, 0, -Math.cos(ang)*0.7); gr.add(pr); }
+}
 const myW = [0,1].map(i => weaponSet(me.claws[i]));
 const myWm = [0,1].map(i => weaponSet(meMirror.claws[i]));
 function showWeapons(){
   for (const i of [0,1]){
-    for (const set of [myW, myWm]){ const w = wpn[i]; set[i].saw.visible = w === 'saw'; set[i].hammer.visible = w === 'hammer'; set[i].flame.visible = w === 'flame'; set[i].mine.visible = w === 'mine' && mineCD[i] <= 0; }
+    for (const set of [myW, myWm]){ const w = wpn[i]; set[i].saw.visible = w === 'saw'; set[i].hammer.visible = w === 'hammer'; set[i].flame.visible = w === 'flame'; set[i].mine.visible = w === 'mine' && mineCD[i] <= 0; set[i].laser.visible = w === 'laser'; set[i].hook.visible = w === 'hook'; }
     myWm[i].saw.bar.scale.y = myW[i].saw.bar.scale.y;
   }
 }
-function chooseWeapon(k, hand){ wpn[hand] = k; sndBoop(); pulse(hand, 0.8, 90); myW[hand].saw.ext = 0.001; myW[hand].saw.bar.scale.y = 0.001; }
+function chooseWeapon(k, hand){ wpn[hand] = k; hooks[hand] = null; sndBoop(); pulse(hand, 0.8, 90); myW[hand].saw.ext = 0.001; myW[hand].saw.bar.scale.y = 0.001; }
 let sawOsc = null, sawGain = null;
 function sawSound(level, pitch){
   if (!AC) return;
@@ -2168,8 +2687,10 @@ function updateWeapon(dt){
     if (w === 'hammer' && mode === 'game') updateHammer(i, dt);
     if (w === 'flame') updateFlamer(i, dt); else flameOn[i] = false;
     if (w === 'mine') updateMineHand(i, dt); else minePrev[i] = false;
+    if (w === 'laser') updateLaser(i, dt); else { laserOn[i] = false; myBeams[i].visible = false; }
+    if (w === 'hook') updateHook(i, dt); else { hooks[i] = null; hookPrev[i] = false; myRopes[i].visible = myHooks[i].visible = false; }
   }
-  sawSound(sawLvl, sawCut ? 1 : 0.2); flameSound(flameOn[0] || flameOn[1] ? 1 : 0);
+  sawSound(sawLvl, sawCut ? 1 : 0.2); flameSound(flameOn[0] || flameOn[1] ? 1 : 0); laserSound(laserOn[0] || laserOn[1]);
   // things cool off when the flames aren't on them
   for (const p of heated){ if (!p.heatT || clock - p.heatT > 0.05){ p.heat = Math.max(0, (p.heat || 0) - dt*0.6); if (!p.heat) heated.delete(p); } }
   for (const peer of Object.values(NET.peers)) if (peer.heat && clock - (peer.heatT || 0) > 0.05) peer.heat = Math.max(0, peer.heat - dt*0.6);
@@ -2582,6 +3103,7 @@ function updateHammer(i, dt){
   const hm = myW[i].hammer, head = hm.head.getWorldPosition(new V()), hammerV = hammerVs[i];
   hammerV.lerp(head.clone().sub(hammerPrev[i]).divideScalar(Math.max(dt, 1e-3)), 0.6); hammerPrev[i].copy(head);
   const sp = hammerV.length(); if (sp < 2.2 || clock - hammerT[i] < 0.15) return;
+  if (mode === 'game') for (const w of WINS) if (w.map === curMap && w.st !== 'gone' && windowDist(w, head) < 0.09){ breakWindow(w, hammerV); hammerT[i] = clock; pulse(i, 1, 60); return; }
   for (const p of parts){
     if (p.obj.userData.dead || centerW(p).distanceTo(head) > p.r + 0.1 || (hs[i].mode === 'hold' && rootOf(p) === hs[i].root)) continue;
     if (p.parent && hs[i].mode === 'hold' && rootOf(p) === hs[i].root) continue;      // not what this claw is holding
@@ -2706,6 +3228,7 @@ function blast(pos, minePart, by){
   if (minePart){ if (minePart.obj.userData.dead) return; for (const i of [0,1]) if (hs[i].root === minePart) hs[i] = {mode:'none'}; minePart.stuck = null; removePart(minePart, true); }
   // the look: a white-hot flash, a fireball shell, fire flung in every direction, sparks and smoke
   flash(pos, 2.2);
+  for (const w of WINS) if (w.map === curMap && w.st !== 'gone' && windowDist(w, pos) < BLAST*1.4) breakWindow(w, w.mesh.position.clone().sub(pos).setLength(6), true);
   const sh = new T3.Mesh(boomGeo, boomMat.clone()); sh.position.copy(pos); sh.scale.setScalar(0.1); scene.add(sh); booms.push({m:sh, t:0});
   for (let k=0;k<32;k++){ const d = new V(R()-0.5, R()-0.3, R()-0.5).normalize(); emitFire(pos.clone().addScaledVector(d, 0.05), d.multiplyScalar(3 + R()*5), 0.04 + R()*0.05, 0.3 + R()*0.35); }
   spawnSparks(pos, 60, 8); emitAsh(pos, 16, 0.3);
@@ -2761,6 +3284,145 @@ function updateBooms(dt){
   for (let i = booms.length-1; i >= 0; i--){ const b = booms[i]; b.t += dt; const k = b.t/0.35;
     if (k >= 1){ scene.remove(b.m); b.m.material.dispose(); booms.splice(i, 1); continue; }
     b.m.scale.setScalar(0.15 + Math.sqrt(k)*0.95); b.m.material.opacity = 0.5*(1 - k)*(1 - k); b.m.material.color.setRGB(1, 0.55 - k*0.4, 0.15 - k*0.12); }
+}
+
+// ================= laser & grappling hook =================
+// LASER: a thin beam twice the flamethrower's reach. Whatever it touches chars darker and darker, then
+// crumbles to ash: robot pieces, and each part of a player (arms first fall off, head or body = scrapped).
+const LASER_LEN = 5.2, LZDUR = {arm0:1.6, arm1:1.6, head:2.2, torso:2.8};
+const myChar = {arm0:0, arm1:0, head:0, torso:0};
+const beamMat = new T3.MeshBasicMaterial({color:0xff1408, transparent:true, opacity:0.9, depthWrite:false, fog:false});
+const beamGeo = new T3.CylinderGeometry(1, 1, 1, 6, 1, true); beamGeo.translate(0, 0.5, 0);
+const ropeMat = new T3.MeshLambertMaterial({color:0x4a3c28}), ropeGeo = beamGeo;
+function makeBeam(){ const m = new T3.Mesh(beamGeo, beamMat); m.visible = false; m.frustumCulled = false; scene.add(m); return m; }
+function makeRope(){ const m = new T3.Mesh(ropeGeo, ropeMat); m.visible = false; m.frustumCulled = false; scene.add(m); return m; }
+function makeHookHead(){ const g = new T3.Group(); hookHeadParts(g, new T3.MeshLambertMaterial({color:0xa9b0b8})); g.scale.setScalar(1.6); g.visible = false; scene.add(g); return g; }
+function aimBeam(m, a, b, th){ const d = b.clone().sub(a), L = d.length(); if (L < 1e-4){ m.visible = false; return; } m.position.copy(a); m.quaternion.setFromUnitVectors(UP, d.divideScalar(L)); m.scale.set(th, L, th); m.visible = true; }
+const myBeams = [makeBeam(), makeBeam()], laserOn = [false, false];
+function weaponRay(obj, tipY){ const tip = obj.localToWorld(new V(0, tipY, 0)), dir = obj.localToWorld(new V(0, tipY - 1, 0)).sub(tip).normalize(); return [tip, dir]; }
+function worldRayLen(tip, dir, max){ const h = loco.sphereCast(tip, 0.004, dir, max); return h ? h.distance : max; }
+function rayPart(tip, dir, len, skipRoot){
+  let best = null, bt = len;
+  for (const p of parts){
+    if (p.obj.userData.dead || (skipRoot && rootOf(p) === skipRoot)) continue;
+    const c = centerW(p), r = Math.max(0.03, p.r*0.85), oc = c.sub(tip), t = oc.dot(dir); if (t < -r || t > bt + r) continue;
+    const d2 = oc.lengthSq() - t*t; if (d2 > r*r) continue; const th = t - Math.sqrt(r*r - d2); if (th >= 0 && th < bt){ bt = th; best = p; }
+  }
+  return best ? {p:best, t:bt} : null;
+}
+function rayPlayer(tip, dir, len){
+  const ts = playerTargets(); if (!ts.length) return null;
+  for (let t=0; t<=len; t+=0.03){ const pt = tip.clone().addScaledVector(dir, t); for (const x of ts) if (x.dist(pt) < 0.015) return {x, t}; }
+  return null;
+}
+function charPart(p, amt){
+  if (!p.charMats){ p.charMats = []; for (const o of ownMeshes(p)){ const ms = [].concat(o.material), cl = ms.map(m => { const c = m.clone(); if (c.color) p.charMats.push({m:c, base:c.color.clone()}); return c; }); o.material = Array.isArray(o.material) ? cl : cl[0]; } }
+  p.char = Math.min(1, (p.char || 0) + amt);
+  for (const cm of p.charMats) cm.m.color.copy(cm.base).multiplyScalar(1 - 0.9*p.char);
+}
+const charSent = new Map();
+let laserHum = null;
+function laserSound(on){ if (!AC) return; if (!laserHum){ const o = AC.createOscillator(), g = AC.createGain(); o.type = 'sawtooth'; o.frequency.value = 220; g.gain.value = 0; o.connect(g); g.connect(AC.destination); o.start(); laserHum = {o, g}; }
+  laserHum.g.gain.setTargetAtTime(on ? 0.025 : 0, AC.currentTime, 0.03); laserHum.o.frequency.setTargetAtTime(on ? 210 + R()*30 : 220, AC.currentTime, 0.02); }
+function updateLaser(i, dt){
+  const lz = myW[i].laser; laserOn[i] = io.trig[i] > 0.5; lz.lens.material.color.setHex(laserOn[i] ? 0xff4030 : 0x661010);
+  if (!laserOn[i]){ myBeams[i].visible = false; return; }
+  pulse(i, 0.1, 20);
+  const [tip, dir] = weaponRay(lz, -0.25); let len = worldRayLen(tip, dir, LASER_LEN), hp = null, hpl = null;
+  if (mode === 'game'){ hp = rayPart(tip, dir, len, hs[i].mode === 'hold' ? hs[i].root : null); if (hp) len = hp.t; hpl = rayPlayer(tip, dir, len); if (hpl){ len = hpl.t; hp = null; } }
+  const end = tip.clone().addScaledVector(dir, len); aimBeam(myBeams[i], tip, end, 0.006);
+  if (len < LASER_LEN - 0.01){ if (R() < 0.6) spawnSparks(end, 1, 1.2); if (R() < 0.2) emitAsh(end, 1, 0.01); }
+  if (hp){
+    const p = hp.p;
+    if (p.name === 'mine') mineTrigger(p);
+    else if (!p.fire){
+      charPart(p, dt/(0.9 + p.r*5)); lastCombat = clock;
+      const b = p.bot; if (b && !b.dead && R() < dt*0.7){ setFace(b, 'scared'); say(b, pick(['ow ow ow','it burns!!','LASER!','stop pointing that at me'])); }
+      if (netGame && p.id && clock - (charSent.get(p) || 0) > 0.15){ charSent.set(p, clock); netSend('ev', {t:'char', p:p.id, c:r3(p.char)}); }
+      if (p.char >= 1) ashPart(p);
+    }
+  }
+  if (hpl){ const peer = NET.peers[hpl.x.id]; lastCombat = clock; peer.lzAcc = peer.lzAcc || {}; peer.lzAcc[hpl.x.k] = (peer.lzAcc[hpl.x.k] || 0) + dt;
+    if (clock - (peer.lzT || 0) > 0.12){ peer.lzT = clock; const a = {}; for (const k in peer.lzAcc) a[k] = r3(peer.lzAcc[k]); netSend('ev', {t:'lz', a, n:myName}, [hpl.x.id]); peer.lzAcc = {}; } }
+}
+// someone's laser is on me
+function laserMe(a, by){
+  lastCombat = clock;
+  for (const k in a){ if (!(k in LZDUR)) continue; myChar[k] = Math.min(1, myChar[k] + a[k]/LZDUR[k]); }
+  for (const i of [0,1]) if (myChar['arm' + i] >= 1 && !me.lost[i]){ emitAsh(handW[i].clone(), 40, 0.12); me.lost[i] = true; release(i, true); hs[i] = {mode:'none'}; netSend('ev', {t:'pash', k:'arm' + i}); sndSnap(); }
+  if (myChar.head >= 1 || myChar.torso >= 1){ emitAsh(loco.headPos(), 80, 0.25); netSend('ev', {t:'pash', k:'head'}); die((by || 'someone') + "'s laser"); }
+}
+// darkening drawn on a scary robot: arm0, arm1, head, torso (0 = fine, 1 = black)
+function avCharGroup(av, key, objs){
+  av.charG = av.charG || {}; if (av.charG[key]) return av.charG[key];
+  const list = [];
+  for (const root of objs) root.traverse(o => {
+    if (!o.isMesh || o.userData.ember) return;
+    for (let q = o; q; q = q.parent){ if (q.userData && q.userData.weapon) return; if (q === root) break; }
+    const ms = [].concat(o.material), cl = ms.map(m => { const c = m.clone(); if (c.color) list.push({m:c, base:c.color.clone()}); return c; });
+    o.material = Array.isArray(o.material) ? cl : cl[0];
+  });
+  return av.charG[key] = list;
+}
+function renderChar(av, v){
+  for (const [key, objs] of [['arm0', [av.arms[0], av.claws[0]]], ['arm1', [av.arms[1], av.claws[1]]], ['head', [av.head]], ['torso', [av.torso]]]){
+    const c = v[key] || 0; if (c <= 0.001 && !(av.charG && av.charG[key])) continue;
+    if (Math.abs((av['c_' + key] || 0) - c) < 0.002) continue; av['c_' + key] = c;
+    for (const cm of avCharGroup(av, key, objs)) cm.m.color.copy(cm.base).multiplyScalar(1 - 0.9*c);
+  }
+}
+
+// GRAPPLING HOOK: pull the trigger to fire it, hold to stay hooked, let go to let go.
+// Hooked on a wall/ceiling/anything solid: it reels you in, and you swing on the rope.
+// Hooked on a robot, a piece or a player: it drags them to you. No damage.
+const hooks = [null, null], hookPrev = [false, false], myRopes = [makeRope(), makeRope()], myHooks = [makeHookHead(), makeHookHead()];
+function sndHook(){ if (!AC) return; noiseHit(0.12, 1800, 2, 0.25); tone('square', 900, 300, 0.12, 0.06); }
+function updateHook(i, dt){
+  const hk = myW[i].hook, trig = io.trig[i] > 0.5, [tip, dir] = weaponRay(hk, -0.2);
+  let h = hooks[i];
+  if (trig && !hookPrev[i] && !h && mode === 'game'){ h = hooks[i] = {st:'fly', p:tip.clone(), d:dir.clone(), dist:0}; sndHook(); pulse(i, 0.5, 40); }
+  hookPrev[i] = trig;
+  if (h && !trig){ hooks[i] = h = null; }
+  hk.head.visible = !h;
+  if (!h){ myRopes[i].visible = myHooks[i].visible = false; return; }
+  if (h.st === 'fly'){
+    const step = 45*dt, L = worldRayLen(h.p, h.d, step);
+    let hit = null;
+    const rp = rayPart(h.p, h.d, L, hs[i].mode === 'hold' ? hs[i].root : null); if (rp) hit = {type:'part', part:rp.p, at:h.p.clone().addScaledVector(h.d, rp.t)};
+    const rpl = rayPlayer(h.p, h.d, rp ? rp.t : L); if (rpl) hit = {type:'player', id:rpl.x.id, k:rpl.x.k, at:h.p.clone().addScaledVector(h.d, rpl.t)};
+    if (!hit && L < step - 1e-4) hit = {type:'world', at:h.p.clone().addScaledVector(h.d, L)};
+    if (hit){
+      Object.assign(h, hit); h.st = 'stuck'; h.p.copy(hit.at); h.len = Math.max(0.6, h.p.distanceTo(loco.headPos())); sndClank(4); pulse(i, 0.9, 60);
+      if (hit.type === 'part'){ h.root = rootOf(hit.part); h.local = hit.part.obj.worldToLocal(hit.at.clone()); if (h.root.mode === 'held' && !mine(h.root)){ hooks[i] = null; return; } if (!mine(h.root)) claim(h.root); }
+    } else { h.p.addScaledVector(h.d, step); h.dist += step; if (h.dist > 25){ hooks[i] = null; return; } }
+  }
+  if (h.st === 'stuck'){
+    if (h.type === 'world'){
+      // swing: you hang on a rope that slowly reels in. Gravity swings you; the rope never gets longer.
+      const head = loco.headPos(), d = h.p.clone().sub(head), L = d.length(); d.divideScalar(L || 1);
+      h.len = Math.max(0.6, Math.min(h.len, L) - dt*2.2);
+      const v = loco.S.velocity; v.addScaledVector(d, 3.5*dt);
+      if (L > h.len){ const out = -v.dot(d); if (out > 0) v.addScaledVector(d, out); v.addScaledVector(d, Math.min(6, (L - h.len)*5)); }
+      if (R() < 0.3) pulse(i, 0.15, 20);
+    } else if (h.type === 'part'){
+      const root = h.root;
+      if (root.obj.userData.dead || h.part.obj.userData.dead || (root.mode === 'held' && !mine(root))){ hooks[i] = null; return; }
+      h.p.copy(h.part.obj.localToWorld(h.local.clone()));
+      if (mine(root) && root.mode !== 'held'){
+        if (root.mode === 'bot'){ root.mode = 'free'; if (root.bot && !root.bot.dead){ root.bot.stunT = 1.5; say(root.bot, pick(['wheee','where am I going','HELP'])); } }
+        const to = handW[i].clone().sub(h.p), dd = to.length();
+        if (dd < 0.45){ hooks[i] = null; }       // here it is: grab it
+        else { root.asleep = false; root.still = 0; root.v.lerp(to.normalize().multiplyScalar(Math.min(10, 3 + dd*3)).add(new V(0, 1, 0)), 0.35); }
+      } else if (!mine(root)) claim(root);
+    } else if (h.type === 'player'){
+      const peer = NET.peers[h.id]; if (!peer || !peer.P || peer.g !== netGame){ hooks[i] = null; return; }
+      h.p.copy(h.k === 'head' ? peer.P.head : h.k[0] === 'a' ? peer.P.hands[+h.k[3]] : peer.av.torso.position); lastCombat = clock;
+      if (clock - (h.sendT || 0) > 0.1){ h.sendT = clock; netSend('ev', {t:'yank', to:r3(handW[i].toArray())}, [h.id]); }
+      if (h.p.distanceTo(handW[i]) < 0.8) hooks[i] = null;
+    }
+    if (!hooks[i]){ myRopes[i].visible = myHooks[i].visible = false; return; }
+  }
+  aimBeam(myRopes[i], tip, h.p, 0.007); myHooks[i].position.copy(h.p); myHooks[i].quaternion.setFromUnitVectors(new V(0,-1,0), h.p.clone().sub(tip).normalize()); myHooks[i].visible = true;
 }
 
 // ================= players ripping players =================
@@ -2878,18 +3540,19 @@ function showMsg(t){ const el = $('pcmsg'); if (!el) return; el.textContent = t;
 
 // Loose wreckage despawns so the piece count can't grow forever: chunks after 15 s, other
 // loose pieces after 60 s, and the oldest go first whenever there are more than 110.
-const MAX_LOOSE = 110;
+const MAX_LOOSE = 60;
 function despawn(dt){
   const loose = [];
   for (const p of parts){
-    if (p.parent || p.obj.userData.dead || p.mode !== 'free' || !mine(p) || p.name === 'mine') continue;
+    if (p.parent || p.obj.userData.dead || p.mode !== 'free' || !mine(p) || p.name === 'mine' || p.name === 'prop') continue;
     if (p.bot && !p.bot.dead && p === p.bot.root) continue;
     loose.push(p);
   }
+  const busy = loose.length > 35 ? 0.5 : 1;
   if (loose.length > MAX_LOOSE){ loose.sort((a,b) => a.born - b.born); for (let i=0;i<loose.length-MAX_LOOSE;i++) if (!loose[i].dying) loose[i].dying = 0.4; }
   for (const p of loose){
     const age = clock - p.born;
-    if (!p.dying && age > (p.name === 'chunk' ? 15 : 60)) p.dying = 1;
+    if (!p.dying && age > busy*(p.name === 'chunk' ? 8 : p.planes ? 20 : 35)) p.dying = 1;
     if (p.dying){
       p.dying -= dt; p.obj.scale.setScalar(Math.max(0.001, Math.min(1, p.dying)));
       if (p.dying <= 0) removePart(p);
@@ -2950,7 +3613,7 @@ function vrStep(dt){
     carriedT -= dt;
     const step_ = carryPending.clone().multiplyScalar(0.5); carryPending.sub(step_); rig.position.add(step_);
     loco.InitializeValues();                       // hands don't stick to anything while you're being carried
-  } else { carryPending.set(0,0,0); loco.Physics(dt); loco.Update(dt); }
+  } else { carryPending.set(0,0,0); bodyWindowCheck(dt); loco.Physics(dt); loco.Update(dt); }
   for (const i of [0,1]) if (loco.S.wasTouching[i] && !was[i]){ pulse(i, 0.25, 25); sndTap(0.18); }
   if (Math.abs(io.stickX) > 0.7 && !turnLatch){ loco.Turn(io.stickX > 0 ? -Math.PI/4 : Math.PI/4); turnLatch = true; } else if (Math.abs(io.stickX) < 0.3) turnLatch = false;
   rig.rotation.y = io.yaw;
@@ -2965,7 +3628,7 @@ function vrStep(dt){
   for (const i of [0,1]) if (!io.pads[i]){ io.gripV[i] = io.trig[i] = io.grip[i] ? 1 : 0; }
   const P = {head, headQ, yawQ, hands:handW, handQ:handQW, grip:io.grip, gripV:io.gripV, trig:io.trig, thumb:io.thumb};
   poseAvatar(me, P); if (mode === 'lobby') poseAvatar(meMirror, P);
-  renderBurn(me, P, mode === 'game' ? burnVals() : [-1, -1, -1], true);
+  renderBurn(me, P, mode === 'game' ? burnVals() : [-1, -1, -1], true); renderChar(me, mode === 'game' ? myChar : {});
   // lobby button
   if (mode === 'lobby' && !fadeDir){
     let pressed = false;
@@ -3012,7 +3675,7 @@ function vrStep(dt){
   // fade
   if (fadeDir){ fade += fadeDir*dt*4; if (fade >= 1){ fade = 1; fadeAction && fadeAction(); fadeAction = null; fadeDir = -1; } if (fade <= 0){ fade = 0; fadeDir = 0; } }
   fadeMesh.material.opacity = fade; fadeMesh.position.copy(head);
-  drawWrist();
+  drawWrist(); updateWristVis();
   return head;
 }
 
@@ -3031,13 +3694,14 @@ function worldStep(dt, player){
     }
   }
   despawn(dt);
+  if (mode === 'lobby' || !inited) warmStep();
   if (MAPS[curMap].update) try { MAPS[curMap].update(dt, mode === 'game'); } catch(e){ console.warn(e); }
   applyRemoteState();
   for (let i = respawnTimers.length-1; i >= 0; i--){ respawnTimers[i] -= dt; if (respawnTimers[i] <= 0){ respawnTimers.splice(i,1); if (mode === 'game' || !netGame){ const b = makeBot(pick(BOT_COLORS), farCell(player)); if (netGame) netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(b.root.obj.position.x), y:r3(b.root.obj.position.y), z:r3(b.root.obj.position.z)}); } } }
   for (let i = bots.length-1; i >= 0; i--){ const b = bots[i]; if (b.dead && b.deadT > 6 && (b.chkT = (b.chkT || 0) - dt) <= 0){ b.chkT = 2; if (!parts.some(p => p.bot === b && !p.obj.userData.dead)) bots.splice(i,1); } }
 
   scene.updateMatrixWorld();
-  updateClips(); updateKerfs(); updateMines(dt); updateBooms(dt);
+  updateClips(); updateKerfs(); updateMines(dt); updateBooms(dt); updateWindows(dt);
   ropes(dt);
   netTick(dt);
   updateBurning(dt); updateFire(dt);
@@ -3104,6 +3768,7 @@ function onPose(a, from){
     trig:[a[22],a[25]], gripV:[a[23],a[26]], thumb:[!!a[24], !!a[27]], grip:[a[23]>0.5, a[26]>0.5]};
   if (!p.P) p.P = tgt; p.T = tgt;
   p.lost[0] = !!a[28]; p.lost[1] = !!a[29]; p.wType = [a[30] || 0, a[31] || 0]; p.wAct = [a[32] || 0, a[33] || 0]; p.burnV = a.length > 36 ? [a[34], a[35], a[36]] : [-1, -1, -1];
+  p.charV = a.length > 40 ? {arm0:a[37], arm1:a[38], head:a[39], torso:a[40]} : {}; p.hookP = a.length > 46 ? [0,1].map(i => a[42 + i*3] > -900 ? new V(a[41 + i*3], a[42 + i*3], a[43 + i*3]) : null) : [null, null];
 }
 function updateRemoteAvatars(){
   for (const p of Object.values(NET.peers)){
@@ -3118,13 +3783,17 @@ function updateRemoteAvatars(){
     if (!p.wp) p.wp = [p.av, p.avM].map(av => [0,1].map(i => weaponSet(av.claws[i])));
     p.wp.forEach((set, mi) => set.forEach((w, i) => {
       const on = here && (mi === 0 || mode === 'lobby'), t = p.wType[i], act = p.wAct[i];
-      w.saw.visible = on && t === 2; w.hammer.visible = on && t === 1; w.flame.visible = on && t === 3; w.mine.visible = on && t === 4 && act > 0.5;
+      w.saw.visible = on && t === 2; w.hammer.visible = on && t === 1; w.flame.visible = on && t === 3; w.mine.visible = on && t === 4 && act > 0.5; w.laser.visible = on && t === 5; w.hook.visible = on && t === 6;
+      if (mi === 0){ p.fx = p.fx || [0,1].map(() => ({beam:makeBeam(), rope:makeRope(), head:makeHookHead()})); const fx = p.fx[i];
+        fx.beam.visible = false; fx.rope.visible = false; fx.head.visible = false; w.hook.head.visible = true;
+        if (w.laser.visible && act > 0.5){ const [tip, dir] = weaponRay(w.laser, -0.25); let L = worldRayLen(tip, dir, LASER_LEN); const rp = rayPart(tip, dir, L); if (rp) L = rp.t; aimBeam(fx.beam, tip, tip.clone().addScaledVector(dir, L), 0.006); if (L < LASER_LEN - 0.01 && R() < 0.5) spawnSparks(tip.clone().addScaledVector(dir, L), 1, 1.2); }
+        const hp = p.hookP && p.hookP[i]; if (w.hook.visible && hp){ const [tip] = weaponRay(w.hook, -0.2); aimBeam(fx.rope, tip, hp, 0.007); fx.head.position.copy(hp); fx.head.visible = true; w.hook.head.visible = false; } }
       if (w.flame.visible && mi === 0 && act > 0.5) shootFlames(w.flame, 2);
       if (w.saw.visible){ w.saw.bar.scale.y = Math.max(0.001, act); if (act > 0.5) w.saw.chain.map.offset.y -= 0.12; }
     }));
     if (here){
       poseAvatar(p.av, P); if (mode === 'lobby') poseAvatar(p.avM, P); p.tag.position.copy(P.head).add(new V(0, 0.32, 0)); p.head.copy(P.head);
-      renderBurn(p.av, P, mode === 'game' && p.burnV ? p.burnV : [-1, -1, -1], false);
+      renderBurn(p.av, P, mode === 'game' && p.burnV ? p.burnV : [-1, -1, -1], false); renderChar(p.av, mode === 'game' && p.charV ? p.charV : {});
       if (p.pull){
         const jit = new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.012);
         if (p.pull.k === 'head') p.av.head.position.add(p.pull.off).add(jit);
@@ -3138,8 +3807,10 @@ function sendPose(){
   const a = [...head.toArray(), hq.x, hq.y, hq.z, hq.w, io.yaw + io.headYaw];
   for (const i of [0,1]) a.push(...handW[i].toArray(), handQW[i].x, handQW[i].y, handQW[i].z, handQW[i].w);
   for (const i of [0,1]) a.push(io.trig[i], io.gripV[i], io.thumb[i] ? 1 : 0);
-  const WT = {none:0, hammer:1, saw:2, flame:3, mine:4}, act = i => wpn[i] === 'saw' ? myW[i].saw.ext : wpn[i] === 'flame' && flameOn[i] ? 1 : wpn[i] === 'mine' && mineCD[i] > 0 ? 0 : 1;
+  const WT = {none:0, hammer:1, saw:2, flame:3, mine:4, laser:5, hook:6}, act = i => wpn[i] === 'saw' ? myW[i].saw.ext : wpn[i] === 'flame' && flameOn[i] ? 1 : wpn[i] === 'mine' && mineCD[i] > 0 ? 0 : wpn[i] === 'laser' ? (laserOn[i] ? 1 : 0) : 1;
   a.push(me.lost[0] ? 1 : 0, me.lost[1] ? 1 : 0, WT[wpn[0]], WT[wpn[1]], act(0), act(1), ...burnVals());
+  a.push(myChar.arm0, myChar.arm1, myChar.head, myChar.torso);
+  for (const i of [0,1]){ const h = hooks[i]; a.push(...(h ? h.p.toArray() : [0, -999, 0])); }
   netSend('pose', r3(a));
 }
 // world state: every root I own is streamed; everyone else eases toward it
@@ -3210,6 +3881,10 @@ function onEvent(ev, from){
   else if (ev.t === 'hit'){ knockV.fromArray(ev.v); knockT = 0.18; lastCombat = clock; pulse(0, 0.9, 120); pulse(1, 0.9, 120); sndClank(6); spawnSparks(loco.headPos().add(new V(0,-0.2,0)), 20, 3); }
   else if (ev.t === 'throw'){ carriedT = 0; carryPending.set(0,0,0); loco.S.velocity.fromArray(ev.v).multiplyScalar(1.1); }
   else if (ev.t === 'need'){ if (isHost()) sendSnapshot(from); }
+  else if (ev.t === 'char'){ const q = partsById.get(ev.p); if (q && !q.fire && !q.obj.userData.dead && ev.c > (q.char || 0)) charPart(q, ev.c - (q.char || 0)); }
+  else if (ev.t === 'lz'){ if (mode === 'game') laserMe(ev.a, ev.n); }
+  else if (ev.t === 'yank'){ if (mode === 'game'){ const to = new V().fromArray(ev.to), d = to.sub(loco.headPos()); if (d.length() > 0.6){ loco.S.velocity.copy(d.normalize().multiplyScalar(7)).add(new V(0, 1, 0)); lastCombat = clock; } } }
+  else if (ev.t === 'win'){ const w = WINS.find(x => x.map === ev.m && x.i === ev.i); if (w && ev.m === curMap) breakWindow(w, null, true); }
   else if (ev.t === 'snap'){ loadSnapshot(ev, from); }
 }
 function sendSnapshot(to){
@@ -3227,11 +3902,13 @@ function sendSnapshot(to){
   }
   const tree = parts.filter(p => p.id && !p.obj.userData.dead).map(p => [p.id, p.parent ? p.parent.id : null, r3(p.obj.position.toArray()), r3(p.obj.quaternion.toArray())]);
   const burn = parts.filter(p => p.fire && p.id && !p.obj.userData.dead).map(p => [p.id, r3(p.fire.t)]);
-  netSend('ev', {t:'snap', bots:list, extras, tree, burn}, [to]);
+  const wins = WINS.filter(w => w.map === curMap && w.st === 'gone').map(w => [w.i, r3(w.t)]);
+  netSend('ev', {t:'snap', bots:list, extras, tree, burn, wins}, [to]);
 }
 function fromSpec(id, spec, owner){
   if (spec.type === 'trophy') return makeTrophy(spec.k, id, new V(), owner);
   if (spec.type === 'mine'){ const m = createMine(id, owner, spec.f, spec.n); if (spec.st) stickMine(m, spec.st.v, spec.st.k, new V().fromArray(spec.st.l), new Q().fromArray(spec.st.q)); return m; }
+  if (spec.type === 'prop') return makeProp(spec.k, id, owner);
   if (spec.type === 'chunk'){ const c = makeChunk(id, spec.s, spec.col, owner); scene.add(c.obj); return c; }
   if (spec.type === 'half'){
     let base = partsById.get(spec.base), temp = null;
@@ -3247,6 +3924,7 @@ function fromSpec(id, spec, owner){
 function loadSnapshot(ev){
   if (mode !== 'game' || !netGame) return;
   gotSnap = true;
+  for (const [i, t] of ev.wins || []){ const w = WINS.find(x => x.map === curMap && x.i === i); if (w && w.st !== 'gone'){ breakWindow(w, null, true); w.t = t; } }
   for (const s of ev.bots){
     if (bots.some(b => b.id === s.b)) continue;
     const b = makeBot(s.c, farCell(SPAWN), s.b); b.root.owner = s.o;
@@ -3333,11 +4011,23 @@ if (location.hash.includes('bc')){
   }).catch(e => { const el = $('net'); if (el) el.textContent = 'Multiplayer unavailable here (' + e.message + ').'; });
 }
 for (let k=0;k<4;k++) makeBot(BOT_COLORS[k], farCell(SPAWN));   // bots for the desktop preview
+// Cutting and burning use clipped copies of the robots' materials. Compiling those shaders the first time
+// they're needed causes a hitch, so they're compiled ahead of time, one per frame, while you're in the lobby.
+const warmList = [];
+{
+  const seen = new Set(), mats = [];
+  for (const b of bots) b.root.obj.traverse(o => { if (!o.isMesh) return; for (const m of [].concat(o.material)){ const k = m.type + !!m.map + m.side + !!m.vertexColors + m.transparent; if (!seen.has(k)){ seen.add(k); mats.push(m); } } });
+  mats.push(new T3.MeshBasicMaterial({map:gutsInsideTex, side:T3.BackSide}), new T3.MeshBasicMaterial({color:0xff5a10, side:T3.BackSide}));
+  const far = () => new T3.Plane(new V(0,1,0), 1e4);
+  for (const m of mats) for (let n=1;n<=6;n++) for (const inter of [false, true]){ if (inter && n !== 5) continue; const c = m.clone(); c.clippingPlanes = Array.from({length:n}, far); c.clipIntersection = inter; if (m.side !== T3.BackSide) c.side = T3.FrontSide; warmList.push(c); }
+}
+const warmScene = new T3.Scene(), warmCam = new T3.PerspectiveCamera(), warmMesh = new T3.Mesh(new T3.BoxGeometry(0.01, 0.01, 0.01)); warmScene.add(warmMesh);
+function warmStep(){ if (!warmList.length) return; const m = warmList.pop(); warmMesh.material = m; try { renderer.compile(warmScene, warmCam); } catch(e){} }
 if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netGame(){return netGame}, set netGame(v){netGame = v}, get mode(){return mode}, bots, parts, partsById, playTogether, goto, isHost, hostId};
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124041458';
+const BUILD = '20261124065556';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
