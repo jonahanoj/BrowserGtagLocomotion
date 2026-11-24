@@ -1614,7 +1614,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   f('wood', 30, 0, 17, 2.2, 0.76, 1.2); for (const [cx, cz, r] of [[29.4, 16.0, 0], [30.6, 16.0, 0], [29.4, 18.0, 2], [30.6, 18.0, 2]]) chair(cx, 0, cz, r);
   // back room: long table, piano, fireplace
   f('wood', 24, 0, 27.6, 4.6, 0.76, 1.2); for (let i=0;i<3;i++){ chair(22.4 + i*1.6, 0, 26.4, 0); chair(22.4 + i*1.6, 0, 28.8, 2); }
-  f('black', 33.5, 0, 30.6, 1.6, 1.2, 0.7); f('white', 33.5, 0.75, 30.15, 1.4, 0.05, 0.25, false);
+  f('black', 33.5, 0, 30.6, 1.6, 1.2, 0.7); f('black', 33.5, 0, 30.15, 1.6, 0.6, 0.25); f('black', 32.65, 0.72, 30.15, 0.1, 0.16, 0.25); f('black', 34.35, 0.72, 30.15, 0.1, 0.16, 0.25);
   f('brick', 18.5, 0, 31.3, 2.0, 1.4, 0.5); f('black', 18.5, 0.1, 31.05, 1.2, 0.8, 0.02, false); for (let i=0;i<5;i++) B.geo('glow', new T3.DodecahedronGeometry(0.1, 0), 18.0 + i*0.25, 0.2, 31.2);
   shelf(15, 0, 31.4, 1.8, 0.4, 2.0, -1); pic(0, 28, 1.4, 31.68, Math.PI);
   // upstairs: bedroom 1, bathroom, bedroom 2, game room, kids' room
@@ -1657,9 +1657,30 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   grp.add(vac); const vacBox = dynBox();
   let slurpT = 0;
   const slurp = () => { if (!AC) return; noiseHit(0.35, 900, 3, 0.3); tone('sine', 300, 1400, 0.3, 0.08); };
+  // the piano: real keys, two octaves from middle C. Press them with your claws.
+  const PK = {x0:32.8, x1:34.2, z0:30.025, z1:30.275, y:0.72}, keys = [];
+  { const wMat = lam(0xf6f2e6), bMat = lam(0x15151a), WN = 15, ww = (PK.x1 - PK.x0)/WN, wSemi = [0, 2, 4, 5, 7, 9, 11];
+    for (let i=0;i<WN;i++){ const m = new T3.Mesh(new T3.BoxGeometry(ww - 0.006, 0.05, PK.z1 - PK.z0), wMat); m.position.set(PK.x1 - (i + 0.5)*ww + O.x, PK.y + 0.025, (PK.z0 + PK.z1)/2 + O.z); grp.add(m);
+      keys.push({m, x0:PK.x1 - (i + 1)*ww, x1:PK.x1 - i*ww, black:false, n:Math.floor(i/7)*12 + wSemi[i % 7], y0:m.position.y, t:0}); }
+    for (let i=0;i<WN - 1;i++){ if ([2, 6].includes(i % 7)) continue; const cx = PK.x1 - (i + 1)*ww, m = new T3.Mesh(new T3.BoxGeometry(ww*0.55, 0.05, (PK.z1 - PK.z0)*0.6), bMat);
+      m.position.set(cx + O.x, PK.y + 0.06, PK.z0 + (PK.z1 - PK.z0)*0.7 + O.z); grp.add(m); keys.push({m, x0:cx - ww*0.28, x1:cx + ww*0.28, black:true, n:Math.floor(i/7)*12 + wSemi[i % 7] + 1, y0:m.position.y, t:0}); } }
+  const playNote = (n, vol) => { if (!AC) return; const f = 261.63*Math.pow(2, n/12), t = AC.currentTime, g = AC.createGain(), lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400;
+    for (const [type, mul, v] of [['triangle', 1, 0.6], ['sine', 2, 0.25], ['sine', 3, 0.1]]){ const o = AC.createOscillator(), og = AC.createGain(); o.type = type; o.frequency.value = f*mul; og.gain.value = v; o.connect(og); og.connect(lp); o.start(t); o.stop(t + 2.2); }
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22*vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.06*vol, t + 0.4); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.1); lp.connect(g); g.connect(AC.destination); };
+  const pianoAt = new V(33.5 + O.x, 0.8, 30.15 + O.z), keyOn = [null, null];
+  const press = (k, vol, local) => { k.t = 0.18; const d = pianoAt.distanceTo(lastPlayer); playNote(k.n, vol/(1 + d*0.15)); if (local && netGame) netSend('ev', {t:'mapev', m:'house', k:'note', i:keys.indexOf(k)}); };
   MAPS.house = {name:'HOUSE', group:grp, spawn:new V(22, 0, 6).add(O), yaw:Math.PI, nav, yMin:-8, yMax:18, props:B.props,
     sky:{bg:0xa9d2ee, fog:0xc4dbe8, near:14, far:55, hs:0xfffaf0, hg:0x7a6a50, hi:0.95, ac:0xfff4e0, ai:0.38},
+    keys, onEv(ev){ if (ev.k === 'note' && keys[ev.i]) press(keys[ev.i], 1, false); },
     update(dt, inGame){
+      for (const k of keys){ if (k.t > 0) k.t -= dt; k.m.position.y = k.y0 - (k.t > 0 ? 0.014 : 0); }
+      if (inGame) for (const i of [0,1]){
+        const h = handW[i]; let hit = null;
+        if (!me.lost[i] && h.z > PK.z0 - 0.06 + O.z && h.z < PK.z1 + O.z && h.y < PK.y + 0.09 && h.y > PK.y - 0.16){ const x = h.x - O.x;
+          hit = keys.find(k => k.black && h.z > PK.z0 + (PK.z1 - PK.z0)*0.4 + O.z && h.y > PK.y + 0.04 && x > k.x0 && x < k.x1) || keys.find(k => !k.black && x > k.x0 && x < k.x1) || null; }
+        if (hit && hit !== keyOn[i]){ press(hit, Math.min(1.4, 0.5 + hv[i].length()*0.4), true); pulse(i, 0.3, 25); }
+        keyOn[i] = hit;
+      }
       let s = ((Date.now()/1000*0.7) % total + total) % total, seg = segs[0];
       for (const g of segs){ if (s <= g.len){ seg = g; break; } s -= g.len; }
       const dir = seg.q.clone().sub(seg.p).normalize(); vac.position.copy(seg.p).addScaledVector(dir, s);
@@ -2144,7 +2165,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const sndBang = (v) => { if (!AC) return; noiseHit(0.35, 300, 0.8, 0.9*v); tone('sine', 80, 30, 0.4, 0.6*v); noiseHit(0.1, 2000, 2, 0.4*v); };
   const ding = () => { if (!AC) return; tone('sine', 1320, 1320, 0.25, 0.15); setTimeout(() => tone('sine', 1760, 1760, 0.4, 0.15), 180); };
   const onBelt = (c, bt, pad) => c.x > bt.x0 + O.x - pad && c.x < bt.x1 + O.x + pad && Math.abs(c.z - bt.z - O.z) < 0.65 + pad;
-  let slamWas = false;
+  let slamWas = false, crushedT = -9;
   const crushZone = c => Math.abs(c.x - CX - O.x) < CW - 0.05 && Math.abs(c.z - 22 - O.z) < 0.9;
   const addScrap = (n) => { scrap += n; if (netGame) netSend('ev', {t:'mapev', m:'factory', k:'n', n:scrap});
     if (scrap >= need){ scrap = 0; if (netGame) netSend('ev', {t:'mapev', m:'factory', k:'n', n:0});
@@ -2157,9 +2178,9 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     sky:{bg:0x2a2c30, fog:0x3a3c40, near:16, far:55, hs:0xfff4e0, hg:0x4a4a50, hi:0.8, ac:0xffffff, ai:0.3},
     onEv(ev){ if (ev.k === 'scrap' && isHost()) addScrap(ev.n || 1); else if (ev.k === 'n'){ scrap = ev.n; drawScr(); } },
     update(dt, inGame){
-      const t = Date.now()/1000, ph = (t % 9) - 5;          // 5 s up, siren for the last 2, then it drops
+      const t = Date.now()/1000, ph = t % 4;          // up, siren, then it drops
       const hy = ph < 2.6 ? 3.05 : ph < 2.78 ? 3.05 - (ph - 2.6)/0.18*2.4 : ph < 3.3 ? 0.65 : 0.65 + (ph - 3.3)/0.7*2.4;
-      const warn = ph > 0.6 && ph < 3.3, on = warn && (t*3) % 1 < 0.5;
+      const warn = ph > 1.0 && ph < 3.3, on = warn && (t*3) % 1 < 0.5;
       siren.material.color.setHex(warn ? (on ? 0xff1a10 : 0x400404) : 0x400404); sirenL.visible = warn; beam.rotation.y = t*7;
       if (warn && on !== sirenWas && on && inGame && lastPlayer.distanceTo(head.position) < 18 && AC) tone('square', 760, 560, 0.25, 0.05); sirenWas = on;
       head.position.set(CX + O.x, hy + 0.5, 22 + O.z); setDyn(headBox, CX - CW + 0.05 + O.x, hy, 21.15 + O.z, CX + CW - 0.05 + O.x, hy + 1.0, 22.85 + O.z);
@@ -2176,7 +2197,10 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
       for (const bt of belts){ if (onBelt(feet, bt, -0.1) && Math.abs(fy - BT) < 0.12 && hd.y - fy < 2.4) carried = bt;
         for (const i of [0,1]) if (!carried && !me.lost[i] && onBelt(handW[i], bt, 0.05) && handW[i].y > BT - 0.15 && handW[i].y < BT + 0.1) carried = bt; if (carried) break; }
       if (carried){ const dx = carried.d*1.3*dt; rig.position.x += dx; for (const i of [0,1]) if (onBelt(loco.S.lastHand[i], carried, 0.1) && Math.abs(loco.S.lastHand[i].y - BT) < 0.25) loco.S.lastHand[i].x += dx; }
-      if (slam && hy < 1.6 && crushZone(hd) && hd.y < hy + 2.2 && hd.y > -1) die('the crusher');
+      if (slam && hy < 1.6 && crushZone(hd) && hd.y < hy + 2.2 && hd.y > -1 && clock - crushedT > 3){ crushedT = clock;
+        // one big CRUNCH, not a stream of sparks
+        const at = hd.clone().setY(BT + 0.2); sndBang(1); if (AC){ noiseHit(0.6, 180, 0.6, 1.0); tone('sawtooth', 220, 40, 0.5, 0.25); noiseHit(0.25, 1400, 1.5, 0.5); }
+        debris(at, 0x3c4048); debris(at, 0x26292e); flash(at, 1.2); pulse(0, 1, 400); pulse(1, 1, 400); die('the crusher'); }
       if (feet.x > 40.7 + O.x && feet.x < 43.3 + O.x && feet.z > 20.3 + O.z && feet.z < 23.7 + O.z && hd.y < 2.2) igniteMe('torso', 'the furnace');
       for (const p of parts.slice()){
         if (p.parent || p.obj.userData.dead || !mine(p) || p.mode === 'held' || p.stuck) continue;
@@ -4265,7 +4289,7 @@ function updateBoomer(i, dt){
   if (press && !b && armed()){
     const [tip, dir] = weaponRay(bw, -0.13), sp = hv[i].length();
     const v = sp > 2.5 ? hv[i].clone().setLength(Math.min(17, 8 + sp*1.2)) : dir.clone().multiplyScalar(11);
-    b = booms_[i] = {p:tip.clone(), v, t:0, cut:new Set(), hit:new Set(), back:false, turn:(R() < 0.5 ? -1 : 1)*0.7};
+    b = booms_[i] = {p:tip.clone(), v, t:0, t0:clock, cuts:0, cut:new Set(), hit:new Set(), back:false, turn:(R() < 0.5 ? -1 : 1)*0.7};
     pulse(i, 0.6, 60); if (AC) tone('sawtooth', 300, 900, 0.2, 0.06);
   }
   if (!b){ myBlades[i].visible = false; return; }
@@ -4281,12 +4305,12 @@ function updateBoomer(i, dt){
     const held = hs[0].root, held1 = hs[1].root;
     for (const p of parts.slice()){
       if (p.obj.userData.dead || p.name === 'mine') continue;
-      const root = rootOf(p); if (b.cut.has(root) || root === held || root === held1 || root.stuck) continue;
+      const root = rootOf(p); if (b.cuts >= 1 || p.born > b.t0 || b.cut.has(root) || root === held || root === held1 || root.stuck) continue;
       if (segDist(centerW(p), from, b.p) > p.r + 0.08) continue;
       b.cut.add(root);
       if (root.ice){ shatterIce(root, b.v.clone()); continue; }
       const P = centerW(p);                                 // cut right where the blade meets it
-      bladeCut(root, P, b.v);
+      if (bladeCut(root, P, b.v)){ b.cuts++; if (!b.back){ b.back = true; b.v.multiplyScalar(0.6); } }
       const bt = root.bot; if (bt && !bt.dead && R() < 0.5) say(bt, pick(['MY LEGS','not again','ow ow ow']));
     }
     for (const t of playerTargets()){
@@ -4640,6 +4664,8 @@ function makeTrophy(k, id, pos, owner){
   return p;
 }
 function die(by){
+  if (clock - (die.t != null ? die.t : -9) < 2) return;          // once: the fade back to the lobby takes a moment
+  die.t = clock;
   lastDeath = by || 'another robot';
   for (const i of [0,1]) release(i, true);
   spawnSparks(loco.headPos(), 120, 4); sndSnap(); pulse(0, 1, 300); pulse(1, 1, 300);
@@ -5156,7 +5182,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124081206';
+const BUILD = '20261124081838';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
