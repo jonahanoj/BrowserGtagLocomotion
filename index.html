@@ -963,8 +963,8 @@ function grab(i){
   if (me.lost[i]) return;
   const np = nearestPart(i, true);
   let bt = null, btd = Infinity;
-  for (const t of playerTargets()){ const d = t.pos.distanceTo(handW[i]) - t.r; if (d < 0.07 && d < btd){ btd = d; bt = t; } }
-  if (bt && btd < np.d){
+  for (const t of playerTargets()){ const d = t.dist(handW[i]); if (d < 0.08 && d < btd){ btd = d; bt = t; } }
+  if (bt && btd < np.d + 0.05){                    // a player within reach wins over loose debris
     hs[i] = {mode:'player', id:bt.id, k:bt.k};
     const o = hs[1-i]; if (o.mode === 'player' && o.id === bt.id && o.k !== bt.k){ const d0 = handW[0].distanceTo(handW[1]); hs[i].d0 = o.d0 = d0; }
     pulse(i, 0.5, 50); sndTap(0.2); return;
@@ -993,6 +993,7 @@ function grab(i){
 }
 function release(i, quiet){
   const s = hs[i];
+  if (s.mode === 'player' && !quiet && !(hs[1-i].mode === 'player' && hs[1-i].id === s.id)) netSend('ev', {t:'throw', v:r3(hv[i].toArray())}, [s.id]);
   if (s.mode === 'stretch'){ s.k.obj.position.copy(s.k.rest); s.k.obj.quaternion.copy(s.k.restQ); }
   if (s.mode === 'hold'){
     const o = hs[1-i];
@@ -1010,11 +1011,12 @@ function updateHolds(dt){
   for (const i of [0,1]){
     const s = hs[i]; if (s.mode !== 'hold') continue;
     if (s.root.obj.userData.dead || rootOf(s.part) !== s.root){ hs[i] = {mode:'none'}; continue; }
-    const before = centerW(s.root);
     handMat(i).multiply(s.mat).decompose(s.root.obj.position, s.root.obj.quaternion, tmpV);
     s.root.obj.updateMatrixWorld(true);
-    s.root.v.copy(centerW(s.root)).sub(before).divideScalar(dt);
-    heldImpacts(s.root, i);
+    // speed comes from the hand's motion only (not from being bumped back out of something)
+    const c = centerW(s.root);
+    if (s.lastC) s.root.v.lerp(c.clone().sub(s.lastC).divideScalar(dt), 0.75); else s.root.v.set(0,0,0);
+    s.lastC = c;
     bash(s.root);
   }
   let strain = 0;
@@ -1048,37 +1050,13 @@ function updateHolds(dt){
   }
   setStrain(strain);
 }
-// What you hold is solid: walls and floor block it, and slamming it breaks pieces off.
-function collideWorld(root){
-  let best = 0, pt = null;
-  for (const p of subtree(root)){
-    const c = centerW(p), r = p.r;
-    for (const b of boxes){
-      if (c.x+r < b.min[0] || c.x-r > b.max[0] || c.y+r < b.min[1] || c.y-r > b.max[1] || c.z+r < b.min[2] || c.z-r > b.max[2]) continue;
-      const q = new V(Math.max(b.min[0],Math.min(c.x,b.max[0])), Math.max(b.min[1],Math.min(c.y,b.max[1])), Math.max(b.min[2],Math.min(c.z,b.max[2])));
-      const d = c.clone().sub(q); let L = d.length(); if (L >= r) continue;
-      const n = L < 1e-6 ? new V(0,1,0) : d.divideScalar(L);
-      root.obj.position.addScaledVector(n, r - L); c.addScaledVector(n, r - L); root.obj.updateMatrixWorld(true);
-      const imp = -root.v.dot(n); if (imp > best){ best = imp; pt = q; }
-    }
-  }
-  return {imp:best, pt};
-}
 const heldBy = p => hs.some(h => (h.part && isAnc(p, h.part)) || (h.k && isAnc(p, h.k)));
-function heldImpacts(root, hand){
-  const {imp, pt} = collideWorld(root);
-  if (imp < 2.2 || clock - (root.hitT || -1) < 0.12) return;
-  root.hitT = clock;
-  spawnSparks(pt, Math.min(50, imp*7), imp*0.6); sndClank(imp*1.6); pulse(hand, Math.min(1, imp/6), 70);
-  if (imp > 4.5){
-    const loose = root.kids.filter(k => !heldBy(k));
-    if (loose.length) detach(pick(loose), root.v.clone().multiplyScalar(-0.3).add(new V(R()-0.5, 1.5, R()-0.5)));
-    if (root.bot && !root.bot.dead && root === root.bot.root){ setFace(root.bot, 'dizzy'); root.bot.faceT = 1; }
-  }
-}
-// Swinging something into other bots or pieces knocks them around and breaks limbs off.
+// Things in your hands bump into each other; a hard bang knocks pieces off, a light tap only clanks.
+const BANG_SPARK = 2.2, BANG_BREAK = 4.5;
 function bash(root){
-  if (clock - (root.bashT || -1) < 0.1 || root.v.lengthSq() < 4) return;
+  const held = root.mode === 'held';
+  if (!held && root.v.lengthSq() < 9) return;
+  if (clock - (root.bashT || -1) < 0.12) return;
   const mineParts = subtree(root);
   for (const p of mineParts){
     const cp = centerW(p);
@@ -1086,17 +1064,21 @@ function bash(root){
       if (q.obj.userData.dead) continue;
       const rr = p.r + q.r, cq = centerW(q); if (cp.distanceToSquared(cq) > rr*rr) continue;
       const qr = rootOf(q); if (qr === root) continue;
-      const n = cq.clone().sub(cp).normalize(), sp = root.v.clone().sub(qr.v).dot(n); if (sp < 2) continue;
+      const n = cq.clone().sub(cp).normalize(), sp = root.v.clone().sub(qr.v).dot(n);
+      // two things held in hands can't pass through each other: push the other one back out
+      if (held && qr.mode === 'held' && mine(qr)){ const ov = p.r + q.r - cp.distanceTo(cq); if (ov > 0){ qr.obj.position.addScaledVector(n, ov); qr.obj.updateMatrixWorld(true); } }
+      if (sp < BANG_SPARK) continue;
       root.bashT = clock; const at = cp.clone().lerp(cq, 0.5);
-      spawnSparks(at, 10 + sp*5, sp*0.6); flash(at, 0.25); sndClank(sp*1.5);
-      for (const i of [0,1]) if (hs[i].root === root) pulse(i, Math.min(1, sp/6), 60);
+      spawnSparks(at, 6 + sp*4, sp*0.5); sndClank(sp*1.3); if (sp > BANG_BREAK) flash(at, 0.3);
+      for (const i of [0,1]) if (hs[i].root === root || hs[i].root === qr) pulse(i, Math.min(1, sp/7), 60);
       if (!mine(qr) && qr.mode !== 'held') claim(qr);
-      if (q.parent && sp > 3.5 && mine(qr)) detach(q, root.v.clone().multiplyScalar(0.7));
-      else if (!q.parent && qr.mode !== 'held' && mine(qr)){
+      const knock = qr.mode !== 'held' && mine(qr) && (!q.parent || sp < BANG_BREAK);   // loose things get shoved even by a light hit
+      if (sp >= BANG_BREAK && q.parent && mine(qr) && !heldBy(q)) detach(q, root.v.clone().multiplyScalar(0.7));
+      else if (knock){
         qr.mode = 'free'; qr.asleep = false; qr.v.addScaledVector(n, sp*0.8).add(new V(0, sp*0.25, 0)); qr.w.add(new V(R()-0.5,R()-0.5,R()-0.5).multiplyScalar(sp*3));
         if (qr.bot && !qr.bot.dead && qr === qr.bot.root){ setFace(qr.bot, 'dizzy'); qr.bot.faceT = 1; say(qr.bot, pick(['OW','hey!','ouch my circuits','that hurt my feelings.json'])); }
       }
-      if (sp > 6 && p.parent && !heldBy(p)) detach(p, root.v.clone().multiplyScalar(0.5));
+      if (sp > BANG_BREAK + 1.5 && p.parent && !heldBy(p)) detach(p, root.v.clone().multiplyScalar(0.5));   // a really hard bang breaks yours too
       return;
     }
   }
@@ -1225,27 +1207,52 @@ function physics(root, dt){
 // ================= players ripping players =================
 // Grab another player with both claws and pull: arms come off, and a ripped-off head scraps
 // them back to the lobby. Same rule as the bots: no head, no robot.
+// Grab shapes that match the visible robot: head box, body box, each arm as a capsule plus its claw.
+const HEAD_HALF = new V(0.15, 0.125, 0.14), TORSO_HALF = new V(0.25, 0.21, 0.17);
+function boxDist(pt, center, q, half){
+  const l = pt.clone().sub(center).applyQuaternion(q.clone().invert());
+  return new V(Math.max(Math.abs(l.x)-half.x,0), Math.max(Math.abs(l.y)-half.y,0), Math.max(Math.abs(l.z)-half.z,0)).length();
+}
+function segDist(pt, a, b){ const ab = b.clone().sub(a), t = Math.max(0, Math.min(1, pt.clone().sub(a).dot(ab)/(ab.lengthSq() || 1))); return pt.distanceTo(a.clone().addScaledVector(ab, t)); }
+function armEnds(av, i){ const m = av.arms[i].up, half = new V(0, m.scale.y/2, 0).applyQuaternion(m.quaternion); return [m.position.clone().sub(half), m.position.clone().add(half)]; }
 function playerTargets(){
   const out = [];
   if (!netGame || mode !== 'game') return out;
   for (const [id, p] of Object.entries(NET.peers)){
     if (!p.av || !p.P || p.g !== netGame || p.m !== 'game' || p.headless) continue;
-    out.push({id, k:'head', pos:p.P.head.clone(), r:0.13});
-    out.push({id, k:'torso', pos:p.av.torso.position.clone(), r:0.17});
-    for (const i of [0,1]) if (!p.lost[i]){ out.push({id, k:'arm'+i, pos:p.P.hands[i].clone(), r:0.08}); out.push({id, k:'arm'+i, pos:p.av.arms[i].el.position.clone(), r:0.07}); }
+    const av = p.av;
+    out.push({id, k:'head', pos:p.P.head.clone(), dist:pt => boxDist(pt, av.head.localToWorld(new V(0,0,0.02)), av.head.quaternion, HEAD_HALF)});
+    out.push({id, k:'torso', pos:av.torso.position.clone(), dist:pt => boxDist(pt, av.torso.position, av.torso.quaternion, TORSO_HALF)});
+    for (const i of [0,1]) if (!p.lost[i]){
+      const [a, b] = armEnds(av, i), hand = p.P.hands[i].clone();
+      out.push({id, k:'arm'+i, pos:a.clone().lerp(b, 0.5), dist:pt => Math.min(segDist(pt, a, b) - 0.055, pt.distanceTo(hand) - 0.08)});
+    }
   }
   return out;
 }
 function targetPos(id, k){
   const p = NET.peers[id]; if (!p || !p.av || !p.P || p.g !== netGame || p.headless) return null;
   if (k === 'head') return p.P.head.clone(); if (k === 'torso') return p.av.torso.position.clone();
-  const i = +k[3]; return p.lost[i] ? null : p.av.arms[i].el.position.clone().lerp(p.P.hands[i], 0.5);
+  const i = +k[3]; if (p.lost[i]) return null; const [a, b] = armEnds(p.av, i); return a.lerp(b, 0.6);
 }
 function updatePlayerGrabs(dt){
   for (const i of [0,1]){
     const s = hs[i]; if (s.mode !== 'player') continue;
     const tp = targetPos(s.id, s.k);
-    if (!tp || tp.distanceTo(handW[i]) > 0.65) hs[i] = {mode:'none'};
+    if (!tp || tp.distanceTo(handW[i]) > 1.4){ hs[i] = {mode:'none'}; continue; }
+  }
+  // carrying: whoever you hold follows your hand(s); they get your hand speed when you let go
+  const carried = {};
+  for (const i of [0,1]){ const s = hs[i]; if (s.mode !== 'player') continue; (carried[s.id] = carried[s.id] || []).push(i); }
+  for (const [id, hands] of Object.entries(carried)){
+    const d = new V(); for (const i of hands) d.add(handW[i].clone().sub(handPrevC[i])); d.divideScalar(hands.length);
+    carryAcc[id] = (carryAcc[id] || new V()).add(d);
+  }
+  for (const i of [0,1]) handPrevC[i].copy(handW[i]);
+  carryT -= dt;
+  if (carryT <= 0){ carryT = 1/30;
+    for (const [id, d] of Object.entries(carryAcc)){ if (carried[id]) netSend('ev', {t:'carry', d:r3(d.toArray())}, [id]); }
+    for (const k in carryAcc) delete carryAcc[k];
   }
   const a = hs[0], b = hs[1];
   if (a.mode === 'player' && b.mode === 'player' && a.id === b.id && a.k !== b.k){
@@ -1261,7 +1268,8 @@ function updatePlayerGrabs(dt){
     if (st > 0.35) ripPlayer(hs[ri].id, hs[ri].k, ri);
   }
 }
-let lastDeath = '';
+let lastDeath = '', carryT = 0, carriedT = 0;
+const carryAcc = {}, handPrevC = [new V(), new V()], carryPending = new V();
 function ripPlayer(id, k, hand){
   const pos = targetPos(id, k); if (!pos) return;
   const tid = NET.id.slice(0,6) + '-t' + (botCounter++);
@@ -1367,7 +1375,11 @@ function vrStep(dt){
   if (!inited){ inited = true; mode = 'lobby'; teleport(LOBBY_SPAWN, LOBBY_YAW); showAvatar(true); }
   for (const i of [0,1]) if (me.lost[i]) io.handLocal[i].copy(io.headLocal);   // a ripped-off arm can't push you around any more
   const was = loco.S.wasTouching.slice();
-  loco.Physics(dt); loco.Update(dt);
+  if (carriedT > 0){
+    carriedT -= dt;
+    const step_ = carryPending.clone().multiplyScalar(0.5); carryPending.sub(step_); rig.position.add(step_);
+    loco.InitializeValues();                       // hands don't stick to anything while you're being carried
+  } else { carryPending.set(0,0,0); loco.Physics(dt); loco.Update(dt); }
   for (const i of [0,1]) if (loco.S.wasTouching[i] && !was[i]){ pulse(i, 0.25, 25); sndTap(0.18); }
   if (Math.abs(io.stickX) > 0.7 && !turnLatch){ loco.Turn(io.stickX > 0 ? -Math.PI/4 : Math.PI/4); turnLatch = true; } else if (Math.abs(io.stickX) < 0.3) turnLatch = false;
   rig.rotation.y = io.yaw;
@@ -1553,6 +1565,8 @@ function onEvent(ev, from){
       else { const i = +ev.k[3]; me.lost[i] = true; release(i, true); hs[i] = {mode:'none'}; applyRip('__self', ev.k, ev.id, from, pos); showMsg(ev.n + ' ripped your arm off!'); }
     } else applyRip(ev.v, ev.k, ev.id, from, pos);
   }
+  else if (ev.t === 'carry'){ carryPending.add(new V().fromArray(ev.d)); carriedT = 0.25; }
+  else if (ev.t === 'throw'){ carriedT = 0; carryPending.set(0,0,0); loco.S.velocity.fromArray(ev.v).multiplyScalar(1.1); }
   else if (ev.t === 'need'){ if (isHost()) sendSnapshot(from); }
   else if (ev.t === 'snap'){ loadSnapshot(ev, from); }
 }
@@ -1584,8 +1598,17 @@ function updateBoard(){
   const html = !NET.ready ? 'Connecting to multiplayer...' : others.length ? `<b>${others.length + 1}</b> players online: ${[myName].concat(others.map(p => p.n)).join(', ')}` : `Multiplayer ready. You are ${myName}.`;
   const el = $('net'); if (el) el.innerHTML = html;
 }
+function adoptOrphans(){
+  if (!netGame || mode !== 'game') return;
+  const members = gameMembers(), host = hostId();
+  for (const p of parts){
+    if (p.parent || p.obj.userData.dead || !p.owner || members.includes(p.owner)) continue;
+    p.owner = host;                                  // everyone picks the same new owner
+    if (host === NET.id && p.mode === 'held' && !hs.some(h => h.root === p)) p.mode = 'free';
+  }
+}
 function netTick(dt){
-  helloT -= dt; if (helloT <= 0){ helloT = 1; netHello(); for (const [id,p] of Object.entries(NET.peers)) if (performance.now() - p.seen > 6000){ dropAvatar(p); delete NET.peers[id]; } }
+  helloT -= dt; if (helloT <= 0){ helloT = 1; netHello(); adoptOrphans(); for (const [id,p] of Object.entries(NET.peers)) if (performance.now() - p.seen > 6000){ dropAvatar(p); delete NET.peers[id]; } }
   if ((renderer.xr.isPresenting || window.__vr) && inited){ poseT -= dt; if (poseT <= 0){ poseT = 1/20; sendPose(); } }
   if (netGame && mode === 'game'){ netT -= dt; if (netT <= 0){ netT = 1/12; sendState(); } }
   updateRemoteAvatars(); updateBoard();
@@ -1626,6 +1649,24 @@ if (location.hash.includes('bc')){
 }
 for (let k=0;k<4;k++) makeBot(BOT_COLORS[k], farCell(SPAWN));   // bots for the desktop preview
 if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netGame(){return netGame}, set netGame(v){netGame = v}, get mode(){return mode}, bots, parts, partsById, playTogether, goto, isHost, hostId};
+
+// ================= auto-update =================
+// Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
+const BUILD = '20261124005521';
+let updateReady = false;
+async function checkUpdate(){
+  if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
+  try {
+    const t = await (await fetch(location.pathname + '?u=' + Date.now(), {cache:'no-store'})).text();
+    const m = t.match(/const BUILD = '([^']+)'/); if (m && m[1] !== BUILD) updateReady = true;
+  } catch(e){}
+}
+setInterval(checkUpdate, 30000);
+setInterval(() => {
+  if (!updateReady) return;
+  if (!renderer.xr.isPresenting) location.reload();
+  else if (mode === 'lobby' && !fadeDir){ const s = renderer.xr.getSession(); s ? s.end().then(() => location.reload()).catch(() => location.reload()) : location.reload(); }
+}, 1000);
 
 // ================= desktop preview =================
 let pYaw = 0.6, pPitch = 0, drag = null, auto = true;
