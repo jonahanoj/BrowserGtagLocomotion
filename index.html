@@ -71,7 +71,7 @@ function makeLoco(THREE, boxes, io){
   const UP = new V(0,1,0);
 
   // ---- broad phase: a 2 m grid so each query only tests nearby boxes ----
-  const GS = 2, GX0 = -30, GZ0 = -10, GW = 45, GD = 365, qOut = [], dyn = (window.DYN_BOXES = window.DYN_BOXES || []); let grid = null, gridN = -1, stamp = 0;
+  const GS = 2, GX0 = -30, GZ0 = -10, GW = 45, GD = 540, qOut = [], dyn = (window.DYN_BOXES = window.DYN_BOXES || []); let grid = null, gridN = -1, stamp = 0;
   function buildGrid(){
     grid = Array.from({length:GW*GD}, () => []); gridN = boxes.length;
     for (const b of boxes){
@@ -277,7 +277,7 @@ function makeLoco(THREE, boxes, io){
     return [h, c.clone().add(new V(0,0.1,0)), c, c.clone().add(new V(0,-0.1,0))];
   }
   function Physics(dt){
-    S.velocity.y -= P.gravity*dt;
+    S.velocity.y -= P.gravity*(window.gravK != null && window.__inGame ? window.gravK : 1)*dt;
     let delta = S.velocity.clone().multiplyScalar(dt);
     S.grounded = false;
     for (let iter=0; iter<3 && delta.lengthSq() > 1e-12; iter++){
@@ -315,6 +315,7 @@ function makeLoco(THREE, boxes, io){
 <script>
 {
 const T3 = THREE, V = T3.Vector3, Q = T3.Quaternion, M4 = T3.Matrix4, UP = new V(0,1,0);
+const glueMat = new T3.MeshLambertMaterial({color:0xf2ea9a, emissive:0x3a3410}), steelBM = new T3.MeshLambertMaterial({color:0xc8ced6}), hubBM = new T3.MeshLambertMaterial({color:0x2a2c30});
 const $ = id => document.getElementById(id);
 const R = Math.random;
 
@@ -390,7 +391,7 @@ const PED = {x:-18.9, z:2.3, top:0.55, cap:0.2};    // PLAY button pedestal (fro
 const LOBBY_SPAWN = new V(-17.9, 0, 3.6), LOBBY_YAW = Math.PI/2;
 const PED2 = {x:-18.9, z:4.9, top:0.55, cap:0.2};   // PLAY TOGETHER (front-left of spawn)
 // weapon buttons along the north wall: the claw that presses one gets that weapon
-const WPN = [{k:'none', x:-14.4, col:0x9aa0a6, label:'NONE'}, {k:'hammer', x:-15.05, col:0xff9a2a, label:'HAMMER'}, {k:'saw', x:-15.7, col:0xff3b2f, label:'CHAINSAW'}, {k:'flame', x:-16.35, col:0x3aa0ff, label:'FLAMETHROWER'}, {k:'mine', x:-17.0, col:0x5fd35a, label:'MINE'}, {k:'laser', x:-17.65, col:0xff3050, label:'LASER'}, {k:'hook', x:-18.3, col:0xb0905a, label:'GRAPPLE'}].map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
+const WPN = ['none','hammer','saw','flame','mine','laser','hook','freeze','glue','boomer'].map((k, i) => ({k, x:-14.2 - i*0.44, col:[0x9aa0a6,0xff9a2a,0xff3b2f,0x3aa0ff,0x5fd35a,0xff3050,0xb0905a,0x8fe0ff,0xe8e070,0xd0d6de][i]})).map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
 addBox([LB.x0-1,-1,LB.z0-1],[LB.x1+1,0,LB.z1+1]); addBox([LB.x0-1,H,LB.z0-1],[LB.x1+1,H+1,LB.z1+1]);
 addBox([LB.x0-TW/2,0,LB.z0-TW/2],[LB.x0+TW/2,H,LB.z1+TW/2]);
 addBox([LB.x1-TW/2,0,LB.z0-TW/2],[LB.x1+TW/2,H,LB.z1+TW/2]);
@@ -400,7 +401,7 @@ addBox([PED.x-0.25,0,PED.z-0.25],[PED.x+0.25,PED.top,PED.z+0.25]);
 addBox([PED.x-PED.cap,PED.top,PED.z-PED.cap],[PED.x+PED.cap,PED.top+0.08,PED.z+PED.cap]);
 addBox([PED2.x-0.25,0,PED2.z-0.25],[PED2.x+0.25,PED2.top,PED2.z+0.25]);
 // map buttons along the south wall: pick where PLAY / PLAY TOGETHER takes you
-const MAPBTN = [{k:'backrooms', x:-19.6, col:0xe2cf72}, {k:'forest', x:-19.0, col:0x4caf50}, {k:'city', x:-18.4, col:0x9aa7b8}, {k:'cave', x:-17.8, col:0xb0703c}, {k:'house', x:-17.2, col:0xe08a5a}, {k:'sewer', x:-16.6, col:0x6a8a4a}, {k:'market', x:-16.0, col:0x3a9ad8}].map(w => Object.assign(w, {z:6.35, top:0.55, cap:0.15}));
+const MAPBTN = [{k:'backrooms', x:-19.6, col:0xe2cf72}, {k:'forest', x:-19.0, col:0x4caf50}, {k:'city', x:-18.4, col:0x9aa7b8}, {k:'cave', x:-17.8, col:0xb0703c}, {k:'house', x:-17.2, col:0xe08a5a}, {k:'sewer', x:-16.6, col:0x6a8a4a}, {k:'market', x:-16.0, col:0x3a9ad8}, {k:'station', col:0x6ad0ff}, {k:'factory', col:0xf2c230}, {k:'ship', col:0x8a5a32}, {k:'mansion', col:0x8a6ab8}].map((w, i) => Object.assign(w, {x:-19.6 + i*0.44, z:6.35, top:0.55, cap:0.15}));
 for (const w of WPN.concat(MAPBTN)){ addBox([w.x-0.2,0,w.z-0.2],[w.x+0.2,w.top,w.z+0.2]); addBox([w.x-w.cap,w.top,w.z-w.cap],[w.x+w.cap,w.top+0.06,w.z+w.cap]); }
 addBox([PED2.x-PED2.cap,PED2.top,PED2.z-PED2.cap],[PED2.x+PED2.cap,PED2.top+0.08,PED2.z+PED2.cap]);
 
@@ -624,7 +625,7 @@ const brGroup = new T3.Group(); for (const o of scene.children.slice(_sc0)) brGr
 const SPAWN0 = SPAWN.clone();
 const MAPS = {backrooms:{name:'BACKROOMS', group:brGroup, spawn:SPAWN0, yaw:0, nav:navBR, yMin:-5, yMax:H+2,
   sky:{bg:FOG, fog:FOG, near:3, far:26, hs:0xfff3c4, hg:0x6a5822, hi:0.95, ac:0xffeeb0, ai:0.35}}};
-let curMap = 'backrooms', selMap = 'backrooms';
+let curMap = 'backrooms', selMap = 'backrooms'; window.gravK = 1; var gravK = 1;
 function applySky(k){ const s = k.bg != null ? k : MAPS[k].sky; scene.background.setHex(s.bg); scene.fog.color.setHex(s.fog); scene.fog.near = s.near; scene.fog.far = s.far;
   hemi.color.setHex(s.hs); hemi.groundColor.setHex(s.hg); hemi.intensity = s.hi; amb.color.setHex(s.ac); amb.intensity = s.ai; }
 function setMap(k){
@@ -632,7 +633,7 @@ function setMap(k){
   if (MAPS[curMap].leave) MAPS[curMap].leave();
   curMap = k; const M = MAPS[k];
   for (const [n, m] of Object.entries(MAPS)) if (m.group) m.group.visible = n === k;
-  NAV = M.nav; SPAWN.copy(M.spawn); applySky(k);
+  NAV = M.nav; SPAWN.copy(M.spawn); applySky(k); gravK = window.gravK = M.g || 1;
   if (M.enter) M.enter();
 }
 
@@ -656,15 +657,15 @@ function drawBoard(lines){
   boardTex.needsUpdate = true;
 }
 drawBoard(['Looking for players on the network...']);
-const mapTex = signTex(1400, 200, (g,W,Hh) => {
+const mapTex = signTex(1900, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK A MAP', W/2, 62);
   g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('then RED = play solo,  BLUE = play online', W/2, 108);
-  g.font = 'bold 34px VT323, monospace'; [['MARKET','#8fd0ff'],['SEWERS','#a8d08a'],['HOUSE','#ffb08a'],['CAVE','#e0a070'],['CITY','#c9d3e0'],['FOREST','#7fe07a'],['BACKROOMS','#e2cf72']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/7, 168); });
+  g.font = 'bold 32px VT323, monospace'; [['MANSION','#c0a0ff'],['SHIP','#d8a070'],['FACTORY','#f2d040'],['STATION','#8fe0ff'],['MARKET','#8fd0ff'],['SEWERS','#a8d08a'],['HOUSE','#ffb08a'],['CAVE','#e0a070'],['CITY','#c9d3e0'],['FOREST','#7fe07a'],['BACKROOMS','#e2cf72']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/11, 168); });
 });
-const weaponTex = signTex(1400, 200, (g,W,Hh) => {
+const weaponTex = signTex(1900, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK YOUR WEAPON', W/2, 62);
   g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('one per claw: press with the claw you want it on', W/2, 108);
-  g.font = 'bold 36px VT323, monospace'; [['GRAPPLE','#e0c08a'],['LASER','#ff6070'],['MINE','#7fe07a'],['FLAMER','#5ab4ff'],['CHAINSAW','#ff6a5e'],['HAMMER','#ffb04a'],['NONE','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/7, 168); });
+  g.font = 'bold 33px VT323, monospace'; [['BOOMSAW','#dfe5ec'],['GLUE','#f0ea80'],['FREEZE','#9fe6ff'],['GRAPPLE','#e0c08a'],['LASER','#ff6070'],['MINE','#7fe07a'],['FLAMER','#5ab4ff'],['CHAINSAW','#ff6a5e'],['HAMMER','#ffb04a'],['NONE','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/10, 168); });
 });
 function mapIcon(k){
   const g = new T3.Group(), L = c => new T3.MeshLambertMaterial({color:c}), add = (geo, c, x, y, z) => { const m = new T3.Mesh(geo, L(c)); m.position.set(x,y,z); g.add(m); return m; };
@@ -674,6 +675,10 @@ function mapIcon(k){
   if (k === 'cave'){ add(new T3.DodecahedronGeometry(0.1,0), 0x6d6258, 0, 0, 0); add(new T3.CylinderGeometry(0.008,0.008,0.12,5), 0x5a3a1e, 0.1, 0.02, 0.05); add(new T3.SphereGeometry(0.025,6,4), 0xffa020, 0.1, 0.09, 0.05).material = new T3.MeshBasicMaterial({color:0xffa020}); }
   if (k === 'sewer'){ add(new T3.CylinderGeometry(0.1, 0.1, 0.03, 14), 0x4a5056, 0, -0.04, 0); add(new T3.BoxGeometry(0.18, 0.02, 0.06), 0x6a9a3a, 0, -0.07, 0.08); add(new T3.SphereGeometry(0.035, 8, 6), 0xffd23d, 0.05, 0.0, 0.0); }
   if (k === 'market'){ add(new T3.BoxGeometry(0.2, 0.12, 0.14), 0xefe9da, 0, -0.02, 0); add(new T3.BoxGeometry(0.21, 0.04, 0.15), 0xd8302a, 0, 0.06, 0); add(new T3.SphereGeometry(0.03, 8, 6), 0x3f9a4a, 0.07, -0.06, 0.1); }
+  if (k === 'station'){ add(new T3.CylinderGeometry(0.1, 0.1, 0.04, 16), 0xc8d0d8, 0, 0, 0); add(new T3.BoxGeometry(0.3, 0.015, 0.06), 0x2f62c8, 0, 0, 0); add(new T3.SphereGeometry(0.035, 8, 6), 0x6ad0ff, 0, 0.04, 0); }
+  if (k === 'factory'){ add(new T3.BoxGeometry(0.2, 0.12, 0.14), 0x8a929b, 0, -0.02, 0); add(new T3.BoxGeometry(0.04, 0.12, 0.04), 0x6a6e72, 0.06, 0.1, 0); add(new T3.BoxGeometry(0.22, 0.02, 0.06), 0xf2c230, 0, -0.08, 0.1); }
+  if (k === 'ship'){ add(new T3.BoxGeometry(0.22, 0.06, 0.09), 0x7a4a2a, 0, -0.04, 0); add(new T3.CylinderGeometry(0.008, 0.008, 0.2, 5), 0x5a3a1e, 0, 0.07, 0); add(new T3.BoxGeometry(0.1, 0.09, 0.005), 0xf4f0e0, 0, 0.08, 0.01); add(new T3.BoxGeometry(0.04, 0.025, 0.02), 0x111111, 0, 0.17, 0); }
+  if (k === 'mansion'){ add(new T3.BoxGeometry(0.18, 0.13, 0.12), 0x4a3a5a, 0, -0.02, 0); const r = add(new T3.ConeGeometry(0.14, 0.1, 4), 0x2a2030, 0, 0.09, 0); r.rotation.y = Math.PI/4; add(new T3.SphereGeometry(0.03, 8, 6), 0xe8ecff, 0.07, 0.12, 0.05).material = new T3.MeshBasicMaterial({color:0xe8ecff}); }
   if (k === 'house'){ add(new T3.BoxGeometry(0.18,0.12,0.14), 0xf1e3c8, 0, -0.02, 0); const r = add(new T3.ConeGeometry(0.15,0.1,4), 0xb5452f, 0, 0.09, 0); r.rotation.y = Math.PI/4; add(new T3.BoxGeometry(0.04,0.07,0.01), 0x6b4a2b, 0, -0.045, 0.071); }
   return g;
 }
@@ -697,8 +702,8 @@ function buildLobby(parent, real){
   cap2.position.set(PED2.x, PED2.top+0.04, PED2.z); parent.add(cap2); caps2.push(cap2);
   const board = plane(parent, boardTex, 1.1, 0.645, PED2.x - 0.35, 1.25, PED2.z, Math.PI/2);
   parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
-  plane(parent, weaponTex, 4.55, 0.6, -16.35, 1.45, LB.z0+TW/2+0.006, 0);
-  plane(parent, mapTex, 4.2, 0.6, -17.8, 1.45, LB.z1-TW/2-0.006, Math.PI);
+  plane(parent, weaponTex, 4.5, 0.58, -16.18, 1.45, LB.z0+TW/2+0.006, 0);
+  plane(parent, mapTex, 4.84, 0.55, -17.4, 1.45, LB.z1-TW/2-0.006, Math.PI);
   parent.add(wallMesh(MAPBTN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
   for (const w of MAPBTN){
     const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
@@ -708,11 +713,11 @@ function buildLobby(parent, real){
   for (const w of WPN){
     const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
     cap.position.set(w.x, w.top+0.03, w.z); parent.add(cap); (w.caps = w.caps || []).push(cap);
-    if (w.k !== 'none'){ const m = w.k === 'saw' ? makeSaw() : w.k === 'flame' ? makeFlamer() : w.k === 'mine' ? makeMine() : w.k === 'laser' ? makeLaser() : w.k === 'hook' ? makeHook() : makeHammer(); if (w.k === 'saw'){ m.ext = 1; m.bar.scale.y = 1; } m.scale.setScalar(0.8); m.position.set(w.x, w.top + (w.k === 'saw' ? 0.62 : w.k === 'mine' ? 0.25 : 0.6), w.z); if (w.k === 'mine') m.scale.setScalar(1.6); m.rotation.z = 0.25; parent.add(m); (w.models = w.models || []).push(m); }
+    if (w.k !== 'none'){ const m = w.k === 'saw' ? makeSaw() : w.k === 'flame' ? makeFlamer() : w.k === 'mine' ? makeMine() : w.k === 'laser' ? makeLaser() : w.k === 'hook' ? makeHook() : w.k === 'freeze' ? makeFreezer() : w.k === 'glue' ? makeGlue() : w.k === 'boomer' ? makeBoomer() : makeHammer(); if (w.k === 'saw'){ m.ext = 1; m.bar.scale.y = 1; } m.scale.setScalar(0.8); m.position.set(w.x, w.top + (w.k === 'saw' ? 0.62 : w.k === 'mine' ? 0.25 : 0.6), w.z); if (w.k === 'mine') m.scale.setScalar(1.6); m.rotation.z = 0.25; parent.add(m); (w.models = w.models || []).push(m); }
   }
-  plane(parent, playTex, 1.3, 0.51, PED.x, 1.25, LB.z0+TW/2+0.006, 0);
+  plane(parent, playTex, 1.2, 0.47, -19.1, 1.25, LB.z0+TW/2+0.006, 0);
   const arrow = new T3.Mesh(new T3.ConeGeometry(0.12,0.25,4), new T3.MeshBasicMaterial({color:0xff3b2f})); arrow.rotation.x = Math.PI; arrow.position.set(PED.x, 1.05, PED.z); arrow.userData.bob = true; parent.add(arrow);
-  plane(parent, helpTex, 1.9, 1.19, -14.6, 1.25, LB.z1-TW/2-0.006, Math.PI);
+  plane(parent, helpTex, 1.5, 0.94, -13.95, 1.25, LB.z1-TW/2-0.006, Math.PI);
   plane(parent, titleTex, 2.6, 0.75, LB.x1-TW/2-0.006, 1.7, 3.5, -Math.PI/2);
   if (real){
     const frameMat = new T3.MeshLambertMaterial({color:0x3a3426});
@@ -937,13 +942,13 @@ function coneBoxes(cx, cz, R, y0, h, down){
   const n = 10; for (let k=0;k<n;k++){ const f = 1 - (k + 0.8)/n; if (f <= 0.05) continue; const ya = y0 + (down ? -(k+1) : k)*h/n, yb = ya + h/n; discBoxes(cx, cz, R*f, ya, yb, out); }
   return out;
 }
-function mapBuilder(O, key){
+function mapBuilder(O, key, ghost){
   const group = new T3.Group(), bins = {}, solids = [];
   const W = a => [a[0]+O.x, a[1]+O.y, a[2]+O.z];
   const B = {group, O, solids, bins, key, wins:[], props:[],
     mat(k, m){ bins[k] = {m, list:[]}; return B; },
-    box(k, a, c, o){ o = o || {}; const A = W(a), C2 = W(c); if (k) bins[k].list.push(worldBox(A, C2, o.us || 1, o.skip)); if (o.solid !== false) solids.push(addBox(A, C2)); },
-    solid(a, c){ solids.push(addBox(W(a), W(c))); },
+    box(k, a, c, o){ o = o || {}; const A = W(a), C2 = W(c); if (k) bins[k].list.push(worldBox(A, C2, o.us || 1, o.skip)); if (o.solid !== false && !ghost) solids.push(addBox(A, C2)); },
+    solid(a, c){ if (!ghost) solids.push(addBox(W(a), W(c))); },
     solids_(list){ for (const [a, c] of list) B.solid(a, c); },
     geo(k, geo, x, y, z, rx, ry, rz, sx, sy, sz){ const s = sx == null ? 1 : sx; bins[k].list.push(geo.clone().applyMatrix4(new M4().compose(new V(x+O.x, y+O.y, z+O.z), new Q().setFromEuler(new T3.Euler(rx||0, ry||0, rz||0)), new V(s, sy == null ? s : sy, sz == null ? s : sz)))); },
     // a lumpy rock filling exactly the box a..c (and solid exactly there)
@@ -952,8 +957,8 @@ function mapBuilder(O, key){
     ball(k, geo, x, y, z, rx, ry, rz, n){ B.geo(k, geo, x, y, z, 0, 0, 0, rx, ry, rz); B.solids_(ellipsoidBoxes(x, y, z, rx, ry, rz, n)); },
     cyl(k, r0, r1, h, x, y0, z, seg){ B.geo(k, new T3.CylinderGeometry(r1, r0, h, seg || 10), x, y0 + h/2, z); const n = Math.abs(r0 - r1) > 0.03 ? 4 : 1, ap = Math.cos(Math.PI/(seg || 10));
       for (let i=0;i<n;i++){ const t = (i + 1)/n, r = r0 > r1 ? r0 + (r1 - r0)*t : r0 + (r1 - r0)*(i/n); B.solids_(discBoxes(x, z, r*ap, y0 + h*i/n, y0 + h*(i+1)/n, [])); } },
-    window(a, c){ B.wins.push([W(a), W(c)]); },
-    prop(kind, x, y, z){ B.props.push([kind, x+O.x, y+O.y, z+O.z]); },
+    window(a, c){ if (!ghost) B.wins.push([W(a), W(c)]); },
+    prop(kind, x, y, z){ if (!ghost) B.props.push([kind, x+O.x, y+O.y, z+O.z]); },
     // a wall run along x (or z) between c0 and c1, t0..t1 thick, with openings [a0, a1, y0, y1];
     // glass: openings listed by index get a breakable window
     wallRun(keys, axis, c0, c1, t0, t1, y0, y1, holes, us, glass){
@@ -966,12 +971,13 @@ function mapBuilder(O, key){
       });
       seg(cur, c1, y0, y1);
     },
-    finish(light){
+    finish(light, parent){
       for (const k in bins){ const b = bins[k]; if (!b.list.length) continue; const geo = mergeNI(b.list);
         if (light && b.m.vertexColors){ const p = geo.attributes.position, cols = new Float32Array(p.count*3);
           for (let i=0;i<p.count;i++){ const c = light(p.getX(i), p.getY(i), p.getZ(i)); cols[i*3] = c[0]; cols[i*3+1] = c[1]; cols[i*3+2] = c[2]; }
           geo.setAttribute('color', new T3.BufferAttribute(cols, 3)); }
         group.add(new T3.Mesh(geo, b.m)); }
+      if (parent){ parent.add(group); return group; }
       for (const [a, c] of B.wins) addWindow(key, group, a, c);
       group.visible = false; scene.add(group); return group;
     }};
@@ -1032,7 +1038,7 @@ function updateWindows(dt){
   let n = 0; const ONE_ = new V(1,1,1);
   for (let i = shards.length-1; i >= 0; i--){
     const s = shards[i]; s.life -= dt; if (s.life <= 0){ shards.splice(i, 1); continue; }
-    s.v.y -= 9.8*dt; s.p.addScaledVector(s.v, dt);
+    s.v.y -= (s.g != null ? s.g : 9.8)*dt; s.p.addScaledVector(s.v, dt);
     if (s.p.y < s.fy + s.s){ s.p.y = s.fy + s.s; s.v.y *= -0.25; s.v.x *= 0.6; s.v.z *= 0.6; s.w.multiplyScalar(0.6); }
     s.q.multiply(new Q().setFromEuler(new T3.Euler(s.w.x*dt, s.w.y*dt, s.w.z*dt)));
   }
@@ -1877,6 +1883,549 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
       }
     }};
 }
+
+// ======================= SPACE STATION =======================
+// Nine modules round a glowing reactor, big windows onto space. Quirk: LOW GRAVITY everywhere, and the
+// AIRLOCK on the east side cycles every 40 s: whatever (whoever) is inside gets blown out into space.
+// Out there you float with nothing to push on: grapple back in or you're lost in space.
+{
+  const O = new V(0, 0, 700), B = mapBuilder(O, 'station'); mapSeed = 7171;
+  const floorT = tex(128, 128, (g,w,h) => { g.fillStyle = '#8d949c'; g.fillRect(0,0,w,h); g.strokeStyle = '#6a7078'; g.lineWidth = 3; g.strokeRect(2,2,w-4,h-4); g.strokeRect(w/2,2,1,h-4);
+    for (let i=0;i<16;i++){ g.fillStyle = '#a9b0b8'; g.beginPath(); g.arc(8 + (i%4)*36, 8 + Math.floor(i/4)*36, 2, 0, 7); g.fill(); } noiseFill(g, w, h, 800, 'rgba(40,40,40,A)', 0.12, 2); });
+  const wallT = tex(128, 128, (g,w,h) => { g.fillStyle = '#e8ecf0'; g.fillRect(0,0,w,h); g.strokeStyle = '#b9c0c8'; g.lineWidth = 3; g.strokeRect(2,2,w-4,h-4); g.fillStyle = '#c9d0d8'; g.fillRect(10, 54, w-20, 20); noiseFill(g, w, h, 300, 'rgba(80,90,100,A)', 0.08, 2); });
+  const hazT = tex(64, 64, (g,w,h) => { g.fillStyle = '#1c1d20'; g.fillRect(0,0,w,h); g.fillStyle = '#f2c230'; for (let i=-2;i<4;i++){ g.beginPath(); g.moveTo(i*32, 0); g.lineTo(i*32+16, 0); g.lineTo(i*32+16+64, h); g.lineTo(i*32+64, h); g.fill(); } });
+  const scrT = canvasTex(128, 64, (g,w,h) => { g.fillStyle = '#04121c'; g.fillRect(0,0,w,h); g.strokeStyle = '#38e0ff'; g.lineWidth = 2; g.beginPath(); for (let x=0;x<w;x+=4) g.lineTo(x, 32 + Math.sin(x*0.15)*14*Math.cos(x*0.03)); g.stroke(); g.fillStyle = '#7fffa0'; g.font = '12px monospace'; g.fillText('O2 98%  PWR OK', 6, 60); });
+  B.mat('floor', lam(0xffffff, {map:floorT, vertexColors:true})).mat('wall', lam(0xffffff, {map:wallT, vertexColors:true})).mat('haz', lam(0xffffff, {map:hazT, vertexColors:true}))
+   .mat('trim', lam(0x2f62c8, {vertexColors:true})).mat('dark', lam(0x2a2e34, {vertexColors:true})).mat('glass', new T3.MeshBasicMaterial({color:0x9fd8ff, transparent:true, opacity:0.12, depthWrite:false}))
+   .mat('screen', new T3.MeshBasicMaterial({map:scrT})).mat('glow', new T3.MeshBasicMaterial({color:0x6ad0ff})).mat('panel', new T3.MeshBasicMaterial({color:0xf4f8ff})).mat('leaf', lam(0x3f9a4a, {vertexColors:true}))
+   .mat('pot', lam(0x6a5040, {vertexColors:true})).mat('bunk', lam(0x5a6a8a, {vertexColors:true})).mat('crate', lam(0xc8a060, {vertexColors:true})).mat('pipe', lam(0xa9b0b8, {vertexColors:true}))
+   .mat('tank', new T3.MeshLambertMaterial({color:0x7fffa0, emissive:0x1a6a30, transparent:true, opacity:0.6})).mat('red', new T3.MeshBasicMaterial({color:0x661010}));
+  const HT = 7, T = 0.3;
+  B.box('floor', [-1, -1, -1], [50, 0, 45], {us:2});
+  B.box('wall', [-1, HT, -1], [50, HT + 0.6, 45], {us:2});
+  for (let x=3;x<44;x+=5) for (let z=3;z<44;z+=5) B.box('panel', [x - 0.8, HT - 0.02, z - 0.3], [x + 0.8, HT, z + 0.3], {solid:false});
+  // hull with long windows onto space; the east side has the airlock door
+  const win = []; for (let a=2.5;a<40;a+=6) win.push([a, a + 4, 1.4, 4.8]);
+  const glassIn = (axis, t0, t1) => { for (const [a0, a1, y0, y1] of win) if (axis === 'x') B.box('glass', [a0, y0, t0], [a1, y1, t1], {}); else B.box('glass', [t0, y0, a0], [t1, y1, a1], {}); };
+  B.wallRun(['wall'], 'x', 0, 44, 0, T, 0, HT, win, 2); glassIn('x', 0.1, 0.2);
+  B.wallRun(['wall'], 'x', 0, 44, 44 - T, 44, 0, HT, win, 2); glassIn('x', 43.8, 43.9);
+  B.wallRun(['wall'], 'z', T, 44 - T, 0, T, 0, HT, win, 2); glassIn('z', 0.1, 0.2);
+  B.wallRun(['wall'], 'z', T, 44 - T, 44 - T, 44, 0, HT, [[19.5, 24.5, 0, 3.6]], 2);
+  // inside: walls between the modules, with doorways
+  const D = [[5, 9.5, 0, 3.2], [19.8, 24.2, 0, 3.2], [34.5, 39, 0, 3.2]];
+  for (const c of [14.5, 29.5]){ B.wallRun(['wall'], 'z', T, 44 - T, c - 0.15, c + 0.15, 0, HT, D, 2); B.wallRun(['wall'], 'x', T, 44 - T, c - 0.15, c + 0.15, 0, HT, D, 2); }
+  for (const c of [14.5, 29.5]) for (const k of [0, 1]){ B.box('trim', k ? [c - 0.16, 3.2, T] : [T, 3.2, c - 0.16], k ? [c + 0.16, 3.4, 44 - T] : [44 - T, 3.4, c + 0.16], {solid:false}); }
+  // the reactor in the middle
+  B.cyl('dark', 1.6, 1.6, 0.5, 22, 0, 22, 16); B.cyl('glow', 1.15, 1.15, HT, 22, 0, 22, 16);
+  for (const y of [1.2, 2.6, 4.0, 5.4]) B.geo('trim', new T3.TorusGeometry(1.2, 0.07, 6, 18), 22, y, 22, Math.PI/2);
+  for (let k=0;k<10;k++){ const a = k/10*Math.PI*2; B.box('pipe', [22 + Math.cos(a)*2.6 - 0.05, 0, 22 + Math.sin(a)*2.6 - 0.05], [22 + Math.cos(a)*2.6 + 0.05, 1.0, 22 + Math.sin(a)*2.6 + 0.05]); }
+  // NW command: consoles at the windows
+  for (let x=2;x<13;x+=2.6){ B.box('dark', [x, 0, 0.6], [x + 2.2, 1.0, 1.4]); B.box('screen', [x + 0.2, 1.0, 0.7], [x + 2.0, 1.6, 0.8]); B.box('trim', [x + 0.6, 0, 2.6], [x + 1.6, 0.5, 3.4]); }
+  B.box('trim', [6, 0, 7], [8, 0.8, 8.2]); B.box('dark', [6, 0.8, 7], [8, 1.8, 7.2]);
+  // N lab: benches, glowing tanks
+  for (const z of [4, 9]){ B.box('wall', [16.5, 0, z], [27.5, 0.95, z + 1.2]); }
+  for (const [x, z] of [[17.5, 1.5], [21, 1.5], [24.5, 1.5], [27.8, 12.5]]){ B.cyl('dark', 0.55, 0.55, 0.3, x, 0, z, 12); B.cyl('tank', 0.45, 0.45, 2.0, x, 0.3, z, 12); B.cyl('dark', 0.55, 0.55, 0.15, x, 2.3, z, 12); }
+  // NE crew quarters: bunks
+  for (let x=31;x<43;x+=3){ for (const y of [0.4, 1.6]) B.box('bunk', [x, y, 0.5], [x + 2.2, y + 0.3, 1.6]); B.box('dark', [x, 0, 0.5], [x + 0.1, 2.4, 1.6]); B.box('dark', [x + 2.1, 0, 0.5], [x + 2.2, 2.4, 1.6]); }
+  for (let x=31;x<43;x+=1.2) B.box('trim', [x, 0, 13.2], [x + 1.0, 2.2, 14.2]);
+  // W greenhouse
+  for (const z of [17, 21, 25]) { B.box('pot', [2, 0, z], [12, 0.7, z + 1.6]); for (let x=2.6;x<12;x+=1.3){ B.geo('leaf', new T3.ConeGeometry(0.35, 1.1, 7), x, 1.2, z + 0.8); B.solids_(coneBoxes(x + 0, z + 0.8, 0.35, 0.65, 1.1)); } }
+  // SW storage crates
+  for (const [x, z, n] of [[2, 31, 3], [5, 31, 2], [2, 35, 2], [9, 40, 3], [11.5, 40, 1], [2, 40, 1]]) for (let k=0;k<n;k++) B.box('crate', [x, k*1.1, z], [x + 2, k*1.1 + 1.05, z + 2]);
+  // S rec room: tables
+  for (const [x, z] of [[19, 34], [25, 34], [22, 39]]){ B.cyl('trim', 0.12, 0.12, 0.75, x, 0, z, 8); B.cyl('wall', 0.9, 0.9, 0.06, x, 0.75, z, 16); }
+  // SE engineering: generators and pipes
+  for (const [x, z] of [[33, 33], [33, 38], [39, 33], [39, 38]]){ B.cyl('pipe', 1.0, 1.0, 2.2, x, 0, z, 14); B.cyl('glow', 0.3, 0.3, 0.1, x, 2.2, z, 10); }
+  for (const z of [31, 36, 41]) B.geo('pipe', new T3.CylinderGeometry(0.15, 0.15, 13, 8), 37, 6.2, z, 0, 0, Math.PI/2);
+  // E: the airlock room and chamber
+  B.box('haz', [30, 0.001, 19.5], [44, 0.012, 24.5], {solid:false, us:1});
+  const AX0 = 44, AX1 = 49, AZ0 = 19.5, AZ1 = 24.5, AH = 3.6;
+  B.box('haz', [AX0, -0.3, AZ0], [AX1, 0, AZ1], {us:1}); B.box('wall', [AX0, AH, AZ0 - T], [AX1 + T, AH + T, AZ1 + T]);
+  B.box('wall', [AX0, 0, AZ0 - T], [AX1 + T, AH, AZ0]); B.box('wall', [AX0, 0, AZ1], [AX1 + T, AH, AZ1 + T]);
+  B.box('glass', [AX0 + 1, 1.2, AZ0 - 0.2], [AX1 - 1, 2.8, AZ0 - 0.1], {solid:false});
+  const warnL = [[43.6, 3.9, 19.2], [43.6, 3.9, 24.8]]; for (const [x, y, z] of warnL) B.box('red', [x - 0.15, y - 0.15, z - 0.15], [x + 0.15, y + 0.15, z + 0.15], {solid:false});
+  // props, floating gently in the low gravity
+  for (const [k, x, z] of [['mug', 3, 2], ['bottle', 9, 1], ['crystal', 19, 4.5], ['bottle', 23, 9.5], ['crystal', 26, 4.5], ['pillow', 32, 1], ['book', 36, 1], ['pillow', 38, 1.9],
+    ['apple', 4, 17.8], ['orange', 8, 21.8], ['apple', 10, 25.8], ['box', 3, 31], ['box', 6, 33.5], ['can', 10, 36], ['barrel', 12, 33], ['ball', 22, 36], ['ball', 18, 40], ['mug', 25, 34], ['block', 35, 36], ['cone', 41, 41], ['box', 33, 22], ['box', 38, 20.5]])
+    B.prop(k, x, k === 'pillow' || k === 'book' ? 1.6 : 0, z);
+  const light = (x, y, z) => { x -= O.x; z -= O.z; let r = 0.75, g = 0.78, b = 0.85; const d = Math.hypot(x - 22, z - 22); const k = 0.7*Math.exp(-d/5); r += k*0.4; g += k*0.9; b += k*1.2;
+    if (x > 29.5 && z > 18 && z < 26){ const a = 0.25; r += a; g -= a*0.3; b -= a*0.3; } return [r*(0.75 + 0.25*y/HT), g*(0.75 + 0.25*y/HT), b*(0.75 + 0.25*y/HT)]; };
+  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0]);
+  // airlock doors (slide up), the stars and the planet (they follow you, like a sky)
+  const doorMat = lam(0xc9d0d8), doorFr = lam(0xf2c230);
+  const mkDoor = (x) => { const g = new T3.Group(); const m = new T3.Mesh(new T3.BoxGeometry(0.2, AH, AZ1 - AZ0), doorMat); g.add(m); const s = new T3.Mesh(new T3.BoxGeometry(0.22, 0.3, AZ1 - AZ0), doorFr); s.position.y = -AH/2 + 0.2; g.add(s);
+    g.position.set(x + O.x, AH/2, (AZ0 + AZ1)/2 + O.z); grp.add(g); return {g, box:dynBox(), x}; };
+  const inner = mkDoor(AX0 - 0.15), outer = mkDoor(AX1 + 0.15);
+  const sky = new T3.Group(); grp.add(sky);
+  { const n = 1400, pos = new Float32Array(n*3); for (let i=0;i<n;i++){ const v = new V(R()*2-1, R()*2-1, R()*2-1).normalize().multiplyScalar(70); pos[i*3] = v.x; pos[i*3+1] = v.y; pos[i*3+2] = v.z; }
+    const gs = new T3.BufferGeometry(); gs.setAttribute('position', new T3.BufferAttribute(pos, 3));
+    sky.add(new T3.Points(gs, new T3.PointsMaterial({color:0xffffff, size:2, sizeAttenuation:false, fog:false})));
+    const planetT = canvasTex(256, 128, (g,w,h) => { g.fillStyle = '#1d5fb8'; g.fillRect(0,0,w,h); for (let i=0;i<26;i++){ g.fillStyle = i % 3 ? '#3f9a4a' : '#c9b070'; g.beginPath(); g.ellipse(R()*w, 20 + R()*(h-40), 8 + R()*26, 5 + R()*14, R()*3, 0, 7); g.fill(); } for (let i=0;i<40;i++){ g.fillStyle = 'rgba(255,255,255,.6)'; g.fillRect(R()*w, R()*h, 10 + R()*40, 2 + R()*3); } });
+    const pl = new T3.Mesh(new T3.SphereGeometry(30, 32, 20), new T3.MeshLambertMaterial({map:planetT, fog:false, emissive:0x0a1a30})); pl.position.set(25, -38, 40); sky.add(pl);
+    const sun = new T3.Mesh(new T3.SphereGeometry(3, 16, 10), new T3.MeshBasicMaterial({color:0xfff4d0, fog:false})); sun.position.set(-50, 30, -35); sky.add(sun); sky.userData.planet = pl; }
+  const P0 = 40, inside = p => p.x > O.x - 0.2 && p.x < O.x + AX1 + 0.3 && p.z > O.z - 0.2 && p.z < O.z + 44.2 && p.y > -0.5 && p.y < HT + 0.6;
+  const inLock = p => p.x > O.x + AX0 - 0.1 && p.x < O.x + AX1 + 0.3 && p.z > O.z + AZ0 && p.z < O.z + AZ1 && p.y < AH + 0.5;
+  let lostT = 0, warned = false, phWas = 0;
+  const alarm = () => { if (!AC) return; tone('square', 880, 660, 0.25, 0.06); };
+  const whoosh = () => { if (!AC) return; noiseHit(2.5, 900, 0.4, 1.0); noiseHit(1.5, 3000, 0.6, 0.4); };
+  MAPS.station = {name:'SPACE STATION', group:grp, spawn:new V(22, 0, 17).add(O), yaw:Math.PI, nav, yMin:-60, yMax:80, props:B.props, g:0.3,
+    sky:{bg:0x01020a, fog:0x01020a, near:40, far:80, hs:0xf4f8ff, hg:0x60708a, hi:0.9, ac:0xffffff, ai:0.35},
+    update(dt, inGame){
+      sky.position.copy(lastPlayer); sky.rotation.y += dt*0.004;
+      const ph = (Date.now()/1000) % P0, warn = ph > 29 && ph < 33, open = ph >= 33 && ph < 38.5;
+      const ik = ph < 30 ? 0 : ph < 31.5 ? (ph - 30)/1.5 : ph < 39 ? 1 : ph < 40 ? 1 - (ph - 39) : 0;
+      const ok = ph < 33 ? 0 : ph < 33.5 ? (ph - 33)/0.5 : ph < 38 ? 1 : ph < 38.6 ? 1 - (ph - 38)/0.6 : 0;
+      inner.g.position.y = AH/2 + (1 - ik)*(AH - 0.15); outer.g.position.y = AH/2 + ok*(AH - 0.15);
+      for (const d of [inner, outer]){ const y0 = d.g.position.y - AH/2; setDyn(d.box, d.x + O.x - 0.12, y0, AZ0 + O.z, d.x + O.x + 0.12, y0 + AH, AZ1 + O.z); }
+      B.bins.red.m.color.setHex(warn || open ? ((ph*4) % 1 < 0.5 ? 0xff2010 : 0x330606) : 0x661010);
+      if (inGame && warn && (ph*2.5) % 1 < (phWas*2.5) % 1 && lastPlayer.distanceTo(new V(O.x + 44, 1, O.z + 22)) < 20) alarm();
+      if (inGame && ph > 29 && phWas <= 29 && lastPlayer.distanceTo(new V(O.x + 44, 1, O.z + 22)) < 25) announce('Airlock cycling. Clear the airlock.');
+      if (inGame && open && phWas < 33 && lastPlayer.distanceTo(new V(O.x + 44, 1, O.z + 22)) < 25) whoosh();
+      phWas = ph;
+      if (!inGame){ window.gravK = gravK = 0.3; lostT = 0; return; }
+      // you: low gravity inside, none outside; sucked out when the outer door opens
+      const h = loco.headPos(), body = h.clone().add(new V(0, -0.6, 0)), isIn = inside(body);
+      window.gravK = gravK = isIn ? 0.3 : 0;
+      if (!isIn){ loco.S.velocity.multiplyScalar(1 - 0.3*dt); }
+      if (open && inLock(body)){ const v = loco.S.velocity; v.x = Math.max(v.x, 7); v.y += (R()-0.4)*dt*6; pulse(0, 0.6, 30); pulse(1, 0.6, 30); }
+      if (!isIn){ lostT += dt; if (!warned){ warned = true; showMsg('LOST IN SPACE! Grapple back to the station!'); } if (lostT > 12){ lostT = 0; warned = false; die('the vacuum of space'); } }
+      else { lostT = 0; warned = false; }
+      // pieces: the same rules, and the ones far out in space are gone
+      for (const p of parts){
+        if (p.parent || p.obj.userData.dead || !mine(p) || p.mode === 'held' || p.stuck) continue;
+        const c = centerW(p), pin = inside(c);
+        if (pin){ if (p.grav === 0) p.grav = undefined; } else p.grav = 0;
+        if (open && inLock(c)){ if (p.bot && p === p.bot.root && p.mode === 'bot'){ p.mode = 'free'; p.bot.stunT = 3; say(p.bot, pick(['NOOOOO','I can see my house from here','goodbye cruel station'])); }
+          p.mode = 'free'; p.asleep = false; p.v.x = Math.max(p.v.x, 10 + R()*4); p.v.y += (R()-0.5)*3*dt; p.w.add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(dt*20)); }
+        if (!pin){ p.asleep = false; if (c.distanceTo(new V(O.x + 22, 3, O.z + 22)) > 70) removePart(p); }
+      }
+    },
+    leave(){ window.gravK = gravK = 1; }};
+}
+
+// ======================= FACTORY =======================
+// A robot factory. Conveyor belts carry anything (and anyone) that lands on them. Feed scrap into the
+// ASSEMBLER's belt and every 5 pieces it builds a brand-new robot. The middle line runs under a CRUSHER
+// and ends in the furnace. Catwalks up top.
+{
+  const O = new V(0, 0, 800), B = mapBuilder(O, 'factory'); mapSeed = 8181;
+  const concT = tex(256, 256, (g,w,h) => { g.fillStyle = '#7a7872'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 6000, 'rgba(30,30,30,A)', 0.2, 2); noiseFill(g, w, h, 200, 'rgba(60,40,20,A)', 0.2, 10); });
+  const corrT = tex(128, 128, (g,w,h) => { for (let x=0;x<w;x+=16){ const gr = g.createLinearGradient(x,0,x+16,0); gr.addColorStop(0,'#5d6a74'); gr.addColorStop(0.5,'#8a98a3'); gr.addColorStop(1,'#5d6a74'); g.fillStyle = gr; g.fillRect(x,0,16,h); } noiseFill(g, w, h, 400, 'rgba(90,50,20,A)', 0.2, 3); });
+  const hazT = tex(64, 64, (g,w,h) => { g.fillStyle = '#1c1d20'; g.fillRect(0,0,w,h); g.fillStyle = '#f2c230'; for (let i=-2;i<4;i++){ g.beginPath(); g.moveTo(i*32, 0); g.lineTo(i*32+16, 0); g.lineTo(i*32+16+64, h); g.lineTo(i*32+64, h); g.fill(); } });
+  const beltX = canvasTex(64, 64, (g,w,h) => { g.fillStyle = '#1c1d20'; g.fillRect(0,0,w,h); g.fillStyle = '#3a3d42'; for (let x=0;x<w;x+=16) g.fillRect(x, 0, 6, h); }, true);
+  const grateT = canvasTex(64, 64, (g,w,h) => { g.fillStyle = '#20242a'; g.fillRect(0,0,w,h); g.fillStyle = '#8a929b'; for (let i=0;i<w;i+=8){ g.fillRect(i, 0, 2, h); g.fillRect(0, i, w, 2); } }, true);
+  const signT = canvasTex(512, 128, (g,w,h) => { g.fillStyle = '#f2c230'; g.fillRect(0,0,w,h); g.fillStyle = '#1c1d20'; g.font = 'bold 54px Rubik, sans-serif'; g.textAlign = 'center'; g.fillText('ROBOT ASSEMBLER', w/2, 62); g.font = '30px Rubik, sans-serif'; g.fillText('feed scrap on the belt', w/2, 106); });
+  const crushT = canvasTex(256, 64, (g,w,h) => { g.fillStyle = '#d8302a'; g.fillRect(0,0,w,h); g.fillStyle = '#fff'; g.font = 'bold 40px Rubik, sans-serif'; g.textAlign = 'center'; g.fillText('DANGER', w/2, 46); });
+  B.mat('conc', lam(0xffffff, {map:concT, vertexColors:true})).mat('corr', lam(0xffffff, {map:corrT, vertexColors:true})).mat('haz', lam(0xffffff, {map:hazT, vertexColors:true}))
+   .mat('belt', lam(0xffffff, {map:beltX, vertexColors:true})).mat('grate', lam(0xffffff, {map:grateT, vertexColors:true, transparent:true, opacity:0.95})).mat('steel', lam(0x8a929b, {vertexColors:true}))
+   .mat('yellow', lam(0xf2c230, {vertexColors:true})).mat('blue', lam(0x2f62c8, {vertexColors:true})).mat('dark', lam(0x2a2c30, {vertexColors:true})).mat('rust', lam(0x8a4a2a, {vertexColors:true}))
+   .mat('sign', new T3.MeshBasicMaterial({map:signT})).mat('crushS', new T3.MeshBasicMaterial({map:crushT})).mat('lamp', new T3.MeshBasicMaterial({color:0xfff0c0})).mat('sky', new T3.MeshBasicMaterial({color:0xd8e8f4}))
+   .mat('fire', new T3.MeshBasicMaterial({color:0xff6a10})).mat('green', lam(0x3f9a4a, {vertexColors:true})).mat('crate', lam(0xb08850, {vertexColors:true}));
+  const HT = 9, T = 0.3, BT = 0.6;
+  B.box('conc', [-1, -1, -1], [45, 0, 45], {us:3});
+  for (const [a, b] of [[[-0.5,0,-0.5],[0,HT,44.5]], [[44,0,-0.5],[44.5,HT,44.5]], [[0,0,-0.5],[44,HT,0]], [[0,0,44],[44,HT,44.5]]]) B.box('corr', a, b, {us:3});
+  B.box('steel', [-1, HT, -1], [45, HT + 0.4, 45], {us:2});
+  for (let x=4;x<44;x+=8) B.box('sky', [x, HT - 0.02, 2], [x + 3, HT, 42], {solid:false});
+  for (let x=2;x<44;x+=4) B.box('dark', [x, HT - 0.7, 0], [x + 0.25, HT, 44], {solid:false});
+  // floor markings
+  for (const z of [8, 12, 20, 24, 32, 36]) B.box('yellow', [1, 0, z], [43, 0.006, z + 0.12], {solid:false});
+  // belts: [x0, x1, zc, dir]
+  const belts = [{x0:3, x1:24, z:10, d:1, k:'in'}, {x0:31, x1:41.5, z:10, d:1, k:'out'}, {x0:2.5, x1:40.5, z:22, d:1, k:'crush'}, {x0:3, x1:41, z:34, d:-1, k:'loop'}];
+  for (const bt of belts){
+    B.box('dark', [bt.x0, 0, bt.z - 0.65], [bt.x1, BT - 0.05, bt.z + 0.65]); B.box('belt', [bt.x0, BT - 0.05, bt.z - 0.6], [bt.x1, BT, bt.z + 0.6], {us:0.5});
+    for (const s of [-1, 1]) B.box('yellow', [bt.x0, BT, bt.z + s*0.62 - 0.03], [bt.x1, BT + 0.12, bt.z + s*0.62 + 0.03]);
+    for (let x=bt.x0 + 1; x<bt.x1; x+=3) for (const s of [-1, 1]) B.box('steel', [x, 0, bt.z + s*0.66 - 0.05], [x + 0.1, BT - 0.05, bt.z + s*0.66 + 0.05], {solid:false});
+  }
+  // the assembler
+  const AS = [24, 31, 6, 14];
+  B.box('blue', [AS[0], 0, AS[2]], [AS[1], 4.2, 9.2]); B.box('blue', [AS[0], 0, 10.8], [AS[1], 4.2, AS[3]]); B.box('blue', [AS[0], 1.6, 9.2], [AS[1], 4.2, 10.8]); B.box('dark', [AS[0] + 0.5, 0, 9.2], [AS[1] - 0.5, 1.6, 10.8], {solid:false, skip:['x+','x-','y+','y-']}); B.box('yellow', [AS[0] - 0.02, 3.6, AS[2]], [AS[1] + 0.02, 4.2, AS[3]], {solid:false});
+  B.box('dark', [AS[0] + 1.5, 0, 9.2], [AS[0] + 1.6, 1.6, 10.8], {solid:false}); B.box('dark', [AS[1] - 1.6, 0, 9.2], [AS[1] - 1.5, 1.6, 10.8], {solid:false});
+  B.geo('sign', new T3.PlaneGeometry(4.4, 1.1), 27.5, 2.6, AS[2] - 0.02, 0, Math.PI, 0); B.geo('sign', new T3.PlaneGeometry(4.4, 1.1), 27.5, 2.6, AS[3] + 0.02, 0, 0, 0);
+  for (const x of [25, 30]) B.cyl('steel', 0.4, 0.4, 1.5, x, 4.2, 10, 12);
+  // the crusher over the middle line
+  const CX = 21.5, CW = 1.4;
+  for (const s of [-1, 1]){ B.box('haz', [CX - CW - 0.4, 0, 22 + s*1.05 - 0.2], [CX - CW, 4.8, 22 + s*1.05 + 0.2]); B.box('haz', [CX + CW, 0, 22 + s*1.05 - 0.2], [CX + CW + 0.4, 4.8, 22 + s*1.05 + 0.2]); }
+  B.box('steel', [CX - CW - 0.4, 4.8, 20.75], [CX + CW + 0.4, 5.4, 23.25]); B.geo('crushS', new T3.PlaneGeometry(2.4, 0.6), CX, 5.1, 20.74, 0, Math.PI, 0);
+  // the furnace at the end of the middle line
+  B.box('rust', [40.6, 0, 19.8], [43.8, 3, 20.2]); B.box('rust', [40.6, 0, 23.8], [43.8, 3, 24.2]); B.box('rust', [43.4, 0, 20.2], [43.8, 3, 23.8]); B.box('rust', [40.6, 2.4, 20.2], [43.4, 3, 23.8]);
+  B.box('fire', [40.7, 0.01, 20.3], [43.3, 0.05, 23.7], {solid:false});
+  // catwalk along the back wall with stairs up the west side
+  const CY = 3.6;
+  B.box('grate', [0, CY - 0.12, 40], [44, CY, 44], {us:1}); for (let x=0;x<44;x+=2) B.box('steel', [x, CY, 39.95], [x + 0.06, CY + 1.05, 40.01], {solid:false}); B.box('yellow', [0, CY + 1.0, 39.95], [44, CY + 1.06, 40.05]);
+  B.solid([2, CY, 39.9], [44, CY + 1.06, 40.05]);
+  for (let i=0;i<12;i++) B.box('steel', [0.4, 0, 28 + i], [2, (i + 1)*CY/12, 29 + i]);
+  B.box('grate', [0.4, CY - 0.12, 39.9], [2, CY, 40]);
+  // a second catwalk across the middle, over the crusher line, reached from the back one
+  B.box('grate', [30, CY - 0.12, 17], [32, CY, 40], {us:1}); for (const x of [30, 32]) B.box('yellow', [x - 0.03, CY + 1.0, 17], [x + 0.03, CY + 1.06, 40]);
+  for (const z of [17, 27]) for (const x of [30.1, 31.8]) B.box('steel', [x, 0, z], [x + 0.1, CY - 0.12, z + 0.1]);
+  // stuff: tanks, crates, barrels, shelves
+  for (const [x, z] of [[4, 2], [8, 2], [12, 2]]){ B.cyl('steel', 1.3, 1.3, 4.5, x, 0, z + 0.3, 16); B.cyl('dark', 1.35, 1.35, 0.2, x, 4.5, z + 0.3, 16); }
+  for (const [x, z, n] of [[36, 2, 3], [39, 2, 2], [42, 2, 1], [36, 14.5, 1], [6, 27, 2], [9, 27, 1]]) for (let k=0;k<n;k++) B.box('crate', [x, k*1.0, z], [x + 1.8, k*1.0 + 0.95, z + 1.8]);
+  for (let x=12;x<26;x+=3.5){ B.box('steel', [x, 0, 42.6], [x + 3, 0.05, 43.8]); for (const y of [1.2, 2.4]) B.box('steel', [x, y, 42.6], [x + 3, y + 0.05, 43.8]); for (const xx of [x, x + 2.9]) B.box('steel', [xx, 0, 42.6], [xx + 0.1, 3, 43.8]); }
+  for (let k=0;k<3;k++) B.box('lamp', [8 + k*14, HT - 1.2, 21.6], [9 + k*14, HT - 1.1, 22.4], {solid:false});
+  for (const [k, x, z] of [['box', 5, 10], ['box', 8, 10], ['barrel', 2, 17], ['barrel', 3, 18], ['cone', 19, 19], ['cone', 24, 19], ['can', 14, 22], ['bottle', 13, 34], ['box', 20, 34], ['box', 30, 34],
+    ['block', 37, 9], ['block', 38, 12], ['barrel', 40, 28], ['cone', 15, 15], ['trashcan', 42, 16], ['box', 13, 42.8]]) B.prop(k, x, k === 'box' && z === 34 || (z === 10 && x < 20) ? BT : 0, z);
+  const lamps = []; for (let x=4;x<44;x+=8) for (const z of [6, 18, 30, 40]) lamps.push([x, HT - 1, z]);
+  const light = (x, y, z) => { x -= O.x; z -= O.z; let r = 0.42, g = 0.43, b = 0.46; for (const [lx, ly, lz] of lamps){ const d = Math.hypot(x - lx, y - ly, z - lz), k = 0.9*Math.exp(-d/6); r += k; g += k*0.95; b += k*0.82; }
+    const f = Math.hypot(x - 42, z - 22); if (f < 6){ const k = 1.2*Math.exp(-f/2); r += k; g += k*0.45; b += k*0.1; } return [r, g, b]; };
+  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0]);
+  // moving parts: crusher head, robot arms, the assembler's counter
+  const head = new T3.Mesh(new T3.BoxGeometry(CW*2 - 0.1, 1.0, 1.7), lam(0x50555c)); grp.add(head); const plate = new T3.Mesh(new T3.BoxGeometry(CW*2 - 0.05, 0.12, 1.75), lam(0x2a2c30)); plate.position.y = -0.5; head.add(plate);
+  const headBox = dynBox();
+  const scrC = document.createElement('canvas'); scrC.width = 256; scrC.height = 96; const scrT = new T3.CanvasTexture(scrC); scrT.encoding = T3.sRGBEncoding;
+  const scr = new T3.Mesh(new T3.PlaneGeometry(1.6, 0.6), new T3.MeshBasicMaterial({map:scrT})); scr.position.set(22.5 + O.x, 2.2, 7.5 + O.z); scr.rotation.y = -Math.PI/2; grp.add(scr);
+  const scr2 = scr.clone(); scr2.position.set(27.5 + O.x, 1.4, AS[2] - 0.03 + O.z); scr2.rotation.y = Math.PI; grp.add(scr2);
+  let scrap = 0, need = 5;
+  const drawScr = () => { const g = scrC.getContext('2d'); g.fillStyle = '#04121c'; g.fillRect(0,0,256,96); g.fillStyle = '#7fffa0'; g.font = 'bold 40px monospace'; g.textAlign = 'center'; g.fillText('SCRAP ' + scrap + '/' + need, 128, 58); scrT.needsUpdate = true; };
+  drawScr();
+  const arms = [];
+  for (const [x, z, s] of [[14, 11.6, 1], [18, 8.4, -1], [35, 11.6, 1], [11, 23.6, 1], [28, 20.4, -1]]){
+    const base = new T3.Group(); base.position.set(x + O.x, 0, z + O.z); grp.add(base);
+    const m1 = new T3.Mesh(new T3.CylinderGeometry(0.35, 0.45, 0.5, 12), lam(0xf2c230)); m1.position.y = 0.25; base.add(m1);
+    const sh = new T3.Group(); sh.position.y = 0.5; base.add(sh); const up = new T3.Mesh(new T3.BoxGeometry(0.22, 1.2, 0.22), lam(0xf2c230)); up.position.y = 0.6; sh.add(up);
+    const el = new T3.Group(); el.position.y = 1.2; sh.add(el); const fo = new T3.Mesh(new T3.BoxGeometry(0.18, 0.9, 0.18), lam(0x2a2c30)); fo.position.y = 0.45; el.add(fo);
+    const tip = new T3.Mesh(new T3.SphereGeometry(0.09, 8, 6), new T3.MeshBasicMaterial({color:0x6ad0ff})); tip.position.y = 0.95; el.add(tip);
+    arms.push({base, sh, el, s, ph:R()*6}); }
+  const sndHiss = () => { if (!AC) return; noiseHit(0.4, 4000, 0.8, 0.25); };
+  const sndBang = (v) => { if (!AC) return; noiseHit(0.35, 300, 0.8, 0.9*v); tone('sine', 80, 30, 0.4, 0.6*v); noiseHit(0.1, 2000, 2, 0.4*v); };
+  const ding = () => { if (!AC) return; tone('sine', 1320, 1320, 0.25, 0.15); setTimeout(() => tone('sine', 1760, 1760, 0.4, 0.15), 180); };
+  const onBelt = (c, bt, pad) => c.x > bt.x0 + O.x - pad && c.x < bt.x1 + O.x + pad && Math.abs(c.z - bt.z - O.z) < 0.65 + pad;
+  let slamWas = false;
+  const crushZone = c => Math.abs(c.x - CX - O.x) < CW - 0.05 && Math.abs(c.z - 22 - O.z) < 0.9;
+  const addScrap = (n) => { scrap += n; if (netGame) netSend('ev', {t:'mapev', m:'factory', k:'n', n:scrap});
+    if (scrap >= need){ scrap = 0; if (netGame) netSend('ev', {t:'mapev', m:'factory', k:'n', n:0});
+      const pos = new V(42.4 + O.x, 0.5, 12.5 + O.z), b = makeBot(pick(BOT_COLORS), pos);
+      if (netGame) netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(pos.x), y:r3(pos.y), z:r3(pos.z)});
+      say(b, pick(['hello world','I am new here','fresh off the line','who made me?'])); spawnSparks(pos.clone().add(new V(0, 1, 0)), 60, 3); flash(pos.clone().add(new V(0, 1, 0)), 1.0); ding();
+      if (lastPlayer.distanceTo(pos) < 30) showMsg('NEW ROBOT ASSEMBLED!'); }
+    drawScr(); };
+  MAPS.factory = {name:'FACTORY', group:grp, spawn:new V(10, 0, 16).add(O), yaw:Math.PI*0.5, nav, yMin:-5, yMax:HT + 2, props:B.props,
+    sky:{bg:0x2a2c30, fog:0x3a3c40, near:16, far:55, hs:0xfff4e0, hg:0x4a4a50, hi:0.8, ac:0xffffff, ai:0.3},
+    onEv(ev){ if (ev.k === 'scrap' && isHost()) addScrap(ev.n || 1); else if (ev.k === 'n'){ scrap = ev.n; drawScr(); } },
+    update(dt, inGame){
+      const t = Date.now()/1000, ph = t % 4;
+      const hy = ph < 2.6 ? 3.05 : ph < 2.78 ? 3.05 - (ph - 2.6)/0.18*2.4 : ph < 3.3 ? 0.65 : 0.65 + (ph - 3.3)/0.7*2.4;
+      head.position.set(CX + O.x, hy + 0.5, 22 + O.z); setDyn(headBox, CX - CW + 0.05 + O.x, hy, 21.15 + O.z, CX + CW - 0.05 + O.x, hy + 1.0, 22.85 + O.z);
+      const slam = ph >= 2.72 && ph < 3.3;
+      if (slam && !slamWas){ const d = lastPlayer.distanceTo(head.position); sndBang(Math.min(1, 4/(1 + d))); spawnSparks(new V(CX + O.x, BT + 0.1, 22 + O.z), 30, 3); }
+      if (ph > 3.3 && ph < 3.35) sndHiss();
+      slamWas = slam;
+      for (const a of arms){ const k = t*1.3 + a.ph; a.base.rotation.y = Math.sin(k*0.7)*1.2; a.sh.rotation.z = a.s*(0.5 + Math.sin(k)*0.35); a.el.rotation.z = a.s*(0.9 + Math.sin(k*1.4)*0.4); }
+      if (!inGame) return;
+      if (lastPlayer.distanceTo(new V(42 + O.x, 0.5, 22 + O.z)) < 16 && R() < 0.8) emitFire(new V(41 + R()*2.2 + O.x, 0.1, 20.6 + R()*2.8 + O.z), new V((R()-0.5)*0.3, 1 + R()*0.8, (R()-0.5)*0.3), 0.1 + R()*0.08, 0.5 + R()*0.3);
+      const hd = loco.headPos(), fy = floorBelow(hd), feet = hd.clone().setY(fy);
+      // you ride the belts
+      for (const bt of belts) if (onBelt(feet, bt, -0.1) && Math.abs(fy - BT) < 0.12 && hd.y - fy < 2.4){ rig.position.x += bt.d*1.3*dt; break; }
+      if (slam && hy < 1.6 && crushZone(hd) && hd.y < hy + 2.2 && hd.y > -1) die('the crusher');
+      if (feet.x > 40.7 + O.x && feet.x < 43.3 + O.x && feet.z > 20.3 + O.z && feet.z < 23.7 + O.z && hd.y < 2.2) igniteMe('torso', 'the furnace');
+      for (const p of parts.slice()){
+        if (p.parent || p.obj.userData.dead || !mine(p) || p.mode === 'held' || p.stuck) continue;
+        const c = centerW(p);
+        if (slam && hy < 1.4 && crushZone(c) && c.y < 1.7){
+          const root = p, all = subtree(root); quietFx = true; for (const q of all.slice().reverse()) if (q.parent) detach(q, new V((R()-0.5)*4, 2, (R()-0.5)*4));
+          for (const q of all) if (!q.obj.userData.dead && q.name !== 'mine'){ if (q.r >= 0.05) shatter(q, false, Array.from({length:3}, (_, k) => ({id:q.id ? q.id + 'x' + k : null, s:0.03 + R()*0.03})), new V(0, 2, 0)); else removePart(q); }
+          quietFx = false; if (root.bot && !root.bot.dead) killBot(root.bot); continue;
+        }
+        if (c.x > AS[0] - 0.15 + O.x && c.x < AS[1] - 0.2 + O.x && Math.abs(c.z - 10 - O.z) < 0.85 && c.y < 1.7){ spawnSparks(c, 20, 2); if (p.bot && !p.bot.dead) killBot(p.bot); removePart(p); if (!netGame || isHost()) addScrap(1); else netSend('ev', {t:'mapev', m:'factory', k:'scrap', n:1}); continue; }
+        if (p.bot && !p.bot.dead && p === p.bot.root && p.mode === 'bot') continue;
+        if (c.x > 40.7 + O.x && c.x < 43.3 + O.x && c.z > 20.3 + O.z && c.z < 23.7 + O.z && c.y < 1.0){ for (let k=0;k<6;k++) emitFire(c.clone(), new V((R()-0.5), 1.5 + R(), (R()-0.5)), 0.08, 0.5); removePart(p); continue; }
+        for (const bt of belts){
+          if (!onBelt(c, bt, 0) || c.y < BT - 0.1 || c.y > BT + 0.9) continue;
+          if (p.name === 'mine'){ mineTrigger(p); break; }
+          p.mode = 'free'; p.asleep = false; p.obj.position.x += bt.d*1.3*dt; p.obj.position.z += (bt.z + O.z - c.z)*dt*1.5; p.v.x *= 0.9; p.v.z *= 0.9;
+          if (bt.k === 'loop' && c.x < bt.x0 + O.x + 0.4 && p.name === 'prop'){ p.obj.position.x += 37; p.v.set(0, 0, 0); }
+          break;
+        }
+      }
+    }};
+}
+
+// ======================= PIRATE SHIP =======================
+// A pirate ship on the open sea. The deck ROCKS (the sea and sky roll; loose things slide), the CANNONS fire
+// whatever you load into them (drop a robot part in the back of the barrel), and there's a PLANK to walk.
+// Over the side is the sea: the sharks get you.
+{
+  const O = new V(0, 0, 900), B = mapBuilder(O, 'ship'); mapSeed = 9191;
+  const plankT = tex(128, 128, (g,w,h) => { for (let y=0;y<h;y+=16){ g.fillStyle = `hsl(${25+R()*6},${38+R()*10}%,${30+R()*8}%)`; g.fillRect(0, y, w, 15); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, y+15, w, 1); g.fillRect((R()*w)|0, y, 1, 15); } noiseFill(g, w, h, 900, 'rgba(20,10,0,A)', 0.2, 2); });
+  const hullT = tex(128, 128, (g,w,h) => { for (let y=0;y<h;y+=12){ g.fillStyle = `hsl(${22+R()*5},${35+R()*8}%,${18+R()*6}%)`; g.fillRect(0, y, w, 11); g.fillStyle = 'rgba(0,0,0,.4)'; g.fillRect(0, y+11, w, 1); } });
+  const sailT = tex(128, 128, (g,w,h) => { g.fillStyle = '#efe6cf'; g.fillRect(0,0,w,h); for (let x=0;x<w;x+=32){ g.fillStyle = 'rgba(120,100,70,.25)'; g.fillRect(x, 0, 2, h); } noiseFill(g, w, h, 500, 'rgba(120,100,60,A)', 0.15, 3); });
+  const flagT = canvasTex(128, 80, (g,w,h) => { g.fillStyle = '#111'; g.fillRect(0,0,w,h); g.fillStyle = '#eee'; g.beginPath(); g.arc(64, 34, 16, 0, 7); g.fill(); g.fillRect(52, 40, 24, 12); g.fillStyle = '#111'; g.fillRect(56, 30, 6, 6); g.fillRect(66, 30, 6, 6);
+    g.strokeStyle = '#eee'; g.lineWidth = 6; g.beginPath(); g.moveTo(34, 52); g.lineTo(94, 72); g.moveTo(94, 52); g.lineTo(34, 72); g.stroke(); });
+  B.mat('deck', lam(0xffffff, {map:plankT, vertexColors:true})).mat('hull', lam(0xffffff, {map:hullT, vertexColors:true})).mat('sail', lam(0xffffff, {map:sailT, vertexColors:true, side:T3.DoubleSide}))
+   .mat('wood', lam(0x6b4a2b, {vertexColors:true})).mat('dark', lam(0x2a1e14, {vertexColors:true})).mat('iron', lam(0x2a2c30, {vertexColors:true})).mat('gold', lam(0xd8a830, {vertexColors:true}))
+   .mat('rope', lam(0xb09a70, {vertexColors:true})).mat('red', lam(0xa8241e, {vertexColors:true})).mat('flag', new T3.MeshBasicMaterial({map:flagT, side:T3.DoubleSide})).mat('lamp', new T3.MeshBasicMaterial({color:0xffd890}));
+  const X0 = 6, X1 = 37, Z0 = 18, Z1 = 26, ZC = 22, HOLD = -3, BW = 1.0, T = 0.3;
+  // hull: sides, stern, the bow, the bottom of the hold
+  B.box('hull', [X0, HOLD - 0.4, Z0 - T], [X1, BW, Z0], {us:2}); B.box('hull', [X0, HOLD - 0.4, Z1], [X1, BW, Z1 + T], {us:2});
+  B.box('hull', [X0 - T, HOLD - 0.4, Z0 - T], [X0, 3.2, Z1 + T], {us:2});
+  B.box('hull', [X1, HOLD - 0.4, Z0 - T], [X1 + 1.6, BW, Z0 + 1.2]); B.box('hull', [X1, HOLD - 0.4, Z1 - 1.2], [X1 + 1.6, BW, Z1 + T]);
+  B.box('hull', [X1 + 1.6, HOLD - 0.4, Z0 + 0.8], [X1 + 3, BW, Z0 + 2.4]); B.box('hull', [X1 + 1.6, HOLD - 0.4, Z1 - 2.4], [X1 + 3, BW, Z1 - 0.8]);
+  B.box('hull', [X1 + 3, HOLD - 0.4, Z0 + 2.4], [X1 + 4.2, BW + 0.4, Z1 - 2.4]);
+  B.box('deck', [X1, -0.3, Z0 + 1.2], [X1 + 1.6, 0, Z1 - 1.2], {us:2}); B.box('deck', [X1 + 1.6, -0.3, Z0 + 2.4], [X1 + 3, 0, Z1 - 2.4], {us:2});
+  B.box('dark', [X0, HOLD - 0.3, Z0], [X1 + 3, HOLD, Z1], {us:2});
+  B.geo('wood', new T3.CylinderGeometry(0.12, 0.18, 7, 8), X1 + 6, 2.4, ZC, 0, 0, -1.2);
+  // the deck, with a hatch down to the hold
+  const HX0 = 17, HX1 = 23, HZ0 = 21, HZ1 = 23;
+  B.box('deck', [X0, -0.3, Z0], [X1, 0, HZ0], {us:2}); B.box('deck', [X0, -0.3, HZ1], [X1, 0, Z1], {us:2}); B.box('deck', [X0, -0.3, HZ0], [HX0, 0, HZ1], {us:2}); B.box('deck', [HX1, -0.3, HZ0], [X1, 0, HZ1], {us:2});
+  for (const [a, b] of [[[HX0 - 0.1, 0, HZ0 - 0.1], [HX1 + 0.1, 0.25, HZ0]], [[HX0 - 0.1, 0, HZ1], [HX1 + 0.1, 0.25, HZ1 + 0.1]], [[HX0 - 0.1, 0, HZ0], [HX0, 0.25, HZ1]]]) B.box('dark', a, b);
+  for (let i=0;i<10;i++) B.box('wood', [HX1 - 0.6*(i + 1), HOLD, HZ0], [HX1 - 0.6*i, -0.3*(i + 1), HZ1]);
+  // bulwarks with gunports, and a gap for the plank
+  const CAN = [15, 21, 27], PX = 31;
+  for (const [z0, z1, side] of [[Z0, Z0 + 0.2, -1], [Z1 - 0.2, Z1, 1]]){
+    const holes = CAN.map(x => [x - 0.4, x + 0.4, 0.25, 0.85]); if (side > 0) holes.push([PX - 0.45, PX + 0.45, 0, BW + 0.01]);
+    B.wallRun(['hull'], 'x', X0, X1, z0, z1, 0, BW, holes, 2); B.box('wood', [X0, BW, z0 - 0.05], [X1, BW + 0.08, z1 + 0.05]); }
+  B.box('deck', [PX - 0.25, -0.06, Z1], [PX + 0.25, 0.04, Z1 + 3.2]); B.box('wood', [PX - 0.3, -0.5, Z1 + 0.25], [PX + 0.3, -0.06, Z1 + 0.6]);
+  // quarterdeck over the captain's cabin at the stern, with stairs
+  const QY = 2.4, QX = 12.5;
+  B.box('deck', [X0, QY - 0.2, Z0], [QX, QY, Z1], {us:2}); B.box('hull', [X0, QY, Z0 - T], [QX, QY + 0.9, Z0], {us:2}); B.box('hull', [X0, QY, Z1], [QX, QY + 0.9, Z1 + T], {us:2});
+  B.wallRun(['hull'], 'z', Z0, Z1, QX - 0.2, QX, 0, QY - 0.2, [[21, 23, 0, 2.0]], 2);
+  for (const zc of [19.1, 24.9]) for (let i=0;i<8;i++) B.box('wood', [QX + 2.4 - 0.3*(i + 1), 0, zc - 0.5], [QX + 2.4 - 0.3*i, (i + 1)*QY/8, zc + 0.5]);
+  B.box('wood', [QX, QY - 0.2, Z0], [QX + 0.1, QY + 0.9, 18.6]); B.box('wood', [QX, QY - 0.2, 19.6], [QX + 0.1, QY + 0.9, 24.4]); B.box('wood', [QX, QY - 0.2, 25.4], [QX + 0.1, QY + 0.9, Z1]);
+  B.box('dark', [7, 0, 20.5], [10, 0.8, 23.5]); B.box('gold', [7.5, 0.8, 21], [8.5, 0.82, 22.6], {solid:false});
+  B.box('red', [6.3, 0, 19], [7.3, 0.7, 20]); B.box('gold', [6.3, 0.7, 19], [7.3, 0.8, 20]);
+  for (const z of [18.5, 25.5]) B.box('lamp', [11.8, 1.7, z - 0.1], [12.0, 1.9, z + 0.1], {solid:false});
+  // the wheel
+  B.cyl('wood', 0.08, 0.08, 1.0, 9.5, QY, ZC, 8); B.geo('wood', new T3.TorusGeometry(0.5, 0.04, 6, 16), 9.6, QY + 1.0, ZC, 0, Math.PI/2, 0);
+  for (let k=0;k<4;k++) B.geo('wood', new T3.BoxGeometry(0.04, 1.2, 0.04), 9.6, QY + 1.0, ZC, k*Math.PI/4, 0, 0);
+  // masts, yards, sails, crow's nest with rungs up the main mast
+  for (const [x, y0, h, nest] of [[24, 0, 15, true], [33, 0, 12, false], [9, QY, 10, false]]){
+    B.cyl('wood', 0.28, 0.22, h, x, y0, ZC, 12);
+    for (const [yy, w] of [[y0 + h*0.45, 3.6], [y0 + h*0.75, 2.8]]){ B.geo('wood', new T3.CylinderGeometry(0.09, 0.09, w*2, 8), x, yy, ZC, Math.PI/2); B.geo('sail', new T3.PlaneGeometry(w*1.8, h*0.27, 6, 2), x + 0.35, yy - h*0.14, ZC, 0, Math.PI/2, 0); }
+    if (nest){ B.cyl('wood', 1.1, 1.1, 0.15, x, 9, ZC, 16); for (let k=0;k<12;k++){ const a = k/12*Math.PI*2; B.box('wood', [x + Math.cos(a)*1.05 - 0.05, 9.15, ZC + Math.sin(a)*1.05 - 0.05], [x + Math.cos(a)*1.05 + 0.05, 10.1, ZC + Math.sin(a)*1.05 + 0.05]); }
+      B.geo('wood', new T3.TorusGeometry(1.05, 0.05, 6, 20), x, 10.1, ZC, Math.PI/2);
+      for (let k=0;k<22;k++) B.box('rope', [x - 0.45, 0.5 + k*0.4, ZC - 0.25], [x - 0.3, 0.55 + k*0.4, ZC + 0.25]); }
+    B.geo('flag', new T3.PlaneGeometry(1.4, 0.9), x + 0.75, y0 + h - 0.5, ZC, 0, Math.PI/2, 0);
+  }
+  for (const s of [-1, 1]) for (const x of [24, 33]) for (let k=0;k<4;k++) B.geo('rope', new T3.CylinderGeometry(0.02, 0.02, 9, 4), x - 1.5 + k, 5, ZC + s*2.5, s*0.47, 0, 0);
+  // the cannons (on carriages, pointing out of the gunports)
+  const cannons = [];
+  for (const x of CAN) for (const s of [-1, 1]){
+    const zb = ZC + s*2.6; B.box('wood', [x - 0.35, 0, zb - 0.5], [x + 0.35, 0.35, zb + 0.5]); 
+    B.geo('iron', new T3.CylinderGeometry(0.16, 0.2, 1.7, 12), x, 0.55, zb + s*0.6, Math.PI/2); B.geo('iron', new T3.SphereGeometry(0.2, 10, 8), x, 0.55, zb - s*0.25);
+    for (const sx of [-0.3, 0.3]) B.geo('dark', new T3.CylinderGeometry(0.15, 0.15, 0.08, 10), x + sx, 0.15, zb, 0, 0, Math.PI/2);
+    cannons.push({x, s, load:new V(x + O.x, 0.75, zb - s*0.35 + O.z), muzzle:new V(x + O.x, 0.55, zb + s*1.5 + O.z), dir:new V(0, 0.18, s).normalize(), p:null, fuse:0});
+  }
+  // the hold: crates, barrels, hammocks, cannonballs, treasure
+  for (const [x, z, n] of [[9, 19, 2], [11, 19, 1], [27, 24, 2], [30, 19, 1], [34, 19, 2], [34, 23.5, 1]]) for (let k=0;k<n;k++) B.box('wood', [x, HOLD + k*1.0, z], [x + 1.6, HOLD + k*1.0 + 0.95, z + 1.6]);
+  for (const x of [26, 28.5]) B.box('rope', [x, HOLD + 1.6, 19.2], [x + 2, HOLD + 1.7, 20.2], {solid:false});
+  for (let k=0;k<6;k++) B.geo('iron', new T3.SphereGeometry(0.16, 8, 6), 13 + (k % 3)*0.34, HOLD + 0.16 + Math.floor(k/3)*0.28, 24.5 + Math.floor(k/3)*0.15);
+  B.box('red', [31, HOLD, 23.8], [32.4, HOLD + 0.7, 24.8]); B.box('gold', [31.1, HOLD + 0.7, 23.9], [32.3, HOLD + 0.85, 24.7], {solid:false});
+  for (const [x, z] of [[14, 19.5], [20, 19.5], [26, 21.5], [32, 21.5]]) B.box('lamp', [x - 0.1, HOLD + 2.3, z - 0.1], [x + 0.1, HOLD + 2.5, z + 0.1], {solid:false});
+  for (const [k, x, y, z] of [['barrel', 20, 0, 19.2], ['barrel', 26, 0, 24.8], ['barrel', 14, HOLD, 22], ['barrel', 16, HOLD, 19.5], ['box', 29, 0, 19.3], ['box', 18, 0, 24.7], ['bottle', 8, 0.8, 21.5], ['bottle', 25, HOLD, 22.5],
+    ['ball', 12.6, HOLD, 23], ['ball', 13.2, HOLD, 23], ['stick', 22, 0, 24.6], ['mug', 9, 0.8, 22.5], ['book', 8.5, 0.8, 22.9], ['duck', 30, 0, 20]]) B.prop(k, x, y, z);
+  const lamps = [[11.9, 1.8, 18.5], [11.9, 1.8, 25.5], [14, HOLD + 2.4, 19.5], [20, HOLD + 2.4, 19.5], [26, HOLD + 2.4, 21.5], [32, HOLD + 2.4, 21.5], [8.5, 1.8, 22]];
+  const light = (x, y, z) => { x -= O.x; z -= O.z; let r = 1, g = 0.95, b = 0.86;
+    if (y < -0.1 || (x < QX && y < QY - 0.1)){ r = 0.22; g = 0.18; b = 0.14; for (const [lx, ly, lz] of lamps){ const d = Math.hypot(x - lx, y - ly, z - lz), k = 1.2*Math.exp(-d/2.6); r += k; g += k*0.75; b += k*0.4; } }
+    return [r, g, b]; };
+  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0, HOLD]);
+  // the sea, the sky and the sharks: they roll around the ship
+  const sea = new T3.Group(); sea.position.set(22 + O.x, 0, ZC + O.z); grp.add(sea);
+  const waveT = canvasTex(128, 128, (g,w,h) => { g.fillStyle = '#1d6a9a'; g.fillRect(0,0,w,h); for (let i=0;i<260;i++){ g.fillStyle = `rgba(${150+R()*100|0},${200+R()*55|0},255,${0.1+R()*0.25})`; g.fillRect(R()*w, R()*h, 6 + R()*16, 2); } }, true); waveT.repeat.set(40, 40);
+  const water = new T3.Mesh(new T3.PlaneGeometry(220, 220), new T3.MeshLambertMaterial({map:waveT, emissive:0x0a2a40})); water.rotation.x = -Math.PI/2; water.position.y = -1.2; sea.add(water);
+  for (const [x, z, r] of [[-60, -40, 9], [55, 50, 12], [70, -25, 6]]){ const isl = new T3.Mesh(new T3.SphereGeometry(r, 14, 8, 0, 6.3, 0, 1.4), lam(0x3f8a3a)); isl.position.set(x, -1.6, z); sea.add(isl);
+    const sand = new T3.Mesh(new T3.CylinderGeometry(r*1.05, r*1.15, 0.6, 18), lam(0xe2d2a0)); sand.position.set(x, -1.3, z); sea.add(sand); }
+  const sun = new T3.Mesh(new T3.SphereGeometry(4, 16, 10), new T3.MeshBasicMaterial({color:0xfff2c0, fog:false})); sun.position.set(-40, 26, 55); sea.add(sun);
+  for (let k=0;k<8;k++){ const c = new T3.Mesh(new T3.SphereGeometry(4 + R()*3, 10, 6), new T3.MeshBasicMaterial({color:0xffffff, fog:false, transparent:true, opacity:0.85})); c.scale.set(2.5, 0.6, 1.4); const a = R()*6.3; c.position.set(Math.cos(a)*65, 25 + R()*10, Math.sin(a)*65); sea.add(c); }
+  const fins = [0, 1].map(k => { const f = new T3.Mesh(new T3.ConeGeometry(0.35, 0.8, 4), lam(0x5a6670)); f.scale.z = 0.25; sea.add(f); return {f, a:k*3, r:11 + k*3}; });
+  const splashes = [];
+  const splash = (pos) => { for (let k=0;k<20;k++) frostPuff(pos.clone().add(new V((R()-0.5)*0.6, 0, (R()-0.5)*0.6))); if (AC && pos.distanceTo(lastPlayer) < 25) noiseHit(0.6, 900, 0.6, 0.4); };
+  const sndCannon = (v) => { if (!AC) return; noiseHit(1.0, 220, 0.6, 1.0*v); tone('sine', 70, 30, 0.6, 0.7*v); noiseHit(0.2, 1500, 1, 0.5*v); };
+  const fuseS = () => { if (!AC) return; noiseHit(1.0, 5000, 2, 0.08); };
+  const fire = (c, local) => { const pos = c.muzzle.clone(); flash(pos, 1.4); spawnSparks(pos, 50, 6); emitAsh(pos, 20, 0.3); for (let k=0;k<12;k++) emitFire(pos.clone(), c.dir.clone().multiplyScalar(4 + R()*4).add(new V(R()-0.5, R()-0.5, R()-0.5)), 0.12, 0.3);
+    sndCannon(Math.min(1, 6/(1 + pos.distanceTo(lastPlayer)))); if (local && netGame) netSend('ev', {t:'mapev', m:'ship', k:'boom', c:cannons.indexOf(c)}); };
+  const onShip = p => p.x > X0 - 0.3 + O.x && p.x < X1 + 4.2 + O.x && p.z > Z0 - 0.3 + O.z && p.z < Z1 + 0.3 + O.z;
+  let roll = 0;
+  MAPS.ship = {name:'PIRATE SHIP', group:grp, spawn:new V(28, 0, 21).add(O), yaw:Math.PI/2, nav, yMin:-8, yMax:20, props:B.props,
+    sky:{bg:0x8fc6ea, fog:0xa8d0ea, near:30, far:78, hs:0xfff6e0, hg:0x2a5a7a, hi:1.05, ac:0xffffff, ai:0.3},
+    onEv(ev){ if (ev.k === 'boom' && cannons[ev.c]) fire(cannons[ev.c], false); },
+    update(dt, inGame){
+      const t = Date.now()/1000; roll = Math.sin(t*0.85)*0.055; const pitch = Math.sin(t*0.53 + 1)*0.02;
+      sea.rotation.set(roll, 0, pitch); sea.position.y = Math.sin(t*0.7)*0.15; waveT.offset.x = t*0.01; waveT.offset.y = t*0.006;
+      for (const f of fins){ f.a += dt*0.25; f.f.position.set(Math.cos(f.a)*f.r, -1.0, Math.sin(f.a)*f.r*1.6); f.f.rotation.y = -f.a; }
+      if (!inGame) return;
+      // you: the deck tilts under you a little, and the sea is deadly
+      const h = loco.headPos(), feet = h.clone().setY(floorBelow(h));
+      if (onShip(h) && feet.y > -0.6 && loco.S.wasTouching.some(t2 => t2)){ loco.S.velocity.z += Math.sin(roll)*6*dt; }
+      if (!onShip(h) && h.y < -0.7){ splash(feet.clone().setY(-1.1)); die(feet.z > Z1 + O.z && Math.abs(feet.x - PX - O.x) < 2 ? 'walking the plank' : 'the sharks'); return; }
+      for (const c of cannons){
+        if (c.p){ c.fuse -= dt; const p = c.p;
+          if (p.obj.userData.dead){ c.p = null; continue; }
+          p.obj.position.copy(c.load).addScaledVector(c.dir, 0.4); p.v.set(0, 0, 0); p.mode = 'free'; p.asleep = false;
+          if (R() < 0.4) spawnSparks(c.load.clone().add(new V(0, 0.25, 0)), 2, 1);
+          if (c.fuse <= 0){ p.obj.position.copy(c.muzzle).addScaledVector(c.dir, 0.4); p.v.copy(c.dir).multiplyScalar(24); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(15); fire(c, true); c.p = null; p.calmT = clock + 0.4; p.noLoad = clock + 1.5; p.obj.updateMatrixWorld(true); }
+        }
+      }
+      for (const p of parts.slice()){
+        if (p.parent || p.obj.userData.dead || !mine(p) || p.mode === 'held' || p.stuck) continue;
+        const c = centerW(p);
+        if (!onShip(c) && c.y < -1.1){ splash(c.clone().setY(-1.1)); removePart(p); continue; }
+        if (p.bot && !p.bot.dead && p === p.bot.root && p.mode === 'bot') continue;
+        if (onShip(c) && c.y > -0.2 && c.y < 1.5){ p.v.z += Math.sin(roll)*9.81*dt*0.7; if (Math.abs(roll) > 0.03) p.asleep = false; }
+        if (p.name === 'mine' || p.noLoad > clock || cannons.some(k => k.p === p)) continue;
+        for (const k of cannons) if (!k.p && c.distanceTo(k.load) < 0.32 + p.r*0.5){ k.p = p; k.fuse = 1.2; fuseS(); const b = p.bot; if (b && !b.dead && R() < 0.7) say(b, pick(['wait what','not the cannon','FIRE IN THE HOLE'])); break; }
+      }
+    }};
+}
+
+// ======================= HAUNTED MANSION =======================
+// A dark old mansion in a graveyard, lit by candles and lightning. Quirk: GHOST ROBOTS haunt the back
+// rooms, and you can only see them in the MIRRORS. They creep up behind you, knock things over, and
+// their touch is freezing cold.
+{
+  const O = new V(0, 0, 1000), B = mapBuilder(O, 'mansion'); mapSeed = 1313;
+  const paperT = tex(128, 128, (g,w,h) => { g.fillStyle = '#3a2440'; g.fillRect(0,0,w,h); g.fillStyle = 'rgba(160,120,170,.22)';
+    for (let y=0;y<h;y+=32) for (let x=((y/32)%2)*16; x<w; x+=32){ g.beginPath(); g.moveTo(x, y + 4); g.quadraticCurveTo(x + 12, y + 16, x, y + 28); g.quadraticCurveTo(x - 12, y + 16, x, y + 4); g.fill(); } noiseFill(g, w, h, 600, 'rgba(0,0,0,A)', 0.2, 2); });
+  const floorT = tex(128, 128, (g,w,h) => { for (let y=0;y<h;y+=16) for (let x=((y/16)%2)*32; x<w+64; x+=64){ g.fillStyle = `hsl(${24+R()*6},${35+R()*10}%,${22+R()*6}%)`; g.fillRect(x - 64, y, 63, 15); } noiseFill(g, w, h, 800, 'rgba(0,0,0,A)', 0.2, 2); });
+  const grassT = tex(128, 128, (g,w,h) => { g.fillStyle = '#2a3020'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 3000, 'rgba(70,80,40,A)', 0.4, 2); noiseFill(g, w, h, 800, 'rgba(10,10,5,A)', 0.4, 3); });
+  const stoneT = tex(128, 128, (g,w,h) => { g.fillStyle = '#5a5a60'; g.fillRect(0,0,w,h); for (let y=0;y<h;y+=24) for (let x=((y/24)%2)*24; x<w+48; x+=48){ g.fillStyle = `hsl(240,4%,${30+R()*10}%)`; g.fillRect(x - 47, y + 1, 46, 22); } noiseFill(g, w, h, 700, 'rgba(40,60,30,A)', 0.3, 3); });
+  const booksT = tex(128, 128, (g,w,h) => { g.fillStyle = '#2a1a10'; g.fillRect(0,0,w,h); for (let y=0;y<h;y+=32){ let x = 0; while (x < w){ const bw = 4 + R()*6; g.fillStyle = `hsl(${R()*360},${30+R()*30}%,${20+R()*20}%)`; g.fillRect(x, y + 4 + R()*6, bw - 1, 26 - R()*6); x += bw; } g.fillStyle = '#4a3020'; g.fillRect(0, y + 29, w, 3); } });
+  const portT = canvasTex(128, 160, (g,w,h) => { g.fillStyle = '#c9a030'; g.fillRect(0,0,w,h); g.fillStyle = '#14101a'; g.fillRect(10,10,w-20,h-20); g.fillStyle = '#4a4a58'; g.fillRect(34, 40, 60, 50); g.fillRect(44, 90, 40, 50);
+    g.fillStyle = '#ff2a1a'; g.fillRect(46, 56, 10, 8); g.fillRect(72, 56, 10, 8); g.fillStyle = '#222'; g.fillRect(50, 76, 28, 4); });
+  const defMats = (BB) => BB.mat('paper', lam(0xffffff, {map:paperT, vertexColors:true})).mat('floor', lam(0xffffff, {map:floorT, vertexColors:true})).mat('grass', lam(0xffffff, {map:grassT, vertexColors:true}))
+    .mat('stone', lam(0xffffff, {map:stoneT, vertexColors:true})).mat('books', lam(0xffffff, {map:booksT, vertexColors:true})).mat('wood', lam(0x4a2e1c, {vertexColors:true})).mat('trim', lam(0x6b4a2b, {vertexColors:true}))
+    .mat('gold', lam(0xc9a030, {vertexColors:true})).mat('dark', lam(0x15121a, {vertexColors:true})).mat('red', lam(0x6a1a1e, {vertexColors:true})).mat('sheet', lam(0xd8d4cc, {vertexColors:true})).mat('iron', lam(0x2a2a30, {vertexColors:true}))
+    .mat('tree', lam(0x3a2e26, {vertexColors:true})).mat('wax', lam(0xf0e8d0, {vertexColors:true})).mat('port', new T3.MeshBasicMaterial({map:portT, color:0x6a6a6a})).mat('ceil', lam(0x2a2030, {vertexColors:true}));
+  defMats(B);
+  const HT = 5, T = 0.3, ZM = 43.6, candles = [];
+  // the back rooms (bedroom, ballroom): built twice, once for real and once behind the mirrors
+  const backRooms = (BB, real) => {
+    BB.box('floor', [4, -0.3, 29], [40, 0, ZM], {us:2}); BB.box('ceil', [4, HT, 29], [40, HT + 0.3, ZM], {us:2});
+    BB.box('paper', [4 - T, 0, 29], [4, HT, ZM], {us:2}); BB.box('paper', [40, 0, 29], [40 + T, HT, ZM], {us:2}); BB.box('paper', [15.85, 0, 29.15], [16.15, HT, ZM], {us:2});
+    BB.wallRun(['paper'], 'x', 4, 40, 28.85, 29.15, 0, HT, [[9, 11, 0, 2.6], [27, 29, 0, 2.6]], 2);
+    for (const [x0, x1] of [[4, 15.85], [16.15, 40]]) BB.box('wood', [x0, 0, ZM - 0.05], [x1, 0.25, ZM], {solid:false});
+    // bedroom
+    BB.box('wood', [5, 0, 36], [7.4, 0.5, 39.6]); BB.box('sheet', [5.05, 0.5, 36.05], [7.35, 0.65, 39.55]); BB.box('wood', [5, 0, 39.6], [7.4, 1.5, 39.8]); BB.box('red', [5.05, 0.5, 36.05], [7.35, 0.68, 37.6], {solid:false});
+    for (const x of [5.4, 6.6]) BB.box('sheet', [x - 0.35, 0.65, 38.9], [x + 0.35, 0.8, 39.45]);
+    BB.box('wood', [13.4, 0, 39.4], [15.8, 2.5, 41.2]); BB.box('gold', [14.55, 1.1, 39.37], [14.65, 1.4, 39.4], {solid:false});
+    BB.box('wood', [7.8, 0, 39.6], [8.6, 0.6, 40.4]); BB.box('red', [5, 0.002, 32], [11, 0.01, 35], {solid:false});
+    // ballroom: columns, piano, chairs, chandelier
+    for (const [x, z] of [[18, 31], [38, 31], [18, 41.6], [38, 41.6]]){ BB.cyl('stone', 0.35, 0.35, HT, x, 0, z, 14); BB.cyl('gold', 0.45, 0.45, 0.3, x, 0, z, 14); }
+    BB.box('dark', [34.5, 0.6, 30], [38, 1.1, 32]); for (const [x, z] of [[34.7, 30.2], [37.8, 30.2], [34.7, 31.8], [37.8, 31.8]]) BB.box('dark', [x - 0.08, 0, z - 0.08], [x + 0.08, 0.6, z + 0.08]);
+    BB.box('sheet', [34.6, 1.0, 31.95], [37.9, 1.06, 32.15], {solid:false}); BB.box('dark', [35.6, 0, 32.6], [36.8, 0.45, 33.0]);
+    for (let x=19;x<34;x+=2.2) for (const z of [30.0, 42.6]){ BB.box('red', [x, 0.4, z - 0.25], [x + 0.6, 0.48, z + 0.25]); BB.box('wood', [x, 0, z - 0.25], [x + 0.06, 0.4, z + 0.25]); BB.box('wood', [x + 0.54, 0, z - 0.25], [x + 0.6, 0.4, z + 0.25]); BB.box('wood', [x, 0.48, z > 40 ? z + 0.19 : z - 0.25], [x + 0.6, 1.1, z > 40 ? z + 0.25 : z - 0.19]); }
+    BB.geo('gold', new T3.TorusGeometry(1.0, 0.05, 6, 18), 28, 3.8, 36.3, Math.PI/2, 0, 0); BB.box('iron', [27.98, 3.8, 36.28], [28.02, HT, 36.32], {solid:false});
+    // candles (stands)
+    for (const [x, z] of [[8.2, 40], [19.2, 33.5], [36.8, 33.5], [19.2, 40], [36.8, 40]]){ if (z !== 40 || x !== 8.2){ BB.box('iron', [x - 0.05, 0, z - 0.05], [x + 0.05, 1.3, z + 0.05]); BB.cyl('iron', 0.15, 0.15, 0.05, x, 1.3, z, 8); } const y = x === 8.2 ? 0.6 : 1.35; BB.cyl('wax', 0.04, 0.04, 0.2, x, y, z, 6); if (real) candles.push([x, y + 0.26, z]); }
+    for (let k=0;k<8;k++){ const a = k/8*Math.PI*2; BB.cyl('wax', 0.03, 0.03, 0.14, 28 + Math.cos(a), 3.8, 36.3 + Math.sin(a), 6); if (real) candles.push([28 + Math.cos(a), 4.0, 36.3 + Math.sin(a)]); }
+  };
+  backRooms(B, true);
+  // the back wall: the mirrors are holes onto the rooms built behind it
+  const mirrors = [[8, 12, 0.4, 2.6], [23, 33, 0.3, 3.8]];
+  B.wallRun(['paper'], 'x', 4 - T, 40 + T, ZM, ZM + 0.4, 0, HT, mirrors, 2);
+  for (const [a0, a1, y0, y1] of mirrors){ B.solid([a0, y0, ZM], [a1, y1, ZM + 0.4]); const f = 0.14;
+    for (const [lo, hi] of [[[a0 - f, y0 - f, ZM - 0.06], [a1 + f, y0, ZM]], [[a0 - f, y1, ZM - 0.06], [a1 + f, y1 + f, ZM]], [[a0 - f, y0, ZM - 0.06], [a0, y1, ZM]], [[a1, y0, ZM - 0.06], [a1 + f, y1, ZM]]]) B.box('gold', lo, hi); }
+  // front: floor, walls, rooms
+  B.box('floor', [4, -0.3, 14], [40, 0, 29], {us:2}); B.box('ceil', [4, HT, 14], [40, HT + 0.3, 29], {us:2});
+  B.box('stone', [3, HT + 0.3, 13.5], [41, HT + 0.8, 44.4], {us:2});
+  for (let k=0;k<4;k++){ B.box('dark', [4 + k*1.2, HT + 0.8 + k*0.9, 14 + k*1.4], [40 - k*1.2, HT + 1.7 + k*0.9, 44 - k*0.2]); }
+  const fw = [[21, 23, 0, 3.0], [6, 9, 1.0, 3.4, true], [11, 14, 1.0, 3.4, true], [30, 33, 1.0, 3.4, true], [35, 38, 1.0, 3.4, true]];
+  B.wallRun(['stone'], 'x', 4 - T, 40 + T, 14 - T, 14, 0, HT + 0.3, fw, 2); B.wallRun(['paper'], 'x', 4, 40, 14, 14.02, 0, HT, fw.map(h => h.slice(0, 4)), 2);
+  B.wallRun(['stone'], 'z', 14, 29, 4 - T - 0.02, 4 - T, 0, HT + 0.3, [], 2); B.box('paper', [4 - T, 0, 14], [4, HT, 29], {us:2});
+  B.wallRun(['stone'], 'z', 14, 29, 40 + T, 40 + T + 0.02, 0, HT + 0.3, [], 2); B.box('paper', [40, 0, 14], [40 + T, HT, 29], {us:2});
+  B.box('stone', [4 - T - 0.02, 0, 29], [4 - T, HT + 0.3, 44.4]); B.box('stone', [40 + T, 0, 29], [40 + T + 0.02, HT + 0.3, 44.4]);
+  B.wallRun(['paper'], 'z', 14, 25.85, 15.85, 16.15, 0, HT, [[19, 21, 0, 2.6]], 2); B.wallRun(['paper'], 'z', 14, 25.85, 27.85, 28.15, 0, HT, [[19, 21, 0, 2.6]], 2);
+  B.wallRun(['paper'], 'x', 4, 40, 25.85, 26.15, 0, HT, [[9, 11, 0, 2.6], [21, 23, 0, 2.6], [33, 35, 0, 2.6]], 2);
+  for (const [x0, x1, z] of [[4, 40, 14.02], [4, 40, 26.15], [4, 40, 28.85]]) B.box('wood', [x0, 0, z - (z === 28.85 ? 0.05 : 0)], [x1, 0.25, z + (z === 28.85 ? 0 : 0.05)], {solid:false});
+  // library: shelves, armchairs, fireplace
+  for (const z of [14.1, 25.6]) B.box('books', [4.2, 0, z === 14.1 ? 14.1 : 25.25], [15.8, 2.6, z === 14.1 ? 14.55 : 25.85], {us:1.2});
+  B.box('books', [15.3, 0, 14.6], [15.8, 2.6, 18.6], {us:1.2}); B.box('books', [15.3, 0, 21.4], [15.8, 2.6, 25.2], {us:1.2});
+  B.box('stone', [4, 0, 18], [4.9, 1.6, 21]); B.box('dark', [4.2, 0.1, 18.6], [4.95, 1.1, 20.4], {solid:false}); B.box('stone', [4, 1.6, 17.8], [5.1, 1.75, 21.2]); B.box('port', [4.02, 2.0, 18.8], [4.04, 3.4, 20.2], {solid:false});
+  for (const z of [17, 22]){ B.box('red', [7, 0, z], [8, 0.45, z + 1]); B.box('red', [7, 0.45, z], [7.2, 1.1, z + 1]); B.box('red', [7.2, 0.45, z], [8, 0.7, z + 0.15]); B.box('red', [7.2, 0.45, z + 0.85], [8, 0.7, z + 1]); }
+  // dining room: long table, chairs, candelabras
+  B.box('wood', [30, 0.75, 19.2], [38, 0.82, 20.8]); for (const [x, z] of [[30.2, 19.4], [37.8, 19.4], [30.2, 20.6], [37.8, 20.6]]) B.box('wood', [x - 0.06, 0, z - 0.06], [x + 0.06, 0.75, z + 0.06]);
+  for (let x=30.6;x<38;x+=1.4) for (const s of [-1, 1]){ const z = 20 + s*1.25; B.box('wood', [x - 0.22, 0.42, z - 0.22], [x + 0.22, 0.48, z + 0.22]); B.box('wood', [x - 0.22, 0, z - 0.03], [x + 0.22, 0.42, z + 0.03], {solid:false}); B.box('wood', [x - 0.22, 0.48, z + s*0.2 - 0.03], [x + 0.22, 1.1, z + s*0.2 + 0.03]); }
+  for (const x of [32, 36]){ B.cyl('gold', 0.03, 0.03, 0.35, x, 0.82, 20, 6); B.box('gold', [x - 0.25, 1.15, 19.98], [x + 0.25, 1.18, 20.02], {solid:false}); for (const dx of [-0.25, 0, 0.25]){ B.cyl('wax', 0.025, 0.025, 0.14, x + dx, 1.17, 20, 6); candles.push([x + dx, 1.38, 20]); } }
+  // foyer: a suit of robot armour, a clock, a rug
+  B.box('red', [20.5, 0.002, 15], [23.5, 0.01, 25.5], {solid:false});
+  B.box('iron', [17, 0, 24.6], [17.8, 0.3, 25.4]); B.box('iron', [17.15, 0.3, 24.75], [17.65, 1.3, 25.25]); B.box('iron', [17.2, 1.3, 24.8], [17.6, 1.7, 25.2]);
+  B.box('wood', [26.6, 0, 24.9], [27.6, 2.4, 25.6]); B.box('gold', [26.85, 1.7, 24.88], [27.35, 2.2, 24.9], {solid:false});
+  // hallway portraits
+  for (let x=5.5;x<39;x+=5) if (Math.abs(x - 10) > 1.2 && Math.abs(x - 22) > 1.2 && Math.abs(x - 34) > 1.2) B.box('port', [x - 0.5, 1.4, 26.16], [x + 0.5, 2.7, 26.18], {solid:false});
+  for (const [x, z] of [[12, 27.5], [32, 27.5]]){ B.cyl('wax', 0.04, 0.04, 0.2, x, 1.4, z, 6); B.box('iron', [x - 0.12, 1.3, z - 0.12], [x + 0.12, 1.4, z + 0.12], {solid:false}); B.box('iron', [x - 0.04, 0, z - 0.04], [x + 0.04, 1.3, z + 0.04]); candles.push([x, 1.66, z]); }
+  // the grounds: dead grass, a graveyard, dead trees, an iron fence
+  B.box('grass', [-1, -1, -1], [45, -0.02, 45], {us:3});
+  B.box('stone', [20.5, 0, 0.5], [23.5, 0.02, 14], {solid:false, us:1.5});
+  for (const [a, b] of [[[-0.5,0,-0.5],[0,1.6,44.6]], [[44,0,-0.5],[44.5,1.6,44.6]], [[0,0,-0.5],[20,1.6,0]], [[24,0,-0.5],[44,1.6,0]]]){ B.box('iron', a, b, {us:2}); B.solid([a[0], 1.6, a[2]], [b[0], 14, b[2]]); }
+  for (const [a, b] of [[[0, 0, 43.6], [4 - T - 0.02, 6, 44.6]], [[40 + T + 0.02, 0, 43.6], [44, 6, 44.6]]]) B.box('stone', a, b);
+  B.box('iron', [20, 0, -0.5], [20.15, 2.4, 0]); B.box('iron', [23.85, 0, -0.5], [24, 2.4, 0]); B.solid([20, 0, -0.5], [24, 14, -0.2]);
+  for (let k=0;k<16;k++){ const x = 2 + (k % 8)*2.2 + (k % 8 > 3 ? 10.5 : 0), z = 3 + Math.floor(k/8)*4.5 + mr()*1.0, w = 0.6 + mr()*0.3, h = 0.8 + mr()*0.5, tilt = (mr()-0.5)*0.25;
+    B.geo('stone', new T3.BoxGeometry(w, h, 0.18), x, h/2, z, 0, tilt, 0); B.solid([x - w/2 + 0.08, 0, z - 0.06], [x + w/2 - 0.08, h - 0.1, z + 0.06]); B.geo('stone', new T3.CylinderGeometry(w/2, w/2, 0.18, 10, 1, false, Math.PI/2, Math.PI), x, h, z, Math.PI/2, 0, 0); }
+  for (const [x, z] of [[3, 11], [41, 10], [16, 9], [30, 4], [2, 30], [42, 26]]){ B.cyl('tree', 0.25, 0.15, 4.5, x, 0, z, 7);
+    for (let k=0;k<4;k++){ const a = k*1.7 + x, L = 1.4 + mr(); B.geo('tree', new T3.CylinderGeometry(0.04, 0.08, L, 5), x + Math.cos(a)*L*0.4, 3 + k*0.4, z + Math.sin(a)*L*0.4, Math.sin(a)*0.9, 0, -Math.cos(a)*0.9); } }
+  for (const x of [19, 25]){ B.box('iron', [x - 0.06, 0, 1.2 - 0.06], [x + 0.06, 2.2, 1.2 + 0.06]); B.box('iron', [x - 0.15, 2.2, 1.05], [x + 0.15, 2.5, 1.35]); candles.push([x, 2.36, 1.2]); }
+  for (const [k, x, y, z] of [['book', 10, 0, 16], ['book', 12, 0, 23], ['pillow', 6, 0.65, 38], ['mug', 34, 0.82, 19.6], ['bottle', 31, 0.82, 20.4], ['orange', 20, 0, 3], ['orange', 26, 0, 6],
+    ['block', 25, 0, 35], ['ball', 31, 0, 39], ['book', 36, 1.1, 31], ['block', 9, 0, 33], ['bottle', 14, 0, 28], ['pillow', 8, 0, 20], ['mug', 37, 0.82, 20.3]]) B.prop(k, x, y, z);
+  const fireAt = [new V(4.55 + O.x, 0.3, 19.5 + O.z)];
+  const light = (x, y, z) => { x -= O.x; z -= O.z; const out = z < 13.9 || x < 3.7 || x > 40.3; let r = out ? 0.3 : 0.16, g = out ? 0.33 : 0.14, b = out ? 0.48 : 0.2;
+    for (const [lx, ly, lz] of candles){ const d = Math.hypot(x - lx, y - ly, z - lz), k = 1.4*Math.exp(-d/1.9); r += k; g += k*0.7; b += k*0.35; }
+    const f = Math.hypot(x - 4.6, y - 0.5, z - 19.5), k = 2.2*Math.exp(-f/2.2); r += k; g += k*0.5; b += k*0.15; return [r, g, b]; };
+  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0]);
+  // behind the mirrors: the same back rooms reflected, with your reflection and the ghosts in them
+  const mh = new T3.Group(); mh.scale.z = -1; mh.position.z = 2*(ZM + O.z); grp.add(mh);
+  const MB = mapBuilder(O, 'mansionM', true); defMats(MB); backRooms(MB, false); MB.finish(light, mh);
+  const sheen = new T3.MeshBasicMaterial({color:0xcfd8ff, transparent:true, opacity:0.06, depthWrite:false});
+  for (const [a0, a1, y0, y1] of mirrors){ const m = new T3.Mesh(new T3.PlaneGeometry(a1 - a0, y1 - y0), sheen); m.position.set((a0 + a1)/2 + O.x, (y0 + y1)/2, ZM - 0.005 + O.z); m.rotation.y = Math.PI; grp.add(m); }
+  // candle flames (here and in the mirror)
+  const flameMat = new T3.MeshBasicMaterial({color:0xffb040}), flameGeo = new T3.ConeGeometry(0.025, 0.08, 6), flames = [];
+  for (const [x, y, z] of candles) for (const par of z > 29 ? [grp, mh] : [grp]){ const f = new T3.Mesh(flameGeo, flameMat); f.position.set(x + O.x, y, z + O.z); par.add(f); flames.push(f); }
+  // ghost robots
+  const ghostMat = new T3.MeshBasicMaterial({color:0xdfeaff, transparent:true, opacity:0.5, depthWrite:false}), eyeMat = new T3.MeshBasicMaterial({color:0x60fff0});
+  const mkGhost = () => { const g = new T3.Group(); const hd = new T3.Mesh(new T3.BoxGeometry(0.36, 0.3, 0.32), ghostMat); hd.position.y = 0.35; g.add(hd);
+    for (const s of [-1, 1]){ const e = new T3.Mesh(new T3.SphereGeometry(0.04, 8, 6), eyeMat); e.position.set(s*0.08, 0.37, -0.165); g.add(e); const a = new T3.Mesh(new T3.BoxGeometry(0.06, 0.4, 0.06), ghostMat); a.position.set(s*0.26, -0.05, -0.05); a.rotation.x = -0.9; g.add(a); }
+    const body = new T3.Mesh(new T3.ConeGeometry(0.26, 0.9, 10, 1, true), ghostMat); body.rotation.x = Math.PI; body.position.y = -0.25; g.add(body); mh.add(g); return g; };
+  const rooms = [[4.6, 15.4, 29.6, 43.1], [16.6, 39.4, 29.6, 43.1]];
+  const ghosts = [[0], [1], [1]].map(([r]) => { const R0 = rooms[r]; const p = new V(R0[0] + R() *(R0[1] - R0[0]), 1.2, R0[2] + R()*(R0[3] - R0[2])).add(O); return {g:mkGhost(), r, p, tgt:p.clone(), t:0, near:0, flee:0, pushT:0}; });
+  const inRoom = (p, r) => { const R0 = rooms[r]; return p.x > R0[0] + O.x && p.x < R0[1] + O.x && p.z > R0[2] + O.z && p.z < R0[3] + O.z; };
+  const randIn = r => { const R0 = rooms[r]; return new V(R0[0] + R()*(R0[1] - R0[0]), 0.9 + R()*0.8, R0[2] + R()*(R0[3] - R0[2])).add(O); };
+  // your reflection (and your friends')
+  let mAv = null; const peerAv = {};
+  const showAv = (av, on) => { av.head.visible = av.torso.visible = on; av.arms.forEach(a => a.visible = on); av.claws.forEach(a => a.visible = on); };
+  const DARK = {bg:0x07060c, fog:0x07060c, near:3, far:20, hs:0x8090c0, hg:0x101018, hi:0.45, ac:0x9a90b0, ai:0.18}, FLASH = {bg:0xc8d0ff, fog:0x8890b0, near:8, far:50, hs:0xffffff, hg:0x8090a0, hi:1.8, ac:0xffffff, ai:0.7};
+  let boltT = 12, flashSeq = [], thunderT = -1, oooT = 0;
+  const thunder = () => { if (!AC) return; noiseHit(3.0, 110, 0.4, 1.0); noiseHit(1.2, 400, 0.6, 0.4); tone('sine', 50, 30, 2.5, 0.4); };
+  const ooo = (v) => { if (!AC) return; const o = AC.createOscillator(), l = AC.createOscillator(), lg = AC.createGain(), gg = AC.createGain(), t = AC.currentTime; o.type = 'sine'; o.frequency.value = 330; l.frequency.value = 5; lg.gain.value = 18; l.connect(lg); lg.connect(o.frequency);
+    gg.gain.setValueAtTime(0.001, t); gg.gain.linearRampToValueAtTime(0.06*v, t + 0.6); gg.gain.linearRampToValueAtTime(0.001, t + 2.2); o.frequency.linearRampToValueAtTime(220, t + 2.2); o.connect(gg); gg.connect(AC.destination); o.start(t); l.start(t); o.stop(t + 2.3); l.stop(t + 2.3); };
+  MAPS.mansion = {name:'HAUNTED MANSION', group:grp, spawn:new V(22, 0, 5).add(O), yaw:Math.PI, nav, yMin:-5, yMax:14, props:B.props, sky:DARK,
+    pose(P, inGame){
+      if (!mAv){ mAv = makeScary(mh, true); mAv.lost = me.lost; } showAv(mAv, inGame); if (inGame) poseAvatar(mAv, P);
+      for (const [id, p] of Object.entries(NET.peers)){
+        const on = inGame && p.P && p.g === netGame && p.m === 'game' && !p.headless;
+        if (on && !peerAv[id]){ peerAv[id] = makeScary(mh, true); }
+        if (peerAv[id]){ showAv(peerAv[id], !!on); if (on){ peerAv[id].lost = p.lost; poseAvatar(peerAv[id], p.P); } }
+      }
+    },
+    leave(){ applySky(DARK); },
+    update(dt, inGame){
+      for (const f of flames){ const k = 0.8 + R()*0.45; f.scale.set(k, 0.8 + R()*0.6, k); }
+      if (R() < 0.6) emitFire(fireAt[0].clone().add(new V((R()-0.5)*0.15, 0, (R()-0.5)*0.9)), new V((R()-0.5)*0.2, 0.7 + R()*0.5, (R()-0.5)*0.2), 0.08 + R()*0.06, 0.5 + R()*0.3);
+      // lightning
+      boltT -= dt;
+      if (boltT <= 0){ boltT = 14 + R()*22; flashSeq = [0.07, 0.12, 0.05, 0.1, 0.09]; thunderT = 0.8 + R()*1.2; }
+      if (flashSeq.length){ flashSeq[0] -= dt; if (flashSeq[0] <= 0){ flashSeq.shift(); applySky(flashSeq.length % 2 ? FLASH : DARK); } else if (flashSeq.length === 5 && flashSeq[0] > 0.06) applySky(FLASH); }
+      if (thunderT > 0){ thunderT -= dt; if (thunderT <= 0 && inGame) thunder(); }
+      if (!inGame){ for (const gh of ghosts) gh.g.visible = false; return; }
+      fireHazard(dt, fireAt, 0.45);
+      const head = loco.headPos(), fwd = new V(0, 0, -1).applyAxisAngle(UP, io.yaw + io.headYaw);
+      oooT -= dt;
+      for (const gh of ghosts){
+        gh.g.visible = true; gh.t -= dt; gh.flee -= dt;
+        const here = inRoom(head, gh.r);
+        if (here && gh.flee <= 0){ gh.tgt.copy(head).addScaledVector(fwd, -0.55); gh.tgt.y = head.y - 0.15; }
+        else if (gh.t <= 0){ gh.t = 3 + R()*4; gh.tgt.copy(randIn(gh.r)); }
+        const to = gh.tgt.clone().sub(gh.p), d = to.length(), sp = here && gh.flee <= 0 ? 1.1 : 0.7;
+        if (d > 0.02) gh.p.addScaledVector(to, Math.min(1, sp*dt/d));
+        const R0 = rooms[gh.r]; gh.p.x = Math.max(R0[0] + O.x, Math.min(R0[1] + O.x, gh.p.x)); gh.p.z = Math.max(R0[2] + O.z, Math.min(R0[3] + O.z, gh.p.z));
+        gh.g.position.copy(gh.p); gh.g.position.y += Math.sin(clock*2 + gh.r)*0.06;
+        const look = (here && gh.flee <= 0 ? head : gh.tgt).clone().sub(gh.p); gh.g.rotation.y = Math.atan2(-look.x, -look.z);
+        // it touched you: ice cold
+        if (here && gh.p.distanceTo(head) < 0.75){ gh.near += dt; if (gh.near > 1.4){ gh.near = 0; gh.flee = 7; gh.tgt.copy(randIn(gh.r)); freezeMe(1.1); showMsg('Something ice cold touched you...'); ooo(1); pulse(0, 0.7, 200); pulse(1, 0.7, 200); } } else gh.near = Math.max(0, gh.near - dt);
+        if (here && oooT <= 0 && gh.p.distanceTo(head) < 3){ oooT = 6 + R()*6; ooo(0.6); }
+        // and it knocks things about
+        gh.pushT -= dt;
+        if (gh.pushT <= 0) for (const p of parts){ if (p.parent || p.obj.userData.dead || !mine(p) || p.mode !== 'free' || p.stuck) continue; const c = centerW(p); if (c.distanceTo(gh.p) < 0.8){ gh.pushT = 1.5; p.asleep = false; p.v.add(to.clone().setLength(1.8).add(new V(0, 1.5, 0))); p.w.add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(6)); break; } }
+      }
+    }};
+}
 // ================= audio =================
 let AC = null, strainGain = null, noiseBuf = null;
 function audio(){
@@ -2282,7 +2831,7 @@ function goto(m){
     mode = m;
     me.lost[0] = me.lost[1] = false;
     if (m === 'game'){
-      lastDeath = ''; myChar.arm0 = myChar.arm1 = myChar.head = myChar.torso = 0;
+      lastDeath = ''; myChar.arm0 = myChar.arm1 = myChar.head = myChar.torso = 0; myFrz = 0; myIce = false;
       resetWorld(); setMap(netGame ? gameMap(netGame) : selMap); resetWindows(); teleport(SPAWN, MAPS[curMap].yaw); startT = performance.now(); score = 0; lastWrist = ''; gameJoinT = performance.now(); gotSnap = false; needTries = 0;
       if (!netGame || (isHost() && !bots.length)) spawnProps();
       if (!netGame) for (let k=0;k<4;k++) makeBot(BOT_COLORS[k], farCell(SPAWN));
@@ -2322,6 +2871,7 @@ function grab(i){
   let p = np.p;
   for (const m of mines){ if (!m.obj.userData.dead && centerW(m).distanceTo(handW[i]) < 0.11 && !(hs[1-i].root === m)){ p = m; break; } }
   if (!p) return;
+  if (p.name !== 'mine' && rootOf(p).stuck){ const r = rootOf(p); r.stuck = null; r.mode = 'free'; r.asleep = false; if (netGame && r.id) netSend('ev', {t:'unglue', r:r.id}); }
   if (p.name === 'mine' && (p.parent || p.stuck)){ freeMine(p); claim(p); p.obj.updateMatrixWorld(true); startHold(i, p, p); pulse(i, 0.5, 50); sndTap(0.2); return; }
   let root = rootOf(p); const o = hs[1-i];
   if (!mine(root)){
@@ -2517,7 +3067,7 @@ function updateBot(bot, dt, player){
   if (bot.stunT > 0){ bot.stunT -= dt; return; }
   // running around
   const pos = root.obj.position, flat = new V(player.x, STAND, player.z);
-  const legs = bot.legs.filter(l => l.parent === root).length, spd = bot.speed * (legs === 2 ? 1 : legs === 1 ? 0.55 : 0.3) * (bot.burning ? 1.7 : 1);
+  const legs = bot.legs.filter(l => l.parent === root).length, spd = bot.speed * (legs === 2 ? 1 : legs === 1 ? 0.55 : 0.3) * (bot.burning ? 1.7 : 1) * (1 - 0.92*Math.min(1, root.frz || 0));
   if (bot.burning && clock - (bot.screamT || 0) > 3 + R()*2){ bot.screamT = clock; say(bot, pick(SCREAMS)); scream(); }
   const to = bot.target.clone().sub(pos); to.y = 0;
   const near = flat.distanceTo(pos) < 10 || bot.burning;
@@ -2546,7 +3096,7 @@ const isStretched = p => hs.some(s => s.mode === 'stretch' && s.k === p);
 
 function physics(root, dt){
   const sub = subtree(root);
-  root.v.y -= 9.81*dt;
+  root.v.y -= 9.81*(root.grav != null ? root.grav : mode === 'game' ? gravK : 1)*dt;
   const c0 = centerW(root);
   root.obj.position.addScaledVector(root.v, dt);
   const wl = root.w.length();
@@ -2639,8 +3189,10 @@ function makeHammer(){
   for (const sx of [-1,1]) add(new T3.CylinderGeometry(0.068,0.068,0.03,16), face, sx*0.13, -0.33, 0).rotation.z = Math.PI/2;
   return g;
 }
+const booms_ = [null, null], boomPrev = [false, false], gluePrev = [false, false], freezeOn = [false, false];
+let myFrz = 0, myIce = false, myIceT = 0;
 const wpn = ['none', 'none'], sawRun = [0, 0], sawPrevMid = [new V(), new V()], hammerPrev = [new V(), new V()], hammerVs = [new V(), new V()], hammerT = [-1, -1], cutJobs = [null, null], flameOn = [false, false], mineCD = [0, 0], minePrev = [false, false];
-function weaponSet(claw){ const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer(), mine:makeMine(), laser:makeLaser(), hook:makeHook()}; w.mine.position.set(0, -0.12, -0.03);
+function weaponSet(claw){ const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer(), mine:makeMine(), laser:makeLaser(), hook:makeHook(), freeze:makeFreezer(), glue:makeGlue(), boomer:makeBoomer()}; w.mine.position.set(0, -0.12, -0.03);
   for (const k in w){ w[k].userData.weapon = true; claw.add(w[k]); } return w; }
 function makeLaser(){
   const g = new T3.Group(), add = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
@@ -2665,7 +3217,7 @@ const myW = [0,1].map(i => weaponSet(me.claws[i]));
 const myWm = [0,1].map(i => weaponSet(meMirror.claws[i]));
 function showWeapons(){
   for (const i of [0,1]){
-    for (const set of [myW, myWm]){ const w = wpn[i]; set[i].saw.visible = w === 'saw'; set[i].hammer.visible = w === 'hammer'; set[i].flame.visible = w === 'flame'; set[i].mine.visible = w === 'mine' && mineCD[i] <= 0; set[i].laser.visible = w === 'laser'; set[i].hook.visible = w === 'hook'; }
+    for (const set of [myW, myWm]){ const w = wpn[i]; set[i].saw.visible = w === 'saw'; set[i].hammer.visible = w === 'hammer'; set[i].flame.visible = w === 'flame'; set[i].mine.visible = w === 'mine' && mineCD[i] <= 0; set[i].laser.visible = w === 'laser'; set[i].hook.visible = w === 'hook'; set[i].freeze.visible = w === 'freeze'; set[i].glue.visible = w === 'glue'; set[i].boomer.visible = w === 'boomer'; set[i].boomer.blade.visible = !booms_[i]; }
     myWm[i].saw.bar.scale.y = myW[i].saw.bar.scale.y;
   }
 }
@@ -2688,6 +3240,9 @@ function updateWeapon(dt){
     if (w === 'flame') updateFlamer(i, dt); else flameOn[i] = false;
     if (w === 'mine') updateMineHand(i, dt); else minePrev[i] = false;
     if (w === 'laser') updateLaser(i, dt); else { laserOn[i] = false; myBeams[i].visible = false; }
+    if (w === 'freeze') updateFreezer(i, dt); else { freezeOn[i] = false; myFrost[i].visible = false; }
+    if (w === 'glue') updateGlue(i, dt); else gluePrev[i] = false;
+    if (w === 'boomer') updateBoomer(i, dt); else { booms_[i] = null; boomPrev[i] = false; myBlades[i].visible = false; }
     if (w === 'hook') updateHook(i, dt); else { hooks[i] = null; hookPrev[i] = false; myRopes[i].visible = myHooks[i].visible = false; }
   }
   sawSound(sawLvl, sawCut ? 1 : 0.2); flameSound(flameOn[0] || flameOn[1] ? 1 : 0); laserSound(laserOn[0] || laserOn[1]);
@@ -2926,6 +3481,7 @@ function updateFlamer(i, dt){
     if (p.obj.userData.dead || p.fire) continue;
     const hit = inCone(centerW(p), p.r*0.6); if (!hit) continue;
     if (p.name === 'mine'){ if (hit > 0 && R() < dt*2) mineTrigger(p); continue; }
+    { const rt = rootOf(p); if (rt.frz > 0){ meltRoot(rt, dt*hit*4); continue; } }
     p.heat = (p.heat || 0) + dt*hit; p.heatT = clock; heated.add(p);
     if (R() < p.heat*0.6) partFlames(centerW(p), p.r*0.7, 1.4);
     const b = p.bot; if (b && !b.dead && p.heat > 0.4 && b.face !== 'scared'){ setFace(b, 'scared'); if (R() < 0.3) say(b, pick(['hot hot hot','is it warm in here','ow ow ow'])); }
@@ -2934,6 +3490,7 @@ function updateFlamer(i, dt){
   for (const t of playerTargets()){
     const peer = NET.peers[t.id]; const hit = inCone(t.pos, 0.12); if (!hit) continue;
     lastCombat = clock;
+    if (peer.frz >= 1){ if (clock - (peer.meltT || 0) > 0.12){ peer.meltT = clock; netSend('ev', {t:'pmelt', a:0.12*hit*4}, [t.id]); } if (R() < 0.3) frostPuff(t.pos); continue; }
     if (peer.burnV && peer.burnV.some(v => v >= 0)) continue;           // already burning
     peer.heat = (peer.heat || 0) + dt*hit*0.5; peer.heatT = clock;      // several body parts are in the cone at once
     if (R() < peer.heat) partFlames(t.pos, 0.08, 1.4);
@@ -3107,6 +3664,7 @@ function updateHammer(i, dt){
   for (const p of parts){
     if (p.obj.userData.dead || centerW(p).distanceTo(head) > p.r + 0.1 || (hs[i].mode === 'hold' && rootOf(p) === hs[i].root)) continue;
     if (p.parent && hs[i].mode === 'hold' && rootOf(p) === hs[i].root) continue;      // not what this claw is holding
+    if (rootOf(p).ice){ shatterIce(rootOf(p), hammerV.clone()); hammerT[i] = clock; pulse(i, 1, 120); return; }
     if (p.name === 'mine'){ mineTrigger(p); hammerT[i] = clock; return; }
     hammerT[i] = clock; const root = rootOf(p); if (!mine(root) && root.mode !== 'held') claim(root);
     pulse(i, 1, 110); sndClank(sp*2.2); spawnSparks(head, 20 + sp*6, sp*0.7); flash(head, 0.45);
@@ -3118,6 +3676,7 @@ function updateHammer(i, dt){
   for (const t of playerTargets()){
     const peer = NET.peers[t.id]; if (!peer || t.dist(head) > 0.1 || clock - (peer.hitT || -1) < 0.3) continue;
     hammerT[i] = clock; peer.hitT = clock; lastCombat = clock;
+    if (peer.frz >= 1){ netSend('ev', {t:'pism', n:myName}, [t.id]); iceBurst(t.pos, 1.0, 1.8, hammerV); pulse(i, 1, 120); return; }
     pulse(i, 1, 110); sndClank(sp*2.2); spawnSparks(head, 30, 4); flash(head, 0.4);
     const imp = hammerV.clone().multiplyScalar(0.5).add(new V(0, 1, 0)); if (imp.length() > 6) imp.setLength(6);
     netSend('ev', {t:'hit', v:r3(imp.toArray())}, [t.id]);
@@ -3318,7 +3877,7 @@ function rayPlayer(tip, dir, len){
 function charPart(p, amt){
   if (!p.charMats){ p.charMats = []; for (const o of ownMeshes(p)){ const ms = [].concat(o.material), cl = ms.map(m => { const c = m.clone(); if (c.color) p.charMats.push({m:c, base:c.color.clone()}); return c; }); o.material = Array.isArray(o.material) ? cl : cl[0]; } }
   p.char = Math.min(1, (p.char || 0) + amt);
-  for (const cm of p.charMats) cm.m.color.copy(cm.base).multiplyScalar(1 - 0.9*p.char);
+  const fz = Math.min(1, rootOf(p).frz || 0); for (const cm of p.charMats) cm.m.color.copy(cm.base).multiplyScalar(1 - 0.9*p.char).lerp(ICEC, 0.6*fz);
 }
 const charSent = new Map();
 let laserHum = null;
@@ -3335,6 +3894,7 @@ function updateLaser(i, dt){
   if (hp){
     const p = hp.p;
     if (p.name === 'mine') mineTrigger(p);
+    else if (rootOf(p).frz > 0){ meltRoot(rootOf(p), dt*4); if (R() < 0.3) frostPuff(end); }
     else if (!p.fire){
       charPart(p, dt/(0.9 + p.r*5)); lastCombat = clock;
       const b = p.bot; if (b && !b.dead && R() < dt*0.7){ setFace(b, 'scared'); say(b, pick(['ow ow ow','it burns!!','LASER!','stop pointing that at me'])); }
@@ -3342,6 +3902,7 @@ function updateLaser(i, dt){
       if (p.char >= 1) ashPart(p);
     }
   }
+  if (hpl && NET.peers[hpl.x.id].frz >= 1){ const peer = NET.peers[hpl.x.id]; if (clock - (peer.meltT || 0) > 0.12){ peer.meltT = clock; netSend('ev', {t:'pmelt', a:0.12*4}, [hpl.x.id]); } hpl = null; }
   if (hpl){ const peer = NET.peers[hpl.x.id]; lastCombat = clock; peer.lzAcc = peer.lzAcc || {}; peer.lzAcc[hpl.x.k] = (peer.lzAcc[hpl.x.k] || 0) + dt;
     if (clock - (peer.lzT || 0) > 0.12){ peer.lzT = clock; const a = {}; for (const k in peer.lzAcc) a[k] = r3(peer.lzAcc[k]); netSend('ev', {t:'lz', a, n:myName}, [hpl.x.id]); peer.lzAcc = {}; } }
 }
@@ -3366,9 +3927,9 @@ function avCharGroup(av, key, objs){
 }
 function renderChar(av, v){
   for (const [key, objs] of [['arm0', [av.arms[0], av.claws[0]]], ['arm1', [av.arms[1], av.claws[1]]], ['head', [av.head]], ['torso', [av.torso]]]){
-    const c = v[key] || 0; if (c <= 0.001 && !(av.charG && av.charG[key])) continue;
-    if (Math.abs((av['c_' + key] || 0) - c) < 0.002) continue; av['c_' + key] = c;
-    for (const cm of avCharGroup(av, key, objs)) cm.m.color.copy(cm.base).multiplyScalar(1 - 0.9*c);
+    const c = v[key] || 0, f = v.frz || 0; if (c <= 0.001 && f <= 0.001 && !(av.charG && av.charG[key])) continue;
+    const sig = c + f*7; if (Math.abs((av['c_' + key] || 0) - sig) < 0.002) continue; av['c_' + key] = sig;
+    for (const cm of avCharGroup(av, key, objs)) cm.m.color.copy(cm.base).multiplyScalar(1 - 0.9*c).lerp(ICEC, 0.55*f);
   }
 }
 
@@ -3423,6 +3984,341 @@ function updateHook(i, dt){
     if (!hooks[i]){ myRopes[i].visible = myHooks[i].visible = false; return; }
   }
   aimBeam(myRopes[i], tip, h.p, 0.007); myHooks[i].position.copy(h.p); myHooks[i].quaternion.setFromUnitVectors(new V(0,-1,0), h.p.clone().sub(tip).normalize()); myHooks[i].visible = true;
+}
+
+// ================= freeze ray, glue gun, boomerang saw =================
+// FREEZE RAY: a frosty beam. Whatever it's on slowly stiffens and slows, then freezes solid in a block of ice.
+// A hammer shatters the ice (and a robot inside it, like glass). Fire and lasers melt it fast; on its own it melts in a while.
+const FREEZE_LEN = 3.6, ICEC = new T3.Color(0x9fe6ff), BOT_ICE = 18, ME_ICE = 14;
+const frostMat = new T3.MeshBasicMaterial({color:0xbff0ff, transparent:true, opacity:0.5, depthWrite:false, fog:false});
+const iceMat = new T3.MeshLambertMaterial({color:0xc4f0ff, emissive:0x2a6680, transparent:true, opacity:0.5, depthWrite:false});
+const iceGeo = new T3.BoxGeometry(1, 1, 1);
+function makeFrostBeam(){ const m = new T3.Mesh(beamGeo, frostMat); m.visible = false; m.frustumCulled = false; m.renderOrder = 5; scene.add(m); return m; }
+const myFrost = [makeFrostBeam(), makeFrostBeam()];
+function makeFreezer(){
+  const g = new T3.Group(), add = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
+  const white = new T3.MeshLambertMaterial({color:0xdfe8ee}), blue = new T3.MeshLambertMaterial({color:0x3a8fc0}), dark = new T3.MeshLambertMaterial({color:0x22303a});
+  add(new T3.CylinderGeometry(0.03, 0.03, 0.2, 12), white, 0, -0.08, 0);
+  add(new T3.SphereGeometry(0.045, 12, 10), blue, 0, 0.02, 0.045);                    // the coolant tank
+  for (const y of [-0.04, -0.1, -0.16]) add(new T3.TorusGeometry(0.034, 0.006, 6, 14), blue, 0, y, 0).rotation.x = Math.PI/2;
+  add(new T3.CylinderGeometry(0.014, 0.024, 0.06, 10), dark, 0, -0.2, 0);
+  g.tip = add(new T3.SphereGeometry(0.016, 10, 8), new T3.MeshBasicMaterial({color:0x2a6a80, fog:false}), 0, -0.235, 0);
+  return g;
+}
+function frostPuff(pos){
+  if (shards.length >= SHN) shards.shift();
+  shards.push({p:pos.clone(), v:new V((R()-0.5)*0.8, R()*0.5, (R()-0.5)*0.8), q:new Q().setFromEuler(new T3.Euler(R()*6, R()*6, R()*6)), w:new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(10), s:0.005 + R()*0.009, life:0.4 + R()*0.5, fy:-99, g:0.5});
+}
+function sndIce(vol){ if (!AC) return; noiseHit(0.5, 6500, 1.2, 0.6*vol); for (let i=0;i<6;i++) setTimeout(() => tone('sine', 3000 + R()*3500, 2200 + R()*2000, 0.07, 0.05*vol), R()*350); }
+function sndFreeze(){ if (!AC) return; noiseHit(0.6, 3000, 0.7, 0.25); tone('sine', 1400, 300, 0.5, 0.08); }
+function iceBurst(pos, size, spd, vel){
+  const fy = floorBelow(pos);
+  for (let k=0;k<55;k++){
+    if (shards.length >= SHN) shards.shift();
+    const v = new V(R()-0.5, R()*0.9, R()-0.5).multiplyScalar(spd*3); if (vel) v.addScaledVector(vel, 0.3);
+    shards.push({p:pos.clone().add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(size)), v, q:new Q().setFromEuler(new T3.Euler(R()*6, R()*6, R()*6)), w:new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(20), s:0.015 + R()*0.04, life:2.5 + R()*2, fy});
+  }
+  sndIce(Math.min(1, 3/(1 + pos.distanceTo(lastPlayer))));
+}
+const frozenRoots = new Set(), tqI = new Q();
+function tintTree(root){ for (const p of subtree(root)) if (p.charMats || root.frz > 0) charPart(p, 0); }
+function setFreeze(root, f, remote, it){
+  const was = root.frz || 0; f = Math.max(0, Math.min(1, f)); if (f > was) root.frzHitT = clock;
+  root.frz = f; frozenRoots.add(root);
+  let force = false;
+  if (f >= 1 && !root.ice){ encase(root, it != null ? it : BOT_ICE); force = true; }
+  if (root.ice && it != null) root.iceT = it;
+  if (Math.abs(was - f) > 0.015 || force || f === 0) tintTree(root);
+  if (!remote && netGame && root.id && (force || f === 0 || clock - (root.frzSent || 0) > 0.15)){ root.frzSent = clock; netSend('ev', {t:'frz', r:root.id, f:r3(f), it:root.ice ? r3(root.iceT) : undefined}); }
+}
+function encase(root, it){
+  root.ice = true; root.iceT = it;
+  root.obj.updateMatrixWorld(true);
+  const inv = new M4().copy(root.obj.matrixWorld).invert(), bb = new T3.Box3(), tb = new T3.Box3(), m = new M4();
+  root.obj.traverse(o => { if (!o.isMesh || o.isSprite || !o.geometry || o.userData.wire) return; if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); tb.copy(o.geometry.boundingBox).applyMatrix4(m.multiplyMatrices(inv, o.matrixWorld)); bb.union(tb); });
+  if (bb.isEmpty()) bb.setFromCenterAndSize(new V(), new V(0.3, 0.3, 0.3));
+  const size = bb.getSize(new V()).addScalar(0.1), c = bb.getCenter(new V());
+  for (const k of ['x','y','z']) size[k] = Math.min(size[k], 2.2);
+  root.iceC = c; const im = root.iceM = new T3.Mesh(iceGeo, iceMat); im.scale.copy(size); im.renderOrder = 4; scene.add(im);
+  root.obj.updateMatrixWorld(true); im.position.copy(c).applyMatrix4(root.obj.matrixWorld); im.quaternion.copy(root.obj.getWorldQuaternion(tqI));
+  sndFreeze(); for (let k=0;k<20;k++) frostPuff(im.position.clone().add(new V(R()-0.5, R()-0.5, R()-0.5).multiply(size)));
+  const b = root.bot; if (b && !b.dead && b.root === root){ say(b, null); setFace(b, 'dizzy'); }
+}
+function removeIce(root){ if (root.iceM){ scene.remove(root.iceM); root.iceM = null; } root.ice = false; }
+function thawRoot(root, remote){
+  if (!root.ice) return; const at = root.iceM ? root.iceM.position.clone() : centerW(root);
+  removeIce(root); root.frz = 0.35; root.frzHitT = clock; tintTree(root);
+  for (let k=0;k<25;k++) frostPuff(at.clone().add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.5)));
+  if (AC) noiseHit(0.5, 1200, 0.6, 0.15);
+  if (!remote && netGame && root.id) netSend('ev', {t:'thaw', r:root.id});
+  const b = root.bot; if (b && !b.dead && b.root === root){ setFace(b, 'idle'); say(b, pick(['I c-c-can move again','that was cold','never again'])); }
+}
+function meltRoot(root, amt){
+  if (root.ice){ root.iceT -= amt*1.5; if (R() < 0.4) frostPuff(root.iceM.position.clone().add(new V(R()-0.5, R()-0.5, R()-0.5).multiply(root.iceM.scale))); if (root.iceT <= 0) thawRoot(root); else setFreeze(root, 1, false, root.iceT); }
+  else setFreeze(root, (root.frz || 0) - amt*0.3);
+}
+// hammer on ice: it bursts, and a robot frozen inside goes with it, like glass
+function shatterIce(root, vel, remote){
+  if (!root.ice) return;
+  const c = root.iceM.position.clone(), sz = Math.max(root.iceM.scale.x, root.iceM.scale.y)*0.6;
+  if (!remote && netGame && root.id) netSend('ev', {t:'ism', r:root.id});
+  removeIce(root); root.frz = 0; frozenRoots.delete(root); iceBurst(c, sz, 1.6, vel); flash(c, 0.6); lastCombat = clock;
+  if (remote) return;                               // the pieces arrive as their own events
+  if (!mine(root) && root.mode !== 'held') claim(root);
+  const all = subtree(root), v = vel || new V(), bot = root.bot;
+  quietFx = true;
+  for (const q of all.slice().reverse()) if (q.parent) detach(q, v.clone().multiplyScalar(0.3).add(new V(R()-0.5, R()*0.8, R()-0.5).multiplyScalar(3)));
+  for (const q of all){
+    if (q.obj.userData.dead || q.name === 'mine') continue;
+    if (q.r >= 0.05) shatter(q, false, Array.from({length:3}, (_, k) => ({id:q.id ? q.id + 'i' + k : null, s:0.03 + R()*0.035})), v);
+  }
+  quietFx = false;
+  if (bot && !bot.dead) killBot(bot);
+}
+function updateIce(dt){
+  for (const root of frozenRoots){
+    if (root.obj.userData.dead){ removeIce(root); frozenRoots.delete(root); continue; }
+    if (root.ice){
+      if (!root.iceM){ root.ice = false; continue; }
+      root.iceM.position.copy(root.iceC).applyMatrix4(root.obj.matrixWorld); root.iceM.quaternion.copy(root.obj.getWorldQuaternion(tqI));
+      const b = root.bot; if (b && !b.dead && b.root === root) b.stunT = Math.max(b.stunT || 0, 0.3);
+      root.iceT -= dt;
+      if (root.iceT < 4 && R() < dt*5) frostPuff(root.iceM.position.clone().add(new V(R()-0.5, -0.5, R()-0.5).multiply(root.iceM.scale)));
+      if (root.iceT <= 0 && mine(root)) thawRoot(root);
+    } else if (clock - (root.frzHitT || 0) > 0.5){
+      if (mine(root)) setFreeze(root, (root.frz || 0) - dt*0.15);
+      if (!(root.frz > 0)){ frozenRoots.delete(root); tintTree(root); }
+    }
+  }
+}
+let freezeHissT = 0;
+function updateFreezer(i, dt){
+  const fz = myW[i].freeze; freezeOn[i] = io.trig[i] > 0.5; fz.tip.material.color.setHex(freezeOn[i] ? 0xe4faff : 0x2a6a80);
+  if (!freezeOn[i]){ myFrost[i].visible = false; return; }
+  pulse(i, 0.08, 15);
+  if (AC && clock > freezeHissT){ freezeHissT = clock + 0.07; noiseHit(0.12, 7000, 0.9, 0.05); }
+  const [tip, dir] = weaponRay(fz, -0.24); let len = worldRayLen(tip, dir, FREEZE_LEN), hp = null, hpl = null;
+  if (mode === 'game'){ hp = rayPart(tip, dir, len, hs[i].mode === 'hold' ? hs[i].root : null); if (hp) len = hp.t; hpl = rayPlayer(tip, dir, len); if (hpl){ len = hpl.t; hp = null; } }
+  const end = tip.clone().addScaledVector(dir, len); aimBeam(myFrost[i], tip, end, 0.016 + 0.005*Math.sin(clock*40));
+  for (let k=0;k<2;k++) if (R() < 0.7) frostPuff(tip.clone().addScaledVector(dir, len*R()));
+  if (len < FREEZE_LEN - 0.01 && R() < 0.6) frostPuff(end);
+  if (hp && hp.p.name !== 'mine'){
+    const root = rootOf(hp.p), isBot = root.bot && root.bot.root === root;
+    if (!root.ice){
+      if (root.fire || hp.p.fire){ hp.p.heat = 0; }            // the frost knocks the heat out of it
+      setFreeze(root, (root.frz || 0) + dt/(isBot ? 2.4 : 1.3)); lastCombat = clock;
+      const b = root.bot; if (b && !b.dead && R() < dt*0.8) say(b, pick(['s-s-so cold','brrrrr','my joints!','I c-cant feel my wheels']));
+    }
+  }
+  if (hpl){ const peer = NET.peers[hpl.x.id]; lastCombat = clock; peer.fzAcc = (peer.fzAcc || 0) + dt;
+    if (clock - (peer.fzT || 0) > 0.12){ peer.fzT = clock; netSend('ev', {t:'pfrz', a:r3(peer.fzAcc)}, [hpl.x.id]); peer.fzAcc = 0; } }
+}
+// someone's freeze ray is on me: my hands get slower and slower, then I'm an ice cube
+let myFrzT = -9;
+function freezeMe(a){
+  if (myIce) return; lastCombat = clock; myFrz = Math.min(1, myFrz + a/2.6); myFrzT = clock;
+  if (myFrz >= 1){ myIce = true; myIceT = ME_ICE; sndFreeze(); showMsg('Frozen solid! Wait it out, or get melted'); }
+}
+const fzHand = [new V(), new V()]; let fzOn = false;
+function frozenHands(dt){
+  if (mode !== 'game'){ myFrz = 0; myIce = false; fzOn = false; return; }
+  if (myIce){ myIceT -= dt; if (R() < dt*3) frostPuff(loco.headPos().add(new V(R()-0.5, -0.4 - R()*0.5, R()-0.5).multiplyScalar(0.6)));
+    if (myIceT <= 0){ myIce = false; myFrz = 0.45; myFrzT = clock; for (let k=0;k<25;k++) frostPuff(loco.headPos().add(new V(R()-0.5, -R(), R()-0.5).multiplyScalar(0.6))); if (AC) noiseHit(0.5, 1200, 0.6, 0.15); } }
+  else if (clock - myFrzT > 0.5) myFrz = Math.max(0, myFrz - dt*0.15);
+  if (myFrz <= 0 && !myIce){ fzOn = false; return; }
+  if (!fzOn){ fzHand[0].copy(io.handLocal[0]); fzHand[1].copy(io.handLocal[1]); fzOn = true; }
+  for (const i of [0,1]){
+    if (me.lost[i]) continue;
+    if (!myIce){ const max = (1 - 0.92*myFrz)*5*dt, d = io.handLocal[i].clone().sub(fzHand[i]); if (d.length() > max) d.setLength(max); fzHand[i].add(d); }
+    io.handLocal[i].copy(fzHand[i]);
+  }
+  if (myIce){ loco.S.velocity.x *= 0.85; loco.S.velocity.z *= 0.85; }
+}
+function showIce(av, on){
+  if (!on){ if (av.iceM) av.iceM.visible = false; return; }
+  if (!av.iceM){ av.iceM = new T3.Mesh(iceGeo, iceMat); av.iceM.scale.set(0.95, 1.3, 0.85); av.iceM.renderOrder = 4; (av.torso.parent || scene).add(av.iceM); }
+  av.iceM.visible = true; av.iceM.position.copy(av.torso.position).add(new V(0, 0.22, 0)); av.iceM.quaternion.copy(av.torso.quaternion);
+}
+
+// GLUE GUN: hold a piece (in either claw), touch it to something and pull the glue trigger.
+// Onto another piece or robot: Frankenstein bots (a head on a headless body brings it back to life).
+// Onto a friend: it rides on them until they pull it off. Onto your own empty shoulder: you get that arm back.
+function makeGlue(){
+  const g = new T3.Group(), add = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
+  const body = new T3.MeshLambertMaterial({color:0x3a7ad8}), dark = new T3.MeshLambertMaterial({color:0x1c1f24}), steel = new T3.MeshLambertMaterial({color:0xb9bec4});
+  add(new T3.BoxGeometry(0.05, 0.18, 0.07), body, 0, -0.06, 0.01);
+  add(new T3.CylinderGeometry(0.012, 0.012, 0.09, 8), glueMat, 0, 0.07, 0.01);          // the glue stick going in the back
+  add(new T3.CylinderGeometry(0.006, 0.014, 0.05, 8), steel, 0, -0.175, 0.01);
+  add(new T3.BoxGeometry(0.03, 0.05, 0.045), dark, 0, -0.03, -0.045);
+  g.drip = add(new T3.SphereGeometry(0.009, 8, 6), glueMat, 0, -0.205, 0.01); g.drip.visible = false;
+  return g;
+}
+function glueBlob(par, local){ const m = new T3.Mesh(new T3.SphereGeometry(0.03, 8, 6), glueMat); m.position.copy(local); m.scale.set(1, 0.6, 1); m.userData.ember = true; par.obj.add(m); }
+function sndGlue(){ if (!AC) return; noiseHit(0.18, 500, 1.4, 0.35); tone('sine', 300, 120, 0.15, 0.12); }
+const stuckSet = new Set();
+function updateStuck(){
+  for (const p of stuckSet){
+    if (p.obj.userData.dead || !p.stuck){ stuckSet.delete(p); continue; }
+    const A = bodyAnchor(p.stuck.v, p.stuck.k);
+    if (!A){ p.stuck = null; p.mode = 'free'; p.asleep = false; stuckSet.delete(p); continue; }
+    p.obj.position.copy(p.stuck.l).applyMatrix4(A); p.obj.quaternion.setFromRotationMatrix(A).multiply(p.stuck.q);
+  }
+}
+function shoulderW(i){ return me.torso.position.clone().add(new V(i ? 0.27 : -0.27, 0.12, 0).applyQuaternion(me.torso.quaternion)); }
+function updateGlue(i, dt){
+  const trig = io.trig[i] > 0.5, press = trig && !gluePrev[i]; gluePrev[i] = trig;
+  const gg = myW[i].glue; gg.drip.visible = trig;
+  if (!press || mode !== 'game') return;
+  sndGlue(); pulse(i, 0.4, 40);
+  const j = hs[i].mode === 'hold' ? i : hs[1-i].mode === 'hold' ? 1-i : -1;
+  if (j < 0) return;
+  const piece = hs[j].root; if (piece.name === 'mine' || piece.obj.userData.dead) return;
+  const mineQ = subtree(piece);
+  if (!piece.id && netGame){ piece.id = NET.id.slice(0,6) + '-p' + (botCounter++); partsById.set(piece.id, piece); }
+  // 1) my own empty shoulder: that arm is back
+  for (const s of [0,1]) if (me.lost[s]){
+    const sh = shoulderW(s);
+    if (mineQ.some(q => centerW(q).distanceTo(sh) < q.r + 0.28)){
+      release(j, true); hs[j] = {mode:'none'}; removePart(piece);
+      me.lost[s] = false; myChar['arm' + s] = 0; glueSplat(sh); showMsg('Arm glued back on!'); pulse(s, 1, 120); return;
+    }
+  }
+  // 2) a friend
+  let best = null, bd = 0.07;
+  for (const t of playerTargets()) for (const q of mineQ){ const d = t.dist(centerW(q)) - q.r*0.8; if (d < bd){ bd = d; best = {t, q}; } }
+  if (best){
+    const A = bodyAnchor(best.t.id, best.t.k); if (!A) return;
+    release(j, true); hs[j] = {mode:'none'}; piece.obj.updateMatrixWorld(true);
+    const Ai = A.clone().invert(), l = piece.obj.getWorldPosition(new V()).applyMatrix4(Ai), lq = new Q().setFromRotationMatrix(A).invert().multiply(piece.obj.getWorldQuaternion(new Q()));
+    const ev = {t:'glue', r:piece.id, at:{k:'player', v:best.t.id, b:best.t.k, l:r3(l.toArray()), q:r3(lq.toArray())}};
+    glueApply(ev, piece); if (netGame) netSend('ev', ev); lastCombat = clock; return;
+  }
+  // 3) another piece or robot
+  best = null; bd = 0.06;
+  for (const p of parts){
+    if (p.obj.userData.dead || p.name === 'mine' || mineQ.includes(p) || rootOf(p).stuck) continue;
+    const cp = centerW(p);
+    for (const q of mineQ){ const d = centerW(q).distanceTo(cp) - q.r - p.r; if (d < bd){ bd = d; best = {p, q}; } }
+  }
+  if (!best) return;
+  const tp = best.p; if (!tp.id && netGame){ tp.id = NET.id.slice(0,6) + '-p' + (botCounter++); partsById.set(tp.id, tp); }
+  release(j, true); hs[j] = {mode:'none'}; tp.obj.updateMatrixWorld(true); piece.obj.updateMatrixWorld(true);
+  const l = tp.obj.worldToLocal(piece.obj.getWorldPosition(new V())), lq = tp.obj.getWorldQuaternion(new Q()).invert().multiply(piece.obj.getWorldQuaternion(new Q()));
+  const mid = tp.obj.worldToLocal(centerW(best.q).lerp(centerW(tp), 0.5));
+  const ev = {t:'glue', r:piece.id, at:{k:'part', pid:tp.id, l:r3(l.toArray()), q:r3(lq.toArray()), b:r3(mid.toArray())}};
+  glueApply(ev, piece, tp); if (netGame) netSend('ev', ev);
+}
+function glueSplat(pos){ flash(pos, 0.25); sndGlue(); }
+function glueApply(ev, lp, ltp){
+  const piece = lp || partsById.get(ev.r); if (!piece || piece.obj.userData.dead) return;
+  for (const i of [0,1]) if (hs[i].root === piece) hs[i] = {mode:'none'};
+  if (piece.parent){ piece.parent.kids.splice(piece.parent.kids.indexOf(piece), 1); piece.parent = null; scene.attach(piece.obj); }
+  piece.v.set(0,0,0); piece.w.set(0,0,0); piece.asleep = false; piece.holdHand = -1;
+  const at = ev.at;
+  if (at.k === 'player'){ piece.stuck = {v:at.v, k:at.b, l:new V().fromArray(at.l), q:new Q().fromArray(at.q)}; piece.mode = 'stuck'; stuckSet.add(piece); updateStuck(); }
+  else {
+    const tp = ltp || partsById.get(at.pid); if (!tp || tp.obj.userData.dead) return;
+    attach(tp, piece, at.l[0], at.l[1], at.l[2]); piece.obj.quaternion.fromArray(at.q); piece.restQ.copy(piece.obj.quaternion); piece.mode = 'free';
+    glueBlob(tp, new V().fromArray(at.b)); const r = rootOf(tp); r.asleep = false;
+    if (r.frz > 0) tintTree(r);
+    reviveCheck(r);
+  }
+}
+// a headless robot body that gets a head glued on wakes up again (whoever's head it is)
+function reviveCheck(r){
+  const b = r.bot; if (!b || b.root !== r || !b.dead) return;
+  const head = subtree(r).find(q => q.name === 'head'); if (!head) return;
+  const face = head.kids.find(q => q.name === 'face');
+  b.dead = false; b.head = head; head.bot = b;
+  if (face){ b.faceP = face; face.bot = b; let scr = null; face.obj.traverse(o => { if (o.isMesh && Object.values(FACES).includes(o.material)) scr = o; }); if (scr) b.screen = scr; }
+  for (const q of subtree(r)) q.bot = b;
+  b.face = ''; setFace(b, 'idle'); b.prev = null;
+  r.obj.quaternion.set(0, 0, 0, 1); r.obj.position.y = Math.max(r.obj.position.y, floorBelow(r.obj.position) + 0.05);
+  if (mine(r)){ r.mode = 'bot'; r.v.set(0,0,0); r.w.set(0,0,0); }
+  b.cell = cellOf(r.obj.position); b.target = cellPos(...b.cell); b.stunT = 1;
+  say(b, pick(["IT'S ALIVE!", 'who am I now', 'why do I feel different', 'I LIVE AGAIN'])); flash(centerW(head), 0.6);
+}
+
+// BOOMERANG SAW: pull the trigger to throw the spinning blade (throw it with a swing to aim).
+// It curves round, cuts whatever it passes through, and flies back to your claw.
+function bladeMesh(){
+  const g = new T3.Group();
+  g.add(new T3.Mesh(new T3.CylinderGeometry(0.12, 0.12, 0.01, 24), steelBM));
+  g.add(new T3.Mesh(new T3.CylinderGeometry(0.035, 0.035, 0.03, 12), hubBM));
+  for (let k=0;k<14;k++){ const a = k/14*Math.PI*2, t = new T3.Mesh(new T3.ConeGeometry(0.018, 0.04, 4), steelBM); t.position.set(Math.cos(a)*0.13, 0, Math.sin(a)*0.13); t.rotation.set(0, -a, -Math.PI/2); g.add(t); }
+  return g;
+}
+function makeBoomer(){
+  const g = new T3.Group(), add = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
+  add(new T3.CylinderGeometry(0.02, 0.02, 0.12, 10), hubBM, 0, -0.04, 0);
+  g.blade = bladeMesh(); g.blade.position.set(0, -0.13, 0); g.blade.scale.setScalar(0.9); g.add(g.blade);
+  return g;
+}
+function makeFlyBlade(){ const g = bladeMesh(); g.visible = false; scene.add(g); return g; }
+const myBlades = [makeFlyBlade(), makeFlyBlade()];
+function sndWhir(d){ if (!AC) return; noiseHit(0.08, 2500, 3, 0.12/(1 + d)); }
+function bladeCut(root, P, v){
+  if (root.mode === 'held' && !mine(root)) return false;
+  const vd = v.clone().normalize(), n = UP.clone().addScaledVector(vd, -vd.y); if (n.lengthSq() < 0.01) n.set(1, 0, 0); n.normalize();
+  const info = {cut:{}, A:[], B:[]}; let any = false;
+  for (const q of subtree(root)){
+    if (!q.id) q.id = NET.id.slice(0,6) + '-p' + (botCounter++), partsById.set(q.id, q);
+    const c = centerW(q).sub(P), dd = n.dot(c), lat = c.clone().addScaledVector(n, -dd), side = lat.addScaledVector(vd, -lat.dot(vd)).length();
+    if (Math.abs(dd) < q.r*0.8 && side < q.r + 0.16 && q.r >= 0.035 && q.name !== 'mine' && !(q.planes && q.planes.length >= 5)){
+      const nL = n.clone().applyQuaternion(q.obj.getWorldQuaternion(new Q()).invert()).normalize();
+      info.cut[q.id] = [...r3(nL.toArray()), Math.round(nL.dot(q.obj.worldToLocal(P.clone()))*10000)/10000]; any = true;
+    } else (dd >= 0 ? info.A : info.B).push(q.id);
+  }
+  if (!any && !(info.A.length && info.B.length)) return false;
+  if (!mine(root) && root.mode !== 'held') claim(root);
+  for (const i of [0,1]) if (hs[i].root === root) hs[i] = {mode:'none'};
+  if (root.frz > 0){ removeIce(root); root.frz = 0; }
+  if (root.parent) detach(root, null);
+  if (netGame && root.id) netSend('ev', {t:'aslice', r:root.id, n:r3(n.toArray()), info});
+  sliceAssembly(root, n, info, NET.id); spawnSparks(P, 40, 4); sndSnap(); lastCombat = clock;
+  return true;
+}
+function updateBoomer(i, dt){
+  const bw = myW[i].boomer, trig = io.trig[i] > 0.5, press = trig && !boomPrev[i]; boomPrev[i] = trig;
+  let b = booms_[i];
+  bw.blade.visible = !b; if (!b) bw.blade.rotation.y += dt*4;
+  if (press && !b && mode === 'game'){
+    const [tip, dir] = weaponRay(bw, -0.13), sp = hv[i].length();
+    const v = sp > 2.5 ? hv[i].clone().setLength(Math.min(17, 8 + sp*1.2)) : dir.clone().multiplyScalar(11);
+    b = booms_[i] = {p:tip.clone(), v, t:0, cut:new Set(), hit:new Set(), back:false, turn:(R() < 0.5 ? -1 : 1)*0.7};
+    pulse(i, 0.6, 60); if (AC) tone('sawtooth', 300, 900, 0.2, 0.06);
+  }
+  if (!b){ myBlades[i].visible = false; return; }
+  b.t += dt;
+  const hand = handW[i], toHand = hand.clone().sub(b.p), dh = toHand.length();
+  if (!b.back){ b.v.applyAxisAngle(UP, b.turn*dt); b.v.y -= 1.5*dt; if (b.t > 0.55) b.back = true; }
+  else { b.v.lerp(toHand.clone().setLength(Math.min(18, 7 + dh*3)), Math.min(1, dt*5)); }
+  if ((b.back && dh < 0.35 && b.t > 0.3) || b.t > 6){ booms_[i] = null; myBlades[i].visible = false; pulse(i, 0.9, 80); sndTap(0.4); return; }
+  const sp = b.v.length(), step = sp*dt, dirn = b.v.clone().divideScalar(sp || 1);
+  if (!b.back){ const L = worldRayLen(b.p, dirn, step + 0.12); if (L < step + 0.12 - 1e-4){ b.back = true; b.v.multiplyScalar(-0.5); spawnSparks(b.p.clone().addScaledVector(dirn, L), 25, 3); sndClank(3); } }
+  const from = b.p.clone(); b.p.addScaledVector(b.v, dt);
+  if (mode === 'game'){
+    const held = hs[0].root, held1 = hs[1].root;
+    for (const p of parts.slice()){
+      if (p.obj.userData.dead || p.name === 'mine') continue;
+      const root = rootOf(p); if (b.cut.has(root) || root === held || root === held1 || root.stuck) continue;
+      if (segDist(centerW(p), from, b.p) > p.r + 0.08) continue;
+      b.cut.add(root);
+      if (root.ice){ shatterIce(root, b.v.clone()); continue; }
+      const P = centerW(p);                                 // cut right where the blade meets it
+      bladeCut(root, P, b.v);
+      const bt = root.bot; if (bt && !bt.dead && R() < 0.5) say(bt, pick(['MY LEGS','not again','ow ow ow']));
+    }
+    for (const t of playerTargets()){
+      if (b.hit.has(t.id) || t.dist(b.p) > 0.1) continue;
+      const peer = NET.peers[t.id]; b.hit.add(t.id); lastCombat = clock;
+      if (peer.frz >= 1){ netSend('ev', {t:'pism', n:myName}, [t.id]); iceBurst(t.pos, 1.0, 1.8, b.v); continue; }
+      const arms = [0,1].filter(j => !peer.lost[j]); const k = t.k[0] === 'a' && !peer.lost[+t.k[3]] ? t.k : arms.length ? 'arm' + pick(arms) : 'head';
+      ripPlayer(t.id, k, -1, b.v.clone().multiplyScalar(0.3)); spawnSparks(b.p, 40, 4);
+    }
+  }
+  myBlades[i].position.copy(b.p); myBlades[i].rotation.y += dt*45; myBlades[i].visible = true;
+  if (R() < 0.5) sndWhir(b.p.distanceTo(lastPlayer));
 }
 
 // ================= players ripping players =================
@@ -3605,6 +4501,7 @@ function vrStep(dt){
   io.headYaw = new T3.Euler().setFromQuaternion(io.headQuat, 'YXZ').y;
   if (!inited){ inited = true; mode = 'lobby'; teleport(LOBBY_SPAWN, LOBBY_YAW); showAvatar(true); }
   for (const i of [0,1]) if (me.lost[i]) io.handLocal[i].copy(io.headLocal);   // a ripped-off arm can't push you around any more
+  frozenHands(dt);
   const was = loco.S.wasTouching.slice();
   if (knockT > 0 && carriedT <= 0){                 // got hit: shoved back for a moment
     knockT -= dt; rig.position.addScaledVector(knockV, dt); knockV.y -= 9.8*dt;
@@ -3628,7 +4525,9 @@ function vrStep(dt){
   for (const i of [0,1]) if (!io.pads[i]){ io.gripV[i] = io.trig[i] = io.grip[i] ? 1 : 0; }
   const P = {head, headQ, yawQ, hands:handW, handQ:handQW, grip:io.grip, gripV:io.gripV, trig:io.trig, thumb:io.thumb};
   poseAvatar(me, P); if (mode === 'lobby') poseAvatar(meMirror, P);
-  renderBurn(me, P, mode === 'game' ? burnVals() : [-1, -1, -1], true); renderChar(me, mode === 'game' ? myChar : {});
+  window.__inGame = mode === 'game';
+  if (MAPS[curMap].pose) try { MAPS[curMap].pose(P, mode === 'game'); } catch(e){ console.warn(e); }
+  renderBurn(me, P, mode === 'game' ? burnVals() : [-1, -1, -1], true); renderChar(me, mode === 'game' ? Object.assign({frz:myIce ? 1 : myFrz}, myChar) : {}); showIce(me, mode === 'game' && myIce); showIce(meMirror, mode === 'game' && myIce);
   // lobby button
   if (mode === 'lobby' && !fadeDir){
     let pressed = false;
@@ -3701,7 +4600,7 @@ function worldStep(dt, player){
   for (let i = bots.length-1; i >= 0; i--){ const b = bots[i]; if (b.dead && b.deadT > 6 && (b.chkT = (b.chkT || 0) - dt) <= 0){ b.chkT = 2; if (!parts.some(p => p.bot === b && !p.obj.userData.dead)) bots.splice(i,1); } }
 
   scene.updateMatrixWorld();
-  updateClips(); updateKerfs(); updateMines(dt); updateBooms(dt); updateWindows(dt);
+  updateClips(); updateKerfs(); updateMines(dt); updateBooms(dt); updateWindows(dt); updateIce(dt); updateStuck();
   ropes(dt);
   netTick(dt);
   updateBurning(dt); updateFire(dt);
@@ -3769,6 +4668,7 @@ function onPose(a, from){
   if (!p.P) p.P = tgt; p.T = tgt;
   p.lost[0] = !!a[28]; p.lost[1] = !!a[29]; p.wType = [a[30] || 0, a[31] || 0]; p.wAct = [a[32] || 0, a[33] || 0]; p.burnV = a.length > 36 ? [a[34], a[35], a[36]] : [-1, -1, -1];
   p.charV = a.length > 40 ? {arm0:a[37], arm1:a[38], head:a[39], torso:a[40]} : {}; p.hookP = a.length > 46 ? [0,1].map(i => a[42 + i*3] > -900 ? new V(a[41 + i*3], a[42 + i*3], a[43 + i*3]) : null) : [null, null];
+  p.boomP = a.length > 52 ? [0,1].map(i => a[48 + i*3] > -900 ? new V(a[47 + i*3], a[48 + i*3], a[49 + i*3]) : null) : [null, null]; p.frz = a.length > 53 ? a[53] : 0;
 }
 function updateRemoteAvatars(){
   for (const p of Object.values(NET.peers)){
@@ -3783,9 +4683,11 @@ function updateRemoteAvatars(){
     if (!p.wp) p.wp = [p.av, p.avM].map(av => [0,1].map(i => weaponSet(av.claws[i])));
     p.wp.forEach((set, mi) => set.forEach((w, i) => {
       const on = here && (mi === 0 || mode === 'lobby'), t = p.wType[i], act = p.wAct[i];
-      w.saw.visible = on && t === 2; w.hammer.visible = on && t === 1; w.flame.visible = on && t === 3; w.mine.visible = on && t === 4 && act > 0.5; w.laser.visible = on && t === 5; w.hook.visible = on && t === 6;
-      if (mi === 0){ p.fx = p.fx || [0,1].map(() => ({beam:makeBeam(), rope:makeRope(), head:makeHookHead()})); const fx = p.fx[i];
-        fx.beam.visible = false; fx.rope.visible = false; fx.head.visible = false; w.hook.head.visible = true;
+      w.saw.visible = on && t === 2; w.hammer.visible = on && t === 1; w.flame.visible = on && t === 3; w.mine.visible = on && t === 4 && act > 0.5; w.laser.visible = on && t === 5; w.hook.visible = on && t === 6; w.freeze.visible = on && t === 7; w.glue.visible = on && t === 8; w.boomer.visible = on && t === 9; w.boomer.blade.visible = act > 0.5;
+      if (mi === 0){ p.fx = p.fx || [0,1].map(() => ({beam:makeBeam(), rope:makeRope(), head:makeHookHead(), frost:makeFrostBeam(), blade:makeFlyBlade()})); const fx = p.fx[i];
+        fx.beam.visible = false; fx.rope.visible = false; fx.head.visible = false; fx.frost.visible = false; fx.blade.visible = false; w.hook.head.visible = true;
+        if (w.freeze.visible && act > 0.5){ const [tip, dir] = weaponRay(w.freeze, -0.26); let L = worldRayLen(tip, dir, FREEZE_LEN); const rp = rayPart(tip, dir, L); if (rp) L = rp.t; aimBeam(fx.frost, tip, tip.clone().addScaledVector(dir, L), 0.018); if (R() < 0.4) frostPuff(tip.clone().addScaledVector(dir, L*R())); }
+        const bp = p.boomP && p.boomP[i]; if (bp){ fx.blade.position.copy(bp); fx.blade.rotation.y += 0.6; fx.blade.visible = true; }
         if (w.laser.visible && act > 0.5){ const [tip, dir] = weaponRay(w.laser, -0.25); let L = worldRayLen(tip, dir, LASER_LEN); const rp = rayPart(tip, dir, L); if (rp) L = rp.t; aimBeam(fx.beam, tip, tip.clone().addScaledVector(dir, L), 0.006); if (L < LASER_LEN - 0.01 && R() < 0.5) spawnSparks(tip.clone().addScaledVector(dir, L), 1, 1.2); }
         const hp = p.hookP && p.hookP[i]; if (w.hook.visible && hp){ const [tip] = weaponRay(w.hook, -0.2); aimBeam(fx.rope, tip, hp, 0.007); fx.head.position.copy(hp); fx.head.visible = true; w.hook.head.visible = false; } }
       if (w.flame.visible && mi === 0 && act > 0.5) shootFlames(w.flame, 2);
@@ -3793,7 +4695,7 @@ function updateRemoteAvatars(){
     }));
     if (here){
       poseAvatar(p.av, P); if (mode === 'lobby') poseAvatar(p.avM, P); p.tag.position.copy(P.head).add(new V(0, 0.32, 0)); p.head.copy(P.head);
-      renderBurn(p.av, P, mode === 'game' && p.burnV ? p.burnV : [-1, -1, -1], false); renderChar(p.av, mode === 'game' && p.charV ? p.charV : {});
+      renderBurn(p.av, P, mode === 'game' && p.burnV ? p.burnV : [-1, -1, -1], false); renderChar(p.av, mode === 'game' && p.charV ? Object.assign({frz:p.frz || 0}, p.charV) : {}); showIce(p.av, mode === 'game' && p.frz >= 1);
       if (p.pull){
         const jit = new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(0.012);
         if (p.pull.k === 'head') p.av.head.position.add(p.pull.off).add(jit);
@@ -3807,10 +4709,12 @@ function sendPose(){
   const a = [...head.toArray(), hq.x, hq.y, hq.z, hq.w, io.yaw + io.headYaw];
   for (const i of [0,1]) a.push(...handW[i].toArray(), handQW[i].x, handQW[i].y, handQW[i].z, handQW[i].w);
   for (const i of [0,1]) a.push(io.trig[i], io.gripV[i], io.thumb[i] ? 1 : 0);
-  const WT = {none:0, hammer:1, saw:2, flame:3, mine:4, laser:5, hook:6}, act = i => wpn[i] === 'saw' ? myW[i].saw.ext : wpn[i] === 'flame' && flameOn[i] ? 1 : wpn[i] === 'mine' && mineCD[i] > 0 ? 0 : wpn[i] === 'laser' ? (laserOn[i] ? 1 : 0) : 1;
+  const WT = {none:0, hammer:1, saw:2, flame:3, mine:4, laser:5, hook:6, freeze:7, glue:8, boomer:9}, act = i => wpn[i] === 'saw' ? myW[i].saw.ext : wpn[i] === 'flame' && flameOn[i] ? 1 : wpn[i] === 'mine' && mineCD[i] > 0 ? 0 : wpn[i] === 'laser' ? (laserOn[i] ? 1 : 0) : wpn[i] === 'freeze' ? (freezeOn[i] ? 1 : 0) : wpn[i] === 'boomer' ? (booms_[i] ? 0 : 1) : 1;
   a.push(me.lost[0] ? 1 : 0, me.lost[1] ? 1 : 0, WT[wpn[0]], WT[wpn[1]], act(0), act(1), ...burnVals());
   a.push(myChar.arm0, myChar.arm1, myChar.head, myChar.torso);
   for (const i of [0,1]){ const h = hooks[i]; a.push(...(h ? h.p.toArray() : [0, -999, 0])); }
+  for (const i of [0,1]){ const b = booms_[i]; a.push(...(b ? b.p.toArray() : [0, -999, 0])); }
+  a.push(mode === 'game' ? (myIce ? 1 : myFrz*0.99) : 0);
   netSend('pose', r3(a));
 }
 // world state: every root I own is streamed; everyone else eases toward it
@@ -3846,6 +4750,7 @@ function applyRemoteState(){
 function onEvent(ev, from){
   { const pg = NET.peers[from]; if (netGame && pg && pg.g && pg.g !== netGame && ev.t !== 'need') return; }   // someone in a different game
   const p = ev.p ? partsById.get(ev.p) : null;
+  if (ev.t === 'mapev'){ const M = MAPS[ev.m]; if (M && M.onEv && ev.m === curMap) M.onEv(ev, from); return; }
   if (ev.t === 'spawn'){ if (!bots.some(b => b.id === ev.b) && mode === 'game' && netGame && (!NET.peers[from] || NET.peers[from].g === netGame)) { const b = makeBot(ev.c, new V(ev.x, ev.y != null ? ev.y : STAND, ev.z), ev.b); b.root.owner = from; } }
   else if (ev.t === 'det'){ if (p && p.parent){ detach(p, new V().fromArray(ev.v), from); } if (p) p.owner = from; }
   else if (ev.t === 'claim'){ const r = partsById.get(ev.r); if (r && !r.parent){ for (const i of [0,1]) if (hs[i].root === r) release(i, true); r.owner = from; } }
@@ -3884,6 +4789,14 @@ function onEvent(ev, from){
   else if (ev.t === 'char'){ const q = partsById.get(ev.p); if (q && !q.fire && !q.obj.userData.dead && ev.c > (q.char || 0)) charPart(q, ev.c - (q.char || 0)); }
   else if (ev.t === 'lz'){ if (mode === 'game') laserMe(ev.a, ev.n); }
   else if (ev.t === 'yank'){ if (mode === 'game'){ const to = new V().fromArray(ev.to), d = to.sub(loco.headPos()); if (d.length() > 0.6){ loco.S.velocity.copy(d.normalize().multiplyScalar(7)).add(new V(0, 1, 0)); lastCombat = clock; } } }
+  else if (ev.t === 'frz'){ const r = partsById.get(ev.r); if (r && !r.obj.userData.dead) setFreeze(r, ev.f, true); }
+  else if (ev.t === 'ism'){ const r = partsById.get(ev.r); if (r) shatterIce(r, null, true); }
+  else if (ev.t === 'thaw'){ const r = partsById.get(ev.r); if (r) thawRoot(r, true); }
+  else if (ev.t === 'pfrz'){ if (mode === 'game') freezeMe(ev.a); }
+  else if (ev.t === 'pmelt'){ if (mode === 'game' && myIce) myIceT -= ev.a*2.5; }
+  else if (ev.t === 'pism'){ if (mode === 'game' && myIce){ iceBurst(loco.headPos().add(new V(0, -0.5, 0)), 1.0, 1.8, null); myIce = false; myFrz = 0; die((ev.n || 'someone') + "'s hammer (on ice)"); } }
+  else if (ev.t === 'glue'){ glueApply(ev); }
+  else if (ev.t === 'unglue'){ const r = partsById.get(ev.r); if (r && r.stuck){ r.stuck = null; r.mode = 'free'; r.asleep = false; } }
   else if (ev.t === 'win'){ const w = WINS.find(x => x.map === ev.m && x.i === ev.i); if (w && ev.m === curMap) breakWindow(w, null, true); }
   else if (ev.t === 'snap'){ loadSnapshot(ev, from); }
 }
@@ -4027,7 +4940,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261124065556';
+const BUILD = '20261124073718';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
