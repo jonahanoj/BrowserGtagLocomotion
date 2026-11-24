@@ -5648,13 +5648,13 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD 20261124182910= '__BUILD__';
+const BUILD = '20261124185918';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
   try {
     const t = await (await fetch(location.pathname + '?u=' + Date.now(), {cache:'no-store'})).text();
-    const m = t.match(/const BUILD 20261124182910= '([^']+)'/); if (m && m[1] !== BUILD) updateReady = true;
+    const m = t.match(/const BUILD = '([^']+)'/); if (m && m[1] !== BUILD) updateReady = true;
   } catch(e){}
 }
 setInterval(checkUpdate, 30000);
