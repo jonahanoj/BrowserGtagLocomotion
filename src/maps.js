@@ -97,7 +97,11 @@ function mapBuilder(O, key, ghost){
   const W = a => [a[0]+O.x, a[1]+O.y, a[2]+O.z];
   const B = {group, O, solids, bins, key, wins:[], props:[],
     mat(k, m){ bins[k] = {m, list:[]}; return B; },
-    box(k, a, c, o){ o = o || {}; const A = W(a), C2 = W(c); if (k) bins[k].list.push(worldBox(A, C2, o.us || 1, o.skip)); if (o.solid !== false && !ghost) solids.push(addBox(A, C2)); },
+    // Each drawn box is grown by its own tiny amount (0.6-3 mm, a different amount for every box),
+    // so two boxes can never have faces in exactly the same plane: that's what Z fighting is. Collision is exact.
+    box(k, a, c, o){ o = o || {}; const A = W(a), C2 = W(c);
+      if (k){ const e = 0.0006 + 0.0024*((B.nbox = (B.nbox || 0) + 1)*0.6180339887 % 1); bins[k].list.push(worldBox(A.map(v => v - e), C2.map(v => v + e), o.us || 1, o.skip)); }
+      if (o.solid !== false && !ghost) solids.push(addBox(A, C2)); },
     solid(a, c){ if (!ghost) solids.push(addBox(W(a), W(c))); },
     solids_(list){ for (const [a, c] of list) B.solid(a, c); },
     // a mesh that is solid exactly where it is drawn
@@ -272,11 +276,11 @@ function setDyn(b, x0, y0, z0, x1, y1, z1){ b.min[0] = x0; b.min[1] = y0; b.min[
 function announce(text){ try { if (!window.speechSynthesis) return; const u = new SpeechSynthesisUtterance(text); u.pitch = 0.8; u.rate = 0.95; u.volume = 0.8; speechSynthesis.speak(u); } catch(e){} }
 
 // Robots walk on a grid of 2 m cells: a cell is walkable where there's floor and nothing in the way.
-function buildNav(solids, O, size, c, lv){
+function buildNav(solids, O, size, c, lv, keep){
   const nx = Math.floor(size/c), x0 = O.x, z0 = O.z;
   const hit = (lo, hi) => { for (const b of solids) if (b.min[0] < hi[0] && b.max[0] > lo[0] && b.min[1] < hi[1] && b.max[1] > lo[1] && b.min[2] < hi[2] && b.max[2] > lo[2]) return true; return false; };
   const floorAt = (x, z, y) => { for (const b of solids) if (b.min[0] <= x && b.max[0] >= x && b.min[2] <= z && b.max[2] >= z && b.max[1] >= y-0.05 && b.max[1] <= y+0.3) return true; return false; };
-  const clear = (x, z, y, r) => floorAt(x, z, y) && !hit([x-r, y+0.32, z-r], [x+r, y+1.0, z+r]);
+  const clear = (x, z, y, r) => (!keep || keep(x, z)) && floorAt(x, z, y) && !hit([x-r, y+0.32, z-r], [x+r, y+1.0, z+r]);
   const ok = lv.map(y => Array.from({length:nx}, (_, j) => Array.from({length:nx}, (_, i) => clear(x0+(i+0.5)*c, z0+(j+0.5)*c, y, 0.35))));
   const link = lv.map((y, l) => Array.from({length:nx}, (_, j) => Array.from({length:nx}, (_, i) => {
     const out = [false, false];      // +x, +z
@@ -729,6 +733,24 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     }};
 }
 
+// ======================= a playable piano keyboard (house, mansion) =======================
+// Two octaves from middle C. Press the keys with your claws. s = 1: you stand on the -z side looking +z; s = -1: the +z side looking -z.
+function pianoKeys(grp, O, PK, s, mapKey){
+  const keys = [], wMat = lam(0xf6f2e6), bMat = lam(0x15151a), WN = 15, ww = (PK.x1 - PK.x0)/WN, wSemi = [0, 2, 4, 5, 7, 9, 11], D = PK.z1 - PK.z0;
+  const kx = i => s > 0 ? PK.x1 - i*ww : PK.x0 + i*ww, back = f => s > 0 ? PK.z0 + D*f : PK.z1 - D*f, at = new V((PK.x0 + PK.x1)/2 + O.x, PK.y + 0.1, (PK.z0 + PK.z1)/2 + O.z), keyOn = [null, null];
+  for (let i=0;i<WN;i++){ const a = kx(i), b = kx(i + 1), m = new T3.Mesh(new T3.BoxGeometry(ww - 0.006, 0.05, D), wMat); m.position.set((a + b)/2 + O.x, PK.y + 0.025, (PK.z0 + PK.z1)/2 + O.z); grp.add(m);
+    keys.push({m, x0:Math.min(a, b), x1:Math.max(a, b), black:false, n:Math.floor(i/7)*12 + wSemi[i % 7], y0:m.position.y, t:0}); }
+  for (let i=0;i<WN - 1;i++){ if ([2, 6].includes(i % 7)) continue; const cx = kx(i + 1), m = new T3.Mesh(new T3.BoxGeometry(ww*0.55, 0.05, D*0.6), bMat);
+    m.position.set(cx + O.x, PK.y + 0.06, back(0.7) + O.z); grp.add(m); keys.push({m, x0:cx - ww*0.28, x1:cx + ww*0.28, black:true, n:Math.floor(i/7)*12 + wSemi[i % 7] + 1, y0:m.position.y, t:0}); }
+  const playNote = (n, vol) => { if (!AC) return; const f = 261.63*Math.pow(2, n/12), t = AC.currentTime, g = AC.createGain(), lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400;
+    for (const [type, mul, v] of [['triangle', 1, 0.6], ['sine', 2, 0.25], ['sine', 3, 0.1]]){ const o = AC.createOscillator(), og = AC.createGain(); o.type = type; o.frequency.value = f*mul; og.gain.value = v; o.connect(og); og.connect(lp); o.start(t); o.stop(t + 2.2); }
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22*vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.06*vol, t + 0.4); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.1); lp.connect(g); g.connect(AC.destination); };
+  const press = (k, vol, local) => { k.t = 0.18; playNote(k.n, vol/(1 + at.distanceTo(lastPlayer)*0.15)); if (local && netGame) netSend('ev', {t:'mapev', m:mapKey, k:'note', i:keys.indexOf(k)}); };
+  return {keys, play(i){ if (keys[i]) press(keys[i], 1, false); },
+    update(dt, inGame){
+      piano.update(dt, inGame); } };
+}
+
 // ======================= HOUSE =======================
 // Three floors (basement, ground, upstairs), furnished. Quirk: a robot vacuum does its rounds downstairs
 // and sucks up any robot bits lying on the floor (and bumps into robots). Don't let it find a mine.
@@ -766,7 +788,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   // outer walls, per floor (inside paper changes per floor), with windows and the front door
   const floorKey = ['conc', 'paperA', 'paperB'];
   for (let f=0;f<3;f++){
-    const y0 = L[f] - (f === 0 ? 0.6 : 0.25), y1 = f === 2 ? 6.0 : L[f+1] - 0.25 + 0.25, k = floorKey[f];
+    const y0 = L[f] - (f === 0 ? 0.6 : 0.25), y1 = f === 2 ? 6.0 : L[f+1] - 0.25, k = floorKey[f];          // floors' wall bands meet, never overlap
     const win = f === 0 ? [] : [[0.9, 1.0 + L[f], 2.1 + L[f]]];
     const xs = f === 0 ? [] : [11, 15, 28, 32].map(x => [x, x + 1.4, L[f] + 0.9, L[f] + 2.1, true]);
     const zs = f === 0 ? [] : [15, 19, 26].map(z => [z, z + 1.4, L[f] + 0.9, L[f] + 2.1, true]);
@@ -817,7 +839,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const shelf = (x, y, z, w, d, h, rotX) => { f('darkwood', x, y, z, w, h, d); const cols = ['red','blue','yellow','green','white'];
     for (let r=0;r<4;r++) for (let i=0;i<8;i++){ const bw = 0.07 + mr()*0.05, bh = 0.2 + mr()*0.12; if (rotX) f(cols[(i + r) % 5], x - w/2 + 0.1 + i*(w - 0.2)/8, y + 0.15 + r*h/4.3, z + (d/2 + 0.02)*rotX, bw, bh, 0.04, false);
       else f(cols[(i + r) % 5], x + (w/2 + 0.02), y + 0.15 + r*h/4.3, z - d/2 + 0.1 + i*(d - 0.2)/8, 0.04, bh, bw, false); } };
-  const bed = (x, y, z, w, l, k) => { f('darkwood', x, y, z, w, 0.35, l); f('pillow', x, y + 0.35, z, w - 0.1, 0.2, l - 0.1, false); f(k, x, y + 0.42, z + 0.25, w - 0.05, 0.16, l - 0.6, false); f('pillow', x, y + 0.55, z - l/2 + 0.3, w - 0.4, 0.14, 0.35, false); f('darkwood', x, y, z - l/2 + 0.05, w, 1.0, 0.1); };
+  const bed = (x, y, z, w, l, k) => { f('darkwood', x, y, z, w, 0.35, l); f('pillow', x, y + 0.35, z, w - 0.1, 0.2, l - 0.1, false); f(k, x, y + 0.42, z + 0.27, w - 0.05, 0.16, l - 0.56, false); f('pillow', x, y + 0.55, z - l/2 + 0.3, w - 0.4, 0.14, 0.35, false); f('darkwood', x, y, z - l/2 + 0.05, w, 1.0, 0.1); };
   const plant = (x, y, z) => { B.cyl('cardboard', 0.15, 0.2, 0.35, x, y, z, 8); B.ball('leaf', new T3.IcosahedronGeometry(1, 0), x, y + 0.65, z, 0.4, 0.4, 0.4, 3); };
   const lampStand = (x, y, z) => { f('metal', x, y, z, 0.05, 1.4, 0.05); B.cyl('lamp', 0.25, 0.15, 0.3, x, y + 1.4, z, 10); f('metal', x, y, z, 0.3, 0.04, 0.3); };
   // ground floor: living room (west), hall, kitchen (east), dining/den (back)
@@ -831,16 +853,16 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   f('wood', 35.2, 0, 16.5, 0.9, 0.9, 7.0); f('white', 35.2, 0.9, 16.5, 0.92, 0.04, 7.02, false); f('metal', 35.2, 0.92, 15.0, 0.6, 0.02, 0.5, false);
   f('black', 35.2, 0.92, 18.2, 0.6, 0.02, 0.6, false); for (const dz of [-0.15, 0.15]) for (const dx of [-0.15, 0.15]) B.geo('red', new T3.CylinderGeometry(0.08, 0.08, 0.012, 10), 35.2 + dx, 0.94, 18.2 + dz);
   f('white', 35.1, 0, 21.6, 0.9, 2.0, 0.9); f('wood', 35.5, 1.6, 16.5, 0.4, 0.7, 7.0);
-  f('wood', 30, 0, 17, 2.2, 0.76, 1.2); for (const [cx, cz, r] of [[29.4, 16.0, 0], [30.6, 16.0, 0], [29.4, 18.0, 2], [30.6, 18.0, 2]]) chair(cx, 0, cz, r);
+  f('wood', 30, 0, 17, 2.2, 0.76, 1.2); for (const [cx, cz, r] of [[29.4, 16.0, 2], [30.6, 16.0, 2], [29.4, 18.0, 0], [30.6, 18.0, 0]]) chair(cx, 0, cz, r);
   // back room: long table, piano, fireplace
-  f('wood', 24, 0, 27.6, 4.6, 0.76, 1.2); for (let i=0;i<3;i++){ chair(22.4 + i*1.6, 0, 26.4, 0); chair(22.4 + i*1.6, 0, 28.8, 2); }
-  f('black', 33.5, 0, 30.6, 1.6, 1.2, 0.7); f('black', 33.5, 0, 30.15, 1.6, 0.6, 0.25); f('black', 32.65, 0.72, 30.15, 0.1, 0.16, 0.25); f('black', 34.35, 0.72, 30.15, 0.1, 0.16, 0.25);
+  f('wood', 24, 0, 27.6, 4.6, 0.76, 1.2); for (let i=0;i<3;i++){ chair(22.4 + i*1.6, 0, 26.4, 2); chair(22.4 + i*1.6, 0, 28.8, 0); }
+  f('black', 33.5, 0, 30.6, 1.6, 1.2, 0.7); f('black', 33.5, 0, 30.15, 1.6, 0.6, 0.25); f('black', 33.5, 0.6, 30.16, 1.6, 0.12, 0.22); f('black', 32.65, 0.72, 30.15, 0.1, 0.16, 0.25); f('black', 34.35, 0.72, 30.15, 0.1, 0.16, 0.25);          // the key bed holds the keys up
   f('brick', 18.5, 0, 31.3, 2.0, 1.4, 0.5); f('black', 18.5, 0.1, 31.05, 1.2, 0.8, 0.02, false); for (let i=0;i<5;i++) B.geo('glow', new T3.DodecahedronGeometry(0.1, 0), 18.0 + i*0.25, 0.2, 31.2);
   shelf(15, 0, 31.4, 1.8, 0.4, 2.0, -1); pic(0, 28, 1.4, 31.68, Math.PI);
   // upstairs: bedroom 1, bathroom, bedroom 2, game room, kids' room
   const U = 3;
   bed(11.5, U, 15.0, 1.8, 2.1, 'fabric'); f('wood', 10.2, U, 13.2, 0.5, 0.55, 0.5); f('wood', 12.8, U, 13.2, 0.5, 0.55, 0.5); lampStand(12.8, U + 0.55, 13.2);
-  f('darkwood', 17.2, U, 13.6, 1.1, 2.0, 0.6); f('wood', 16.8, U, 19.6, 1.4, 0.75, 0.6); chair(16.8, U, 19.0, 0); f('rug', 13, U, 17.5, 2.5, 0.01, 2, false); pic(1, 8.33, U + 1.3, 17.5, Math.PI/2);
+  f('darkwood', 17.2, U, 13.6, 1.1, 2.0, 0.6); f('wood', 16.8, U, 19.6, 1.4, 0.75, 0.6); chair(16.8, U, 19.0, 2); f('rug', 13, U, 17.5, 2.5, 0.01, 2, false); pic(1, 8.33, U + 1.3, 17.5, Math.PI/2);
   B.box('tile', [18.1, U, FZ0 + T], [23.9, U + 0.01, 20.9], {solid:false, us:0.6});
   f('white', 21, U, 13.2, 1.8, 0.6, 0.8); f('blue', 21, U + 0.45, 13.2, 1.6, 0.02, 0.6, false);
   f('white', 19.0, U, 20.3, 0.45, 0.45, 0.55); f('white', 19.0, U + 0.45, 20.65, 0.45, 0.4, 0.2); f('white', 22.8, U, 20.55, 0.6, 0.85, 0.5); B.box('mirror', [22.4, U + 1.2, 20.86], [23.2, U + 2.0, 20.9], {solid:false});
@@ -860,7 +882,9 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   for (const [k, x, y, z] of [['pillow', 11.5, U + 0.6, 14.4], ['pillow', 31.5, U + 0.6, 14.4], ['pillow', 13.4, 0.5, 21.6], ['pillow', 9.6, 0.5, 19.6], ['book', 9.3, 0, 16], ['book', 9.3, 0, 17],
     ['mug', 30, 0.76, 17], ['mug', 29.6, 0.76, 16.8], ['mug', 24, 0.76, 27.6], ['block', 28, U, 26], ['block', 29, U, 27], ['block', 30.5, U, 26.5], ['block', 28.6, U, 28.4], ['ball', 25.8, U, 28],
     ['box', 14, D, 20], ['box', 15, D, 21], ['ball', 22, 0, 15], ['book', 17.4, U + 0.75, 19.6]]) B.prop(k, x, y, z);
-  for (let i=0;i<14;i++){ const s = 0.4 + mr()*0.3; f('cardboard', 9 + mr()*3.5 + (i > 7 ? 3 : 0), D + (i % 3 === 2 ? 0.45 : 0), 13 + mr()*6, s, s, s); }
+  for (const [sx, sz] of [[9.4, 13.4], [10.6, 13.5], [11.9, 13.4], [9.5, 15.2], [12.6, 15.6], [10.2, 17.6], [12.9, 18.2]]){      // stacks of storage boxes
+    let y = D, s = 0.62 + mr()*0.12; const n = 1 + Math.floor(mr()*3);
+    for (let k=0;k<n;k++){ f('cardboard', sx + (mr() - 0.5)*0.08, y, sz + (mr() - 0.5)*0.08, s, s*0.85, s); y += s*0.85; s *= 0.85; } }
   shelf(16.5, D, 12.6, 2.4, 0.4, 2.0, 1); couch(28, D, 20, 0, 'fabric2'); f('green', 17, D, 22, 2.7, 0.76, 1.5);
   // ceiling lights
   for (const [x, z] of [[13, 17.5], [22, 17], [31, 17], [24, 27.6], [33, 27.6]]) ceilingLight(x, z, CEIL);
@@ -877,23 +901,12 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   grp.add(vac); const vacBox = dynBox();
   let slurpT = 0;
   const slurp = () => { if (!AC) return; noiseHit(0.35, 900, 3, 0.3); tone('sine', 300, 1400, 0.3, 0.08); };
-  // the piano: real keys, two octaves from middle C. Press them with your claws.
-  const PK = {x0:32.8, x1:34.2, z0:30.025, z1:30.275, y:0.72}, keys = [];
-  { const wMat = lam(0xf6f2e6), bMat = lam(0x15151a), WN = 15, ww = (PK.x1 - PK.x0)/WN, wSemi = [0, 2, 4, 5, 7, 9, 11];
-    for (let i=0;i<WN;i++){ const m = new T3.Mesh(new T3.BoxGeometry(ww - 0.006, 0.05, PK.z1 - PK.z0), wMat); m.position.set(PK.x1 - (i + 0.5)*ww + O.x, PK.y + 0.025, (PK.z0 + PK.z1)/2 + O.z); grp.add(m);
-      keys.push({m, x0:PK.x1 - (i + 1)*ww, x1:PK.x1 - i*ww, black:false, n:Math.floor(i/7)*12 + wSemi[i % 7], y0:m.position.y, t:0}); }
-    for (let i=0;i<WN - 1;i++){ if ([2, 6].includes(i % 7)) continue; const cx = PK.x1 - (i + 1)*ww, m = new T3.Mesh(new T3.BoxGeometry(ww*0.55, 0.05, (PK.z1 - PK.z0)*0.6), bMat);
-      m.position.set(cx + O.x, PK.y + 0.06, PK.z0 + (PK.z1 - PK.z0)*0.7 + O.z); grp.add(m); keys.push({m, x0:cx - ww*0.28, x1:cx + ww*0.28, black:true, n:Math.floor(i/7)*12 + wSemi[i % 7] + 1, y0:m.position.y, t:0}); } }
-  const playNote = (n, vol) => { if (!AC) return; const f = 261.63*Math.pow(2, n/12), t = AC.currentTime, g = AC.createGain(), lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2400;
-    for (const [type, mul, v] of [['triangle', 1, 0.6], ['sine', 2, 0.25], ['sine', 3, 0.1]]){ const o = AC.createOscillator(), og = AC.createGain(); o.type = type; o.frequency.value = f*mul; og.gain.value = v; o.connect(og); og.connect(lp); o.start(t); o.stop(t + 2.2); }
-    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22*vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.06*vol, t + 0.4); g.gain.exponentialRampToValueAtTime(0.0001, t + 2.1); lp.connect(g); g.connect(AC.destination); };
-  const pianoAt = new V(33.5 + O.x, 0.8, 30.15 + O.z), keyOn = [null, null];
-  const press = (k, vol, local) => { k.t = 0.18; const d = pianoAt.distanceTo(lastPlayer); playNote(k.n, vol/(1 + d*0.15)); if (local && netGame) netSend('ev', {t:'mapev', m:'house', k:'note', i:keys.indexOf(k)}); };
+  const piano = pianoKeys(grp, O, {x0:32.8, x1:34.2, z0:30.025, z1:30.275, y:0.72}, 1, 'house');
   MAPS.house = {name:'HOUSE', group:grp, spawn:new V(22, 0, 6).add(O), yaw:Math.PI, nav, yMin:-8, yMax:18, props:B.props,
     sky:{bg:0xa9d2ee, fog:0xc4dbe8, near:14, far:55, hs:0xfffaf0, hg:0x7a6a50, hi:0.95, ac:0xfff4e0, ai:0.38},
-    keys, onEv(ev){ if (ev.k === 'note' && keys[ev.i]) press(keys[ev.i], 1, false); },
+    keys:piano.keys, onEv(ev){ if (ev.k === 'note') piano.play(ev.i); },
     update(dt, inGame){
-      for (const k of keys){ if (k.t > 0) k.t -= dt; k.m.position.y = k.y0 - (k.t > 0 ? 0.014 : 0); }
+      for (const k of keys){ if (k.t > 0) k.t -= dt; k.m.position.y = k.y0 - (k.t > 0 ? 0.022 : 0); k.m.rotation.x = k.t > 0 ? 0.08 : 0; }
       if (inGame) for (const i of [0,1]){
         const h = handW[i]; let hit = null;
         if (!me.lost[i] && h.z > PK.z0 - 0.06 + O.z && h.z < PK.z1 + O.z && h.y < PK.y + 0.09 && h.y > PK.y - 0.16){ const x = h.x - O.x;
@@ -1024,9 +1037,12 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   for (const c of CEN){ B.box('dark', [c - 1.0, BOT, 0], [c + 1.0, -0.1, 0.02], {solid:false}); B.box('dark', [c - 1.0, BOT, 43.98], [c + 1.0, -0.1, 44], {solid:false});
     B.box('dark', [0, BOT, c - 1.0], [0.02, -0.1, c + 1.0], {solid:false}); B.box('dark', [43.98, BOT, c - 1.0], [44, -0.1, c + 1.0], {solid:false}); }
   // a ladder up to a manhole with daylight coming down
-  { const lx = 25.5, lz = 13; for (let k=0;k<11;k++) B.box('rung', [lx, 0.3 + k*0.35, lz - 0.3], [lx + 0.12, 0.34 + k*0.35, lz + 0.3]);
-    B.box('rung', [lx, 0, lz - 0.34], [lx + 0.12, TOPY, lz - 0.3]); B.box('rung', [lx, 0, lz + 0.3], [lx + 0.12, TOPY, lz + 0.34]);
-    B.geo('shaft', new T3.CylinderGeometry(0.4, 1.1, TOPY, 14, 1, true), lx + 0.6, TOPY/2, lz); B.geo('bulb', new T3.CircleGeometry(0.45, 16), lx + 0.6, TOPY - 0.01, lz, Math.PI/2); lamps.push(new V(lx + 0.6, 2, lz)); }
+  { const lx = 25.5 - 0.02, lz = 13;          // the tunnel wall is at x 25.5: the ladder stands just off it, in the tunnel
+    for (let k=0;k<11;k++) B.box('rung', [lx - 0.12, 0.3 + k*0.35, lz - 0.3], [lx, 0.34 + k*0.35, lz + 0.3]);
+    B.box('rung', [lx - 0.12, 0, lz - 0.34], [lx, TOPY, lz - 0.3]); B.box('rung', [lx - 0.12, 0, lz + 0.3], [lx, TOPY, lz + 0.34]);
+    // daylight pouring down from the manhole in the ceiling right above the ladder
+    const mx = lx - 0.5; B.geo('dark', new T3.CylinderGeometry(0.52, 0.52, 0.12, 18, 1, true), mx, TOPY - 0.06, lz);
+    B.geo('bulb', new T3.CircleGeometry(0.45, 18), mx, TOPY - 0.02, lz, Math.PI/2); B.geo('shaft', new T3.CylinderGeometry(0.45, 1.0, TOPY - 0.05, 16, 1, true), mx, (TOPY - 0.05)/2, lz); lamps.push(new V(mx, 2, lz)); }
   // stuff floating around
   const props = [];
   for (let k=0;k<14;k++){ const c = CEN[k % 3], along = 2 + mr()*40, x = k % 2 ? along : c, z = k % 2 ? c : along; B.prop(k % 3 ? 'duck' : 'barrel', x, BOT, z); }
@@ -1125,10 +1141,11 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   // aisles
   const shelves = [8.5, 13, 17.5, 26.5, 31, 35.5];
   shelves.forEach((cx, ai) => {
-    B.box('shelfB', [cx - 0.5, 0, 26], [cx + 0.5, 2.2, 38]); B.solid([cx - 0.56, 0, 26], [cx + 0.56, 2.2, 38]);
+    B.box('shelfB', [cx - 0.3, 0, 26], [cx + 0.3, 2.2, 38], {solid:false}); B.solid([cx - 0.56, 0, 26], [cx + 0.56, 2.2, 38]);          // a thin back, shelves sticking out both sides
+    B.box('shelfB', [cx - 0.56, 0, 25.94], [cx + 0.56, 2.2, 26], {solid:false}); B.box('shelfB', [cx - 0.56, 0, 38], [cx + 0.56, 2.2, 38.06], {solid:false}); B.box('shelfB', [cx - 0.56, 2.2, 25.94], [cx + 0.56, 2.24, 38.06], {solid:false});
     for (let lv=0;lv<4;lv++){ const y = 0.15 + lv*0.5;
-      for (const sd of [-1, 1]){ B.box('shelf', [sd < 0 ? cx - 0.56 : cx + 0.46, y - 0.03, 26], [sd < 0 ? cx - 0.46 : cx + 0.56, y, 38], {solid:false});
-        for (let z=26.15; z<37.8; z+=0.3){ const k = 'p' + Math.floor(mr()*8), ph = 0.18 + mr()*0.22, pw = 0.2 + mr()*0.06; B.box(k, [sd < 0 ? cx - 0.5 : cx + 0.3, y, z], [sd < 0 ? cx - 0.3 : cx + 0.5, y + ph, z + pw], {solid:false}); } } }
+      for (const sd of [-1, 1]){ B.box('shelf', [sd < 0 ? cx - 0.56 : cx + 0.3, y - 0.03, 26], [sd < 0 ? cx - 0.3 : cx + 0.56, y, 38], {solid:false});
+        for (let z=26.15; z<37.8; z+=0.3){ const k = 'p' + Math.floor(mr()*8), ph = 0.18 + mr()*0.22, pw = 0.2 + mr()*0.06; const dep = 0.17 + mr()*0.05; B.box(k, [sd < 0 ? cx - 0.302 - dep : cx + 0.302, y + 0.002, z], [sd < 0 ? cx - 0.302 : cx + 0.302 + dep, y + ph, z + pw], {solid:false}); } } }
     B.geo('a' + (ai + 1), new T3.PlaneGeometry(0.8, 0.6), cx, 3.3, 26.4, 0, Math.PI, 0); B.box('pole', [cx - 0.01, 3.6, 26.38], [cx + 0.01, HT, 26.42], {solid:false});
     for (let k=0;k<3;k++){ const z = 27 + mr()*10, sd = k % 2 ? 1 : -1, lv = 1 + Math.floor(mr()*3); B.prop(['can','cereal','bottle'][k], cx + sd*0.42, 0.15 + lv*0.5, z); }
   });
@@ -1205,7 +1222,8 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   // inside: walls between the modules, with doorways
   const D = [[5, 9.5, 0, 3.2], [19.8, 24.2, 0, 3.2], [34.5, 39, 0, 3.2]];
   for (const c of [14.5, 29.5]){ B.wallRun(['wall'], 'z', T, 44 - T, c - 0.15, c + 0.15, 0, HT, D, 2); B.wallRun(['wall'], 'x', T, 44 - T, c - 0.15, c + 0.15, 0, HT, D, 2); }
-  for (const c of [14.5, 29.5]) for (const k of [0, 1]){ B.box('trim', k ? [c - 0.16, 3.2, T] : [T, 3.2, c - 0.16], k ? [c + 0.16, 3.4, 44 - T] : [44 - T, 3.4, c + 0.16], {solid:false}); }
+  for (const c of [14.5, 29.5]) for (const k of [0, 1]){ // the band sits above the doorway tops (3.2) and its ends tuck into the hull, so it never shares a face
+    const y0 = 3.24 + k*0.006; B.box('trim', k ? [c - 0.16, y0, T - 0.05] : [T - 0.05, y0, c - 0.16], k ? [c + 0.16, y0 + 0.2, 44 - T + 0.05] : [44 - T + 0.05, y0 + 0.2, c + 0.16], {solid:false}); }
   // the reactor in the middle
   B.cyl('dark', 1.6, 1.6, 0.5, 22, 0, 22, 16); B.cyl('glow', 1.15, 1.15, HT, 22, 0, 22, 16);
   for (const y of [1.2, 2.6, 4.0, 5.4]) B.geo('trim', new T3.TorusGeometry(1.2, 0.07, 6, 18), 22, y, 22, Math.PI/2);
@@ -1217,7 +1235,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   for (const z of [4, 9]){ B.box('wall', [16.5, 0, z], [27.5, 0.95, z + 1.2]); }
   for (const [x, z] of [[17.5, 1.5], [21, 1.5], [24.5, 1.5], [27.8, 12.5]]){ B.cyl('dark', 0.55, 0.55, 0.3, x, 0, z, 12); B.cyl('tank', 0.45, 0.45, 2.0, x, 0.3, z, 12); B.cyl('dark', 0.55, 0.55, 0.15, x, 2.3, z, 12); }
   // NE crew quarters: bunks
-  for (let x=31;x<43;x+=3){ for (const y of [0.4, 1.6]) B.box('bunk', [x, y, 0.5], [x + 2.2, y + 0.3, 1.6]); B.box('dark', [x, 0, 0.5], [x + 0.1, 2.4, 1.6]); B.box('dark', [x + 2.1, 0, 0.5], [x + 2.2, 2.4, 1.6]); }
+  for (let x=31;x<43;x+=3){ for (const y of [0.4, 1.6]) B.box('bunk', [x + 0.1, y, 0.52], [x + 2.1, y + 0.3, 1.58]); B.box('dark', [x, 0, 0.5], [x + 0.1, 2.4, 1.6]); B.box('dark', [x + 2.1, 0, 0.5], [x + 2.2, 2.4, 1.6]); }
   for (let x=31;x<43;x+=1.2) B.box('trim', [x, 0, 13.2], [x + 1.0, 2.2, 14.2]);
   // W greenhouse
   for (const z of [17, 21, 25]) { B.box('pot', [2, 0, z], [12, 0.7, z + 1.6]); for (let x=2.6;x<12;x+=1.3){ B.geo('leaf', new T3.ConeGeometry(0.35, 1.1, 7), x, 1.2, z + 0.8); B.solids_(coneBoxes(x + 0, z + 0.8, 0.35, 0.65, 1.1)); } }
@@ -1330,7 +1348,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   }
   // the assembler
   const AS = [24, 31, 6, 14];
-  B.box('blue', [AS[0], 0, AS[2]], [AS[1], 4.2, 9.2]); B.box('blue', [AS[0], 0, 10.8], [AS[1], 4.2, AS[3]]); B.box('blue', [AS[0], 1.6, 9.2], [AS[1], 4.2, 10.8]); B.box('dark', [AS[0] + 0.5, 0, 9.2], [AS[1] - 0.5, 1.6, 10.8], {solid:false, skip:['x+','x-','y+','y-']}); B.box('yellow', [AS[0] - 0.02, 3.6, AS[2]], [AS[1] + 0.02, 4.2, AS[3]], {solid:false});
+  B.box('blue', [AS[0], 0, AS[2]], [AS[1], 4.2, 9.2]); B.box('blue', [AS[0], 0, 10.8], [AS[1], 4.2, AS[3]]); B.box('blue', [AS[0], 1.6, 9.2], [AS[1], 4.2, 10.8]); B.box('dark', [AS[0] + 0.5, 0, 9.2], [AS[1] - 0.5, 1.6, 10.8], {solid:false, skip:['x+','x-','y+','y-']}); B.box('yellow', [AS[0] - 0.02, 3.6, AS[2]], [AS[1] + 0.02, 4.17, AS[3]], {solid:false});
   B.box('dark', [AS[0] + 1.5, 0, 9.2], [AS[0] + 1.6, 1.6, 10.8], {solid:false}); B.box('dark', [AS[1] - 1.6, 0, 9.2], [AS[1] - 1.5, 1.6, 10.8], {solid:false});
   B.geo('sign', new T3.PlaneGeometry(4.4, 1.1), 27.5, 2.6, AS[2] - 0.02, 0, Math.PI, 0); B.geo('sign', new T3.PlaneGeometry(4.4, 1.1), 27.5, 2.6, AS[3] + 0.02, 0, 0, 0);
   for (const x of [25, 30]) B.cyl('steel', 0.4, 0.4, 1.5, x, 4.2, 10, 12);
@@ -1343,12 +1361,14 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   B.box('fire', [40.7, 0.01, 20.3], [43.3, 0.05, 23.7], {solid:false});
   // catwalk along the back wall with stairs up the west side
   const CY = 3.6;
-  B.box('grate', [0, CY - 0.12, 40], [44, CY, 44], {us:1}); for (let x=0;x<44;x+=2) B.box('steel', [x, CY, 39.95], [x + 0.06, CY + 1.05, 40.01], {solid:false}); B.box('yellow', [0, CY + 1.0, 39.95], [44, CY + 1.06, 40.05]);
-  B.solid([2, CY, 39.9], [44, CY + 1.06, 40.05]);
+  B.box('grate', [0, CY - 0.12, 40], [44, CY, 44], {us:1}); for (let x=0;x<44;x+=2) if (x !== 30 && x !== 32) B.box('steel', [x, CY, 39.95], [x + 0.06, CY + 1.05, 40.01], {solid:false}); for (const [a, b] of [[0, 30], [32, 44]]) B.box('yellow', [a, CY + 1.0, 39.95], [b, CY + 1.06, 40.05]);
+  B.solid([2, CY, 39.9], [30, CY + 1.06, 40.05]); B.solid([32, CY, 39.9], [44, CY + 1.06, 40.05]);
   for (let i=0;i<12;i++) B.box('steel', [0.4, 0, 28 + i], [2, (i + 1)*CY/12, 29 + i]);
   B.box('grate', [0.4, CY - 0.12, 39.9], [2, CY, 40]);
   // a second catwalk across the middle, over the crusher line, reached from the back one
   B.box('grate', [30, CY - 0.12, 17], [32, CY, 40], {us:1}); for (const x of [30, 32]) B.box('yellow', [x - 0.03, CY + 1.0, 17], [x + 0.03, CY + 1.06, 40]);
+  // the open end of the middle catwalk gets the rail instead (the back one now has a gap where they meet)
+  B.box('yellow', [30, CY + 1.0, 16.97], [32, CY + 1.06, 17.03]); for (const x of [30, 31, 31.94]) B.box('steel', [x, CY, 16.97], [x + 0.06, CY + 1.0, 17.03], {solid:false}); B.solid([30, CY, 16.9], [32, CY + 1.06, 17.03]);
   for (const z of [17, 27]) for (const x of [30.1, 31.8]) B.box('steel', [x, 0, z], [x + 0.1, CY - 0.12, z + 0.1]);
   // stuff: tanks, crates, barrels, shelves
   for (const [x, z] of [[4, 2], [8, 2], [12, 2]]){ B.cyl('steel', 1.3, 1.3, 4.5, x, 0, z + 0.3, 16); B.cyl('dark', 1.35, 1.35, 0.2, x, 4.5, z + 0.3, 16); }
@@ -1459,11 +1479,38 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const booksT = tex(128, 128, (g,w,h) => { g.fillStyle = '#2a1a10'; g.fillRect(0,0,w,h); for (let y=0;y<h;y+=32){ let x = 0; while (x < w){ const bw = 4 + R()*6; g.fillStyle = `hsl(${R()*360},${30+R()*30}%,${20+R()*20}%)`; g.fillRect(x, y + 4 + R()*6, bw - 1, 26 - R()*6); x += bw; } g.fillStyle = '#4a3020'; g.fillRect(0, y + 29, w, 3); } });
   const portT = canvasTex(128, 160, (g,w,h) => { g.fillStyle = '#c9a030'; g.fillRect(0,0,w,h); g.fillStyle = '#14101a'; g.fillRect(10,10,w-20,h-20); g.fillStyle = '#4a4a58'; g.fillRect(34, 40, 60, 50); g.fillRect(44, 90, 40, 50);
     g.fillStyle = '#ff2a1a'; g.fillRect(46, 56, 10, 8); g.fillRect(72, 56, 10, 8); g.fillStyle = '#222'; g.fillRect(50, 76, 28, 4); });
+  // old black-and-white paintings of robots (drawn from boxes, like the robots themselves)
+  const oldBotT = v => canvasTex(160, 200, (g, w, h) => {
+    const bg = g.createRadialGradient(w/2, h*0.4, 8, w/2, h/2, w*0.85); bg.addColorStop(0, '#9a9488'); bg.addColorStop(1, '#2a2722'); g.fillStyle = bg; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(0, h*0.72, w, h*0.28);                      // a floor line behind them
+    const bot = (cx, by, sc, hat, mono) => { const r = (c, x, y, ww, hh) => { g.fillStyle = c; g.fillRect(cx + x*sc, by + y*sc, ww*sc, hh*sc); }, o = (c, x, y, rr) => { g.fillStyle = c; g.beginPath(); g.arc(cx + x*sc, by + y*sc, rr*sc, 0, 7); g.fill(); };
+      r('#33312c', -42, -52, 84, 70); r('#4e4b44', -36, -46, 72, 12); r('#262420', -14, -30, 28, 20); for (let k=0;k<3;k++) o('#77736a', -8 + k*8, -20, 2.5);   // body, chest plate, dial panel
+      r('#3a3832', -54, -50, 12, 50); r('#3a3832', 42, -50, 12, 50);                    // arms
+      r('#262420', -7, -64, 14, 13);                                                     // neck
+      r('#6c685e', -30, -114, 60, 52); r('#57534b', -30, -114, 60, 7); r('#57534b', -30, -69, 60, 7);   // head
+      o('#4a4740', -32, -88, 5); o('#4a4740', 32, -88, 5);                               // ear bolts
+      for (const ex of [-13, 13]){ o('#2a2824', ex, -92, 9); o('#ece8dc', ex, -92, 6.5); o('#111', ex, -92, 2.6); }
+      if (mono){ g.strokeStyle = '#d8d0b0'; g.lineWidth = 2*sc; g.beginPath(); g.arc(cx + 13*sc, by - 92*sc, 10*sc, 0, 7); g.stroke(); r('#d8d0b0', 22, -90, 1.5, 26); }
+      r('#2a2824', -15, -80, 30, 6); for (let k=0;k<5;k++) r('#6c685e', -13 + k*6, -79, 2, 4);   // mouth grille
+      if (hat){ r('#141310', -36, -120, 72, 7); r('#141310', -24, -158, 48, 40); r('#3a3530', -24, -128, 48, 5); }
+      else { r('#33312c', -2, -134, 4, 20); o('#d8d4c8', 0, -137, 5); } };
+    if (v === 0) bot(80, 205, 1.05, false, false);
+    else if (v === 1){ bot(52, 200, 0.72, true, false); bot(118, 200, 0.5, false, false); }
+    else bot(80, 210, 0.95, true, true);
+    noiseFill(g, w, h, 1400, 'rgba(20,16,10,A)', 0.25, 2); noiseFill(g, w, h, 500, 'rgba(230,220,200,A)', 0.12, 1);
+    g.strokeStyle = 'rgba(10,8,6,.22)'; g.lineWidth = 1; for (let k=0;k<26;k++){ let x = R()*w, y = R()*h; g.beginPath(); g.moveTo(x, y); for (let j=0;j<4;j++){ x += (R()-0.5)*30; y += (R()-0.5)*30; g.lineTo(x, y); } g.stroke(); }   // cracked old paint
+    const vg = g.createRadialGradient(w/2, h/2, w*0.3, w/2, h/2, w*0.8); vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.6)'); g.fillStyle = vg; g.fillRect(0, 0, w, h); });
+  const paintT = [0, 1, 2].map(oldBotT);
   const defMats = (BB) => BB.mat('paper', lam(0xffffff, {map:paperT, vertexColors:true})).mat('floor', lam(0xffffff, {map:floorT, vertexColors:true})).mat('grass', lam(0xffffff, {map:grassT, vertexColors:true}))
     .mat('stone', lam(0xffffff, {map:stoneT, vertexColors:true})).mat('books', lam(0xffffff, {map:booksT, vertexColors:true})).mat('wood', lam(0x4a2e1c, {vertexColors:true})).mat('trim', lam(0x6b4a2b, {vertexColors:true}))
     .mat('gold', lam(0xc9a030, {vertexColors:true})).mat('dark', lam(0x15121a, {vertexColors:true})).mat('red', lam(0x6a1a1e, {vertexColors:true})).mat('sheet', lam(0xd8d4cc, {vertexColors:true})).mat('iron', lam(0x2a2a30, {vertexColors:true}))
     .mat('tree', lam(0x3a2e26, {vertexColors:true})).mat('wax', lam(0xf0e8d0, {vertexColors:true})).mat('port', new T3.MeshBasicMaterial({map:portT, color:0x6a6a6a})).mat('ceil', lam(0x2a2030, {vertexColors:true}));
+  for (let i=0;i<3;i++) B.mat('paint' + i, new T3.MeshBasicMaterial({map:paintT[i], color:0xa8a298}));
   defMats(B);
+  // a painting: gold frame on the wall, picture just in front. ry 0 faces +z, PI/2 faces +x
+  const painting = (v, x, y, z, w, h, ry) => { const ax = Math.abs(Math.sin(ry)) > 0.5, fw = 0.09, t = 0.04;
+    if (ax) B.box('gold', [x - t, y - h/2 - fw, z - w/2 - fw], [x, y + h/2 + fw, z + w/2 + fw], {solid:false}); else B.box('gold', [x - w/2 - fw, y - h/2 - fw, z - t], [x + w/2 + fw, y + h/2 + fw, z], {solid:false});
+    B.geo('paint' + v, new T3.PlaneGeometry(w, h), ax ? x + 0.004 : x, y, ax ? z : z + 0.004, 0, ry, 0); };
   const HT = 5, T = 0.3, ZM = 43.6, candles = [];
   // the back rooms (bedroom, ballroom): built twice, once for real and once behind the mirrors
   const backRooms = (BB, real) => {
@@ -1478,8 +1525,25 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     BB.box('wood', [7.8, 0, 39.6], [8.6, 0.6, 40.4]); BB.box('red', [5, 0.002, 32], [11, 0.01, 35], {solid:false});
     // ballroom: columns, piano, chairs, chandelier
     for (const [x, z] of [[18, 31], [38, 31], [18, 41.6], [38, 41.6]]){ BB.cyl('stone', 0.35, 0.35, HT, x, 0, z, 14); BB.cyl('gold', 0.45, 0.45, 0.3, x, 0, z, 14); }
-    BB.box('dark', [34.5, 0.6, 30], [38, 1.1, 32]); for (const [x, z] of [[34.7, 30.2], [37.8, 30.2], [34.7, 31.8], [37.8, 31.8]]) BB.box('dark', [x - 0.08, 0, z - 0.08], [x + 0.08, 0.6, z + 0.08]);
-    BB.box('sheet', [34.6, 1.0, 31.95], [37.9, 1.06, 32.15], {solid:false}); BB.box('dark', [35.6, 0, 32.6], [36.8, 0.45, 33.0]);
+    // grand piano: the keyboard faces +z (you sit on the bench at z 33 looking -z), the curved tail runs back to z 29.7
+    { const out = [[0, 0], [1.7, 0], [1.7, -0.8], [1.45, -1.25], [0.95, -1.65], [0.6, -2.05], [0.3, -2.2], [0.06, -2.14], [0, -1.95]];   // (x from 35.4, z from 31.9)
+      const shp = (inset) => { const sh = new T3.Shape(), cx = 0.85, cz = -1.0; out.forEach(([x, z], i) => { const px = cx + (x - cx)*(1 - inset), pz = cz + (z - cz)*(1 - inset); i ? sh.lineTo(px, pz) : sh.moveTo(px, pz); }); sh.closePath(); return sh; };
+      const slab = (inset, d, hole) => { const sh = shp(inset); if (hole != null){ const hp = new T3.Path(shp(hole).getPoints().reverse()); sh.holes.push(hp); } const g = new T3.ExtrudeGeometry(sh, {depth:d, bevelEnabled:false}); g.rotateX(Math.PI/2); return g; };
+      BB.geo('dark', slab(0, 0.3, 0.05), 35.4, 1.02, 31.9);                       // the rim
+      BB.geo('dark', slab(0, 0.04, null), 35.4, 0.76, 31.9);                     // underside
+      BB.geo('trim', slab(0.06, 0.02, null), 35.4, 0.9, 31.9);                   // soundboard
+      BB.geo('gold', slab(0.14, 0.03, 0.3), 35.4, 0.95, 31.9);                   // the iron frame
+      for (let k=0;k<14;k++){ const x = 35.55 + k*0.1, L = 0.75 + 1.2*Math.max(0, 1 - k/14); BB.box('sheet', [x, 0.93, 31.85 - L], [x + 0.008, 0.94, 31.85], {solid:false}); }   // strings
+      const lid = new T3.ExtrudeGeometry(shp(0), {depth:0.025, bevelEnabled:false}); lid.rotateX(Math.PI/2); BB.geo('dark', lid, 35.4, 1.045, 31.9, 0, 0, 0.55);   // the lid, propped open
+      BB.box('iron', [36.75, 1.02, 31.2], [36.78, 1.86, 31.23], {solid:false});    // the prop stick
+      BB.solids_([[[35.4, 0.72, 30.1], [37.1, 1.02, 31.9]], [[35.4, 0.72, 29.7], [36.3, 1.02, 30.1]]]);
+      for (const [x, z] of [[35.55, 31.75], [36.95, 31.75], [35.75, 29.95]]){ BB.cyl('dark', 0.08, 0.06, 0.72, x, 0, z, 10); BB.cyl('gold', 0.085, 0.085, 0.05, x, 0, z, 10); }
+      BB.box('dark', [36.2, 0.1, 31.65], [36.3, 0.72, 31.75]); for (const dx of [-0.09, 0, 0.09]) BB.box('gold', [36.23 + dx, 0.06, 31.75], [36.27 + dx, 0.08, 31.9], {solid:false});   // lyre and pedals
+      BB.box('dark', [35.4, 0.62, 31.9], [37.1, 0.72, 32.25]); for (const x of [35.4, 36.97]) BB.box('dark', [x, 0.72, 31.9], [x + 0.13, 0.86, 32.25]);   // key bed and cheeks
+      BB.box('dark', [35.53, 0.72, 31.82], [36.97, 0.9, 31.92]); BB.box('gold', [35.53, 0.78, 31.92], [36.97, 0.8, 31.925], {solid:false});   // fallboard
+      BB.geo('dark', new T3.BoxGeometry(0.9, 0.34, 0.02), 36.25, 1.2, 31.72, -0.28); BB.geo('sheet', new T3.BoxGeometry(0.4, 0.27, 0.004), 36.04, 1.2, 31.745, -0.28); BB.geo('sheet', new T3.BoxGeometry(0.4, 0.27, 0.004), 36.46, 1.2, 31.745, -0.28);   // music stand and music
+      if (!real){ BB.box('sheet', [35.55, 0.72, 31.95], [36.95, 0.77, 32.2], {solid:false}); for (let k=1;k<15;k++) if (![3, 7, 10, 14].includes(k)) BB.box('dark', [35.55 + k*0.0933 - 0.026, 0.77, 31.95], [35.55 + k*0.0933 + 0.026, 0.8, 32.1], {solid:false}); }
+      BB.box('dark', [35.65, 0, 32.6], [36.85, 0.42, 33.0]); BB.box('red', [35.65, 0.42, 32.6], [36.85, 0.48, 33.0]); }
     for (let x=19;x<34;x+=2.2) for (const z of [30.0, 42.6]){ BB.box('red', [x, 0.4, z - 0.25], [x + 0.6, 0.48, z + 0.25]); BB.box('wood', [x, 0, z - 0.25], [x + 0.06, 0.4, z + 0.25]); BB.box('wood', [x + 0.54, 0, z - 0.25], [x + 0.6, 0.4, z + 0.25]); BB.box('wood', [x, 0.48, z > 40 ? z + 0.19 : z - 0.25], [x + 0.6, 1.1, z > 40 ? z + 0.25 : z - 0.19]); }
     BB.geo('gold', new T3.TorusGeometry(1.0, 0.05, 6, 18), 28, 3.8, 36.3, Math.PI/2, 0, 0); BB.box('iron', [27.98, 3.8, 36.28], [28.02, HT, 36.32], {solid:false});
     // candles (stands)
@@ -1507,7 +1571,13 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   // library: shelves, armchairs, fireplace
   for (const z of [14.1, 25.6]) B.box('books', [4.2, 0, z === 14.1 ? 14.1 : 25.25], [15.8, 2.6, z === 14.1 ? 14.55 : 25.85], {us:1.2});
   B.box('books', [15.3, 0, 14.6], [15.8, 2.6, 18.6], {us:1.2}); B.box('books', [15.3, 0, 21.4], [15.8, 2.6, 25.2], {us:1.2});
-  B.box('stone', [4, 0, 18], [4.9, 1.6, 21]); B.box('dark', [4.2, 0.1, 18.6], [4.95, 1.1, 20.4], {solid:false}); B.box('stone', [4, 1.6, 17.8], [5.1, 1.75, 21.2]); B.box('port', [4.02, 2.0, 18.8], [4.04, 3.4, 20.2], {solid:false});
+  // fireplace: an open firebox (sooty inside) with logs on an iron grate, a hearth slab, a mantel, and a painting over it
+  B.box('stone', [4, 0, 18], [4.3, 1.6, 21]); B.box('stone', [4.3, 0, 18], [4.9, 1.6, 18.6]); B.box('stone', [4.3, 0, 20.4], [4.9, 1.6, 21]); B.box('stone', [4.3, 1.1, 18.6], [4.9, 1.6, 20.4]);
+  B.box('dark', [4.3, 0.04, 18.6], [4.34, 1.1, 20.4], {solid:false}); B.box('dark', [4.34, 1.06, 18.6], [4.9, 1.1, 20.4], {solid:false}); for (const z of [18.6, 20.36]) B.box('dark', [4.34, 0.04, z], [4.9, 1.06, z + 0.04], {solid:false});
+  B.box('stone', [4.3, 0, 17.8], [5.6, 0.07, 21.2]); B.box('dark', [4.34, 0.07, 18.64], [4.86, 0.08, 20.36], {solid:false});
+  for (const z of [18.9, 20.1]) B.box('iron', [4.45, 0.08, z - 0.03], [4.85, 0.12, z + 0.03], {solid:false}); for (const x of [4.5, 4.8]) B.box('iron', [x - 0.02, 0.12, 18.85], [x + 0.02, 0.15, 20.15], {solid:false});
+  for (const [x, y, ry] of [[4.55, 0.22, 0.12], [4.75, 0.22, -0.1], [4.64, 0.34, 0.02]]) B.geo('trim', new T3.CylinderGeometry(0.075, 0.075, 1.15, 8), x, y, 19.5, Math.PI/2, ry, 0);
+  B.box('stone', [4, 1.6, 17.8], [5.1, 1.75, 21.2]); B.box('iron', [5.0, 0.07, 20.9], [5.05, 0.9, 20.95], {solid:false}); painting(2, 4.04, 2.85, 19.5, 1.25, 1.55, Math.PI/2);
   for (const z of [17, 22]){ B.box('red', [7, 0, z], [8, 0.45, z + 1]); B.box('red', [7, 0.45, z], [7.2, 1.1, z + 1]); B.box('red', [7.2, 0.45, z], [8, 0.7, z + 0.15]); B.box('red', [7.2, 0.45, z + 0.85], [8, 0.7, z + 1]); }
   // dining room: long table, chairs, candelabras
   B.box('wood', [30, 0.75, 19.2], [38, 0.82, 20.8]); for (const [x, z] of [[30.2, 19.4], [37.8, 19.4], [30.2, 20.6], [37.8, 20.6]]) B.box('wood', [x - 0.06, 0, z - 0.06], [x + 0.06, 0.75, z + 0.06]);
@@ -1518,7 +1588,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   B.box('iron', [17, 0, 24.6], [17.8, 0.3, 25.4]); B.box('iron', [17.15, 0.3, 24.75], [17.65, 1.3, 25.25]); B.box('iron', [17.2, 1.3, 24.8], [17.6, 1.7, 25.2]);
   B.box('wood', [26.6, 0, 24.9], [27.6, 2.4, 25.6]); B.box('gold', [26.85, 1.7, 24.88], [27.35, 2.2, 24.9], {solid:false});
   // hallway portraits
-  for (let x=5.5;x<39;x+=5) if (Math.abs(x - 10) > 1.2 && Math.abs(x - 22) > 1.2 && Math.abs(x - 34) > 1.2) B.box('port', [x - 0.5, 1.4, 26.16], [x + 0.5, 2.7, 26.18], {solid:false});
+  for (let x=5.5;x<39;x+=5) if (Math.abs(x - 10) > 1.2 && Math.abs(x - 22) > 1.2 && Math.abs(x - 34) > 1.2) painting(Math.round(x) % 2, x, 2.05, 26.19, 0.9, 1.15, 0);
   for (const [x, z] of [[12, 27.5], [32, 27.5]]){ B.cyl('wax', 0.04, 0.04, 0.2, x, 1.4, z, 6); B.box('iron', [x - 0.12, 1.3, z - 0.12], [x + 0.12, 1.4, z + 0.12], {solid:false}); B.box('iron', [x - 0.04, 0, z - 0.04], [x + 0.04, 1.3, z + 0.04]); candles.push([x, 1.66, z]); }
   // the grounds: dead grass, a graveyard, dead trees, an iron fence
   B.box('grass', [-1, -1, -1], [45, -0.02, 45], {us:3});
@@ -1532,12 +1602,13 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     for (let k=0;k<4;k++){ const a = k*1.7 + x, L = 1.4 + mr(); B.geo('tree', new T3.CylinderGeometry(0.04, 0.08, L, 5), x + Math.cos(a)*L*0.4, 3 + k*0.4, z + Math.sin(a)*L*0.4, Math.sin(a)*0.9, 0, -Math.cos(a)*0.9); } }
   for (const x of [19, 25]){ B.box('iron', [x - 0.06, 0, 1.2 - 0.06], [x + 0.06, 2.2, 1.2 + 0.06]); B.box('iron', [x - 0.15, 2.2, 1.05], [x + 0.15, 2.5, 1.35]); candles.push([x, 2.36, 1.2]); }
   for (const [k, x, y, z] of [['book', 10, 0, 16], ['book', 12, 0, 23], ['pillow', 6, 0.65, 38], ['mug', 34, 0.82, 19.6], ['bottle', 31, 0.82, 20.4], ['orange', 20, 0, 3], ['orange', 26, 0, 6],
-    ['block', 25, 0, 35], ['ball', 31, 0, 39], ['book', 36, 1.1, 31], ['block', 9, 0, 33], ['bottle', 14, 0, 28], ['pillow', 8, 0, 20], ['mug', 37, 0.82, 20.3]]) B.prop(k, x, y, z);
+    ['block', 25, 0, 35], ['ball', 31, 0, 39], ['book', 35.8, 1.05, 30.6], ['block', 9, 0, 33], ['bottle', 14, 0, 28], ['pillow', 8, 0, 20], ['mug', 37, 0.82, 20.3]]) B.prop(k, x, y, z);
   const fireAt = [new V(4.55 + O.x, 0.3, 19.5 + O.z)];
   const light = (x, y, z) => { x -= O.x; z -= O.z; const out = z < 13.9 || x < 3.7 || x > 40.3; let r = out ? 0.3 : 0.16, g = out ? 0.33 : 0.14, b = out ? 0.48 : 0.2;
     for (const [lx, ly, lz] of candles){ const d = Math.hypot(x - lx, y - ly, z - lz), k = 1.4*Math.exp(-d/1.9); r += k; g += k*0.7; b += k*0.35; }
     const f = Math.hypot(x - 4.6, y - 0.5, z - 19.5), k = 2.2*Math.exp(-f/2.2); r += k; g += k*0.5; b += k*0.15; return [r, g, b]; };
   const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0]);
+  const piano = pianoKeys(grp, O, {x0:35.55, x1:36.95, z0:31.95, z1:32.2, y:0.72}, -1, 'mansion');
   // behind the mirrors: the same back rooms reflected, with your reflection and the ghosts in them
   const mh = new T3.Group(); mh.scale.z = -1; mh.position.z = 2*(ZM + O.z); grp.add(mh);
   const MB = mapBuilder(O, 'mansionM', true); defMats(MB); backRooms(MB, false); MB.finish(light, mh);
@@ -1573,8 +1644,9 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
         if (peerAv[id]){ showAv(peerAv[id], !!on); if (on){ peerAv[id].lost = p.lost; poseAvatar(peerAv[id], p.P); if (!!peerAv[id].isCute !== (impCute(id) || p.sk === 'cute')) setSkin(peerAv[id], impCute(id) || p.sk === 'cute', 0x3aa0ff); } }
       }
     },
-    leave(){ applySky(DARK); },
+    leave(){ applySky(DARK); }, onEv(ev){ if (ev.k === 'note') piano.play(ev.i); },
     update(dt, inGame){
+      piano.update(dt, inGame);
       for (const f of flames){ const k = 0.8 + R()*0.45; f.scale.set(k, 0.8 + R()*0.6, k); }
       if (R() < 0.6) emitFire(fireAt[0].clone().add(new V((R()-0.5)*0.15, 0, (R()-0.5)*0.9)), new V((R()-0.5)*0.2, 0.7 + R()*0.5, (R()-0.5)*0.2), 0.08 + R()*0.06, 0.5 + R()*0.3);
       // lightning
@@ -1656,9 +1728,13 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     column('rock', r*1.3, r*0.85, h, x, z, 18); B.meshSolid('ledge', rockGeo(r*2.4, 0.5, r*2.4, x*5 + z*3), x, h - 0.1, z, 0.25); }
   // rubble
   for (let k=0;k<26;k++){ const a = mr()*6.3, rr = 5 + mr()*13, x = CX + Math.cos(a)*rr, z = CZ + Math.sin(a)*rr, s = 0.25 + mr()*0.45; B.meshSolid('rock', rockGeo(s*2, s*1.1, s*2, x*7 + z), x, s*0.55, z, 0.2); }
+  // lava vents in the floor: every so often they spit lava
+  const vents = [[20, 24.6], [31.6, 17.2], [14.4, 24.6], [26, 10], [9.5, 27]];
+  for (const [x, z] of vents){ B.geo('glow', new T3.CircleGeometry(0.42, 14), x, 0.012, z, -Math.PI/2); B.geo('dark', new T3.TorusGeometry(0.55, 0.14, 6, 14), x, 0.04, z, Math.PI/2); }
   for (const [k, x, z] of [['rock', 20, 14], ['rock', 25, 28], ['crystal', 18, 25], ['crystal', 30, 18], ['stick', 15, 20], ['cone', 26, 22], ['rock', 12, 18], ['barrel', 23, 12]]) B.prop(k, x, 0, z);
   const light = (x, y, z) => { x -= O.x; z -= O.z; let r = 0.85 + 0.5*Math.exp(-y/5), g = 0.62 + 0.2*Math.exp(-y/6), b = 0.52; r += 0.3*(y/TOP); g += 0.3*(y/TOP); b += 0.3*(y/TOP); return [r, g, b]; };
-  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0]);
+  // robots only walk (and spawn) inside the crater, never in the gap behind its wall
+  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0], (x, z) => { const dx = x - CX - O.x, dz = z - CZ - O.z; return Math.hypot(dx, dz) < wallR(Math.atan2(dz, dx), 0.5) - 0.8; });
   // the lava: a glowing disc that rises and falls (always there, just under the floor when it's calm)
   const lavaC = document.createElement('canvas'); lavaC.width = lavaC.height = 128; const lg = lavaC.getContext('2d');
   lg.fillStyle = '#d0380a'; lg.fillRect(0,0,128,128); for (let k=0;k<40;k++){ const x = R()*128, y = R()*128, r = 10 + R()*22, gr = lg.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,220,90,0.8)'); gr.addColorStop(1, 'rgba(255,120,20,0)'); lg.fillStyle = gr; for (const dx of [-128, 0, 128]) for (const dy of [-128, 0, 128]) lg.fillRect(x - r + dx, y - r + dy, r*2, r*2); }
@@ -1667,15 +1743,89 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   // rock rafts: they sit on the floor, and float up on the lava when it rises
   const rafts = [[19, 17, 2.6, 2.2], [26, 25, 2.4, 2.6], [17, 26, 2.2, 2.2], [28, 18, 2.4, 2.0], [22, 13, 2.0, 2.4], [24, 30, 2.6, 2.0], [11, 17, 2.0, 2.0], [33, 25, 2.2, 2.2]].map(([x, z, w, d], i) => {
     const mesh = new T3.Mesh(rockGeo(w, 0.6, d, i*13 + 7), new T3.MeshLambertMaterial({map:rockT, color:0x6a4a40, emissive:0x1a0804})); mesh.position.set(x + O.x, 0.3, z + O.z); grp.add(mesh);
-    return {mesh, box:dynBox(), x:x + O.x, z:z + O.z, w, d, ph:i*1.7, y:0.3}; });
+    return {mesh, box:dynBox(), x:x + O.x, z:z + O.z, w, d, ph:i*1.7, y:0.3, riders:new Set()}; });
   const P = 100, CALM = 55, RUMBLE = 6, RISE = 15, HOLD = 14;
   const levelAt = ph => ph < CALM + RUMBLE ? -0.5 : ph < CALM + RUMBLE + RISE ? -0.5 + (LAVA_TOP + 0.5)*((ph - CALM - RUMBLE)/RISE) : ph < CALM + RUMBLE + RISE + HOLD ? LAVA_TOP : -0.5 + (LAVA_TOP + 0.5)*Math.max(0, 1 - (ph - CALM - RUMBLE - RISE - HOLD)/(P - CALM - RUMBLE - RISE - HOLD));
   let warned = false, rumbleT = 0, bubbleT = 0;
   const inCrater = p => Math.hypot(p.x - CX - O.x, p.z - CZ - O.z) < RC + 1;
+  // ---- lava spurts: a blob fountain out of a vent (when it's calm) or out of the lava (when it's up). Timed off the
+  // clock with a seeded random, so everyone sees the same spurts.
+  const SL = 2.3, GV = 9.8, hsh = (n, k) => { const x = Math.sin(n*12.9898 + k*78.233)*43758.5453; return x - Math.floor(x); };
+  const blobMat = new T3.MeshBasicMaterial({color:0xff8a28, fog:false}), blobGeo = new T3.IcosahedronGeometry(0.1, 0), blobs = [];
+  for (let i=0;i<40;i++){ const m = new T3.Mesh(blobGeo, blobMat); m.visible = false; grp.add(m); blobs.push(m); }
+  const spurtOf = slot => { const t0 = slot*SL + hsh(slot, 1)*0.8, lv = levelAt(((t0 % P) + P) % P); let x, z, y;
+    if (lv > 0.2){ const a = hsh(slot, 2)*6.283, rr = 3 + hsh(slot, 3)*(RC - 6); x = CX + Math.cos(a)*rr; z = CZ + Math.sin(a)*rr; y = lv; }
+    else if (lv < -0.3 && hsh(slot, 4) < 0.55){ [x, z] = vents[Math.floor(hsh(slot, 5)*vents.length)]; y = 0.02; } else return null;
+    const n = 9 + Math.floor(hsh(slot, 6)*5), up = 4.5 + hsh(slot, 7)*3, bl = [];
+    for (let k=0;k<n;k++){ const a = hsh(slot, 10 + k)*6.283, sp = 0.3 + hsh(slot, 30 + k)*1.1; bl.push([Math.cos(a)*sp, up*(0.7 + hsh(slot, 50 + k)*0.4), Math.sin(a)*sp]); }
+    return {t0, p:new V(x + O.x, y, z + O.z), bl}; };
+  let lastSpurt = -1;
+  const spurts = (dt, inGame) => {
+    const now = Date.now()/1000, cur = Math.floor(now/SL), live = []; let bi = 0;
+    for (let sl = cur - 1; sl <= cur; sl++){ const sp = spurtOf(sl); if (!sp) continue; const t = now - sp.t0; if (t < 0) continue;
+      if (sl !== lastSpurt && t < 0.5 && sl === cur){ lastSpurt = sl; const d = sp.p.distanceTo(lastPlayer); if (d < 22){ if (AC) noiseHit(0.5/(1 + d*0.2), 260, 0.35, 0.4); emitFire(sp.p.clone(), new V(0, 2.5, 0), 0.3, 0.7); } }
+      for (const [vx, vy, vz] of sp.bl){ const y = sp.p.y + vy*t - 0.5*GV*t*t; if (y < sp.p.y - 0.05 || bi >= blobs.length) continue;
+        const m = blobs[bi++]; m.visible = true; m.position.set(sp.p.x + vx*t, y, sp.p.z + vz*t); m.rotation.set(t*7, t*5, 0); live.push(m.position); } }
+    for (let i=bi;i<blobs.length;i++) blobs[i].visible = false;
+    if (!inGame || !live.length) return;
+    const head = loco.headPos(), body = head.clone().setY(head.y - 0.5);
+    if (live.some(b => b.distanceTo(head) < 0.32 || b.distanceTo(body) < 0.42 || [0, 1].some(i => !me.lost[i] && b.distanceTo(handW[i]) < 0.22))) igniteMe('torso', 'a lava spurt', 3);
+    for (const p of parts){ if (p.parent || p.obj.userData.dead || !mine(p) || p.mode === 'held' || p.fire) continue; const c = centerW(p);
+      if (live.some(b => b.distanceTo(c) < p.r + 0.12)){ if (p.name === 'mine') mineTrigger(p); else ignitePart(p); } } };
+  // ---- robots: when it rumbles they run for the rafts and hop on (some trip and don't make it), ride the lava up,
+  // and hop back off once it has drained away
+  const botCtl = (bot, dt) => {
+    const ph = (Date.now()/1000) % P, lv = levelAt(ph), root = bot.root, pos = root.obj.position, sk = root.szK || 1;
+    const alarm = ph > CALM && ph < CALM + RUMBLE + RISE;
+    let v = bot.vk;
+    if (!v){ if (!alarm || pos.y > NAV.lv[0] + STAND*sk + 0.4) return false; v = bot.vk = {s:'run', r:null, t:0, last:clock, path:null, pi:0}; }
+    if (clock - v.last > 0.3 && v.s !== 'gaveup' && v.s !== 'run') v.s = 'gaveup';          // got grabbed or knocked off: no second try
+    v.last = clock; v.t += dt;
+    const legs = bot.legs.filter(l => l.parent === root).length;
+    const anim = (run, up) => { const a = bot.t*11*Math.max(0.3, run); bot.legs.forEach((l, j) => { if (l.parent === root) l.obj.rotation.x = (j ? -1 : 1)*Math.sin(a)*0.8*Math.min(1, run); });
+      bot.ups.forEach((u, j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(up ? 2.6 + Math.sin(a*1.3 + j)*0.5 : 0.3 + Math.sin(a)*0.2); }); };
+    const face = (to) => { const want = Math.atan2(to.x, to.z), e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ'); let d = want - e.y; d = Math.atan2(Math.sin(d), Math.cos(d)); root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y + d*Math.min(1, dt*10), 0)); };
+    const land = (c) => { bot.cell = c; bot.target = cellPos(...c); bot.prev = null; };
+    const quit = () => { if (v.r) v.r.riders.delete(bot); bot.vk = null; const c = reachableCell(pos) || cellOf(pos); land(c); return false; };
+    if (v.s === 'gaveup'){ if (v.r) v.r.riders.delete(bot); v.r = null; if (!alarm && lv < -0.3) bot.vk = null; return false; }
+    if (v.s === 'run'){
+      if (!alarm || legs === 0){ if (legs === 0) v.s = 'gaveup'; else return quit(); return false; }
+      if (!v.r){ let best = null, bd = 1e9; for (const r of rafts){ const d = Math.hypot(r.x - pos.x, r.z - pos.z) + (r.riders.size >= 3 ? 30 : 0); if (d < bd){ bd = d; best = r; } }
+        v.r = best; best.riders.add(bot); setFace(bot, 'scared'); bot.faceT = 30; if (R() < 0.6) say(bot, pick(['RUN!!','lava lava lava','to the rocks!','not today, lava','EVERYBODY ON THE ROCKS','hot hot hot'])); }
+      const r = v.r, dr = Math.hypot(r.x - pos.x, r.z - pos.z);
+      if (dr < Math.max(r.w, r.d)/2 + 0.8){                      // close enough: jump on
+        v.s = 'hop'; v.t = 0; v.from = pos.clone(); v.ox = (R() - 0.5)*(r.w - 0.9); v.oz = (R() - 0.5)*(r.d - 0.9); v.trip = R() < 0.2; return true; }
+      if (!v.path || v.pi >= v.path.length){ const goal = reachableCell(new V(r.x, NAV.lv[0], r.z)) || cellOf(new V(r.x, 0, r.z)); v.path = navPath(bot.cell || cellOf(pos), goal) || []; v.pi = 0; }
+      const wp = v.pi < v.path.length ? cellPos(...v.path[v.pi]) : new V(r.x, 0, r.z), to = wp.sub(pos); to.y = 0;
+      const spd = bot.speed*1.9*(legs === 2 ? 1 : 0.55)*Math.sqrt(sk)*dt;
+      if (to.length() < spd + 0.05 && v.pi < v.path.length){ bot.cell = v.path[v.pi]; v.pi++; } else { pos.addScaledVector(to.normalize(), Math.min(to.length(), spd)); face(to); }
+      pos.y = NAV.lv[0] + STAND*sk + Math.abs(Math.sin(bot.t*13))*0.1*sk; anim(1.3, true); bot.target = pos.clone(); return true;
+    }
+    if (v.s === 'hop' || v.s === 'off'){
+      const r = v.r, k = Math.min(1, v.t/0.55), to = v.s === 'hop' ? new V(r.x + v.ox, r.y + 0.3 + STAND*sk, r.z + v.oz) : v.to;
+      if (v.s === 'hop' && v.trip && v.t > 0.12){                // tripped: falls flat, short of the raft
+        const dir = to.clone().sub(pos); dir.y = 0; dir.normalize(); root.mode = 'free'; root.asleep = false; root.v.copy(dir).multiplyScalar(1.1).add(new V(0, 1.2, 0)); root.w.set(4 + R()*3, R() - 0.5, R() - 0.5);
+        say(bot, pick(['whoa-','NOOO','my foot!','tell my toaster I love it'])); v.s = 'gaveup'; r.riders.delete(bot); return true; }
+      pos.lerpVectors(v.from, to, k); pos.y += Math.sin(k*Math.PI)*0.9; face(to.clone().sub(v.from)); anim(0.6, true);
+      if (k >= 1){ if (v.s === 'hop'){ v.s = 'ride'; v.t = 0; } else { land(v.cell); bot.vk = null; setFace(bot, 'happy'); bot.faceT = 2; if (R() < 0.5) say(bot, pick(['phew','made it','that was fun actually','again! again!'])); } }
+      return true;
+    }
+    if (v.s === 'ride'){
+      const r = v.r; pos.set(r.x + v.ox, r.y + 0.3 + STAND*sk, r.z + v.oz); anim(0.15, lv > 0.3);
+      if (lv > 0.3 && R() < dt*0.05) say(bot, pick(['this is fine','I can see my house','hold on!','is it getting hot in here']));
+      if (lv < -0.35 && !alarm){                                  // drained: hop off onto the floor
+        const out = new V(pos.x - CX - O.x, 0, pos.z - CZ - O.z).normalize().multiplyScalar(1.8 + Math.max(r.w, r.d)/2), c = reachableCell(new V(r.x + out.x, NAV.lv[0], r.z + out.z)) || reachableCell(new V(r.x - out.x, NAV.lv[0], r.z - out.z));
+        if (!c){ v.s = 'gaveup'; return false; }
+        v.s = 'off'; v.t = 0; v.from = pos.clone(); v.cell = c; v.to = cellPos(...c); v.to.y = NAV.lv[0] + STAND*sk; r.riders.delete(bot); }
+      return true;
+    }
+    return false;
+  };
   const top = ledges[15], tr = RC - top[3]*0.5 + 0.2, spawnP = new V(CX + Math.cos(top[0])*tr, top[1] + 0.05, CZ + Math.sin(top[0])*tr);
   MAPS.volcano = {name:'VOLCANO', group:grp, spawn:spawnP.add(O), yaw:Math.atan2(-(CX - (spawnP.x - O.x)), -(CZ - (spawnP.z - O.z))), nav, yMin:-5, yMax:45, props:B.props, level:() => lava.position.y,
-    sky:{bg:0x2a1410, fog:0x3a1a12, near:18, far:70, hs:0xffc8a0, hg:0x502010, hi:0.9, ac:0xffd8c0, ai:0.3},
+    sky:{bg:0x2a1410, fog:0x3a1a12, near:18, far:70, hs:0xffc8a0, hg:0x502010, hi:0.9, ac:0xffd8c0, ai:0.3}, botCtl,
     update(dt, inGame){
+      spurts(dt, inGame);
       const ph = (Date.now()/1000) % P, lv = levelAt(ph), shaking = ph > CALM && ph < CALM + RUMBLE + RISE*0.4;
       lava.position.y = lv;
       for (const r of rafts){ const want = Math.max(0.3, lv + 0.18 + Math.sin(Date.now()/900 + r.ph)*(lv > 0.3 ? 0.06 : 0)); r.y += (want - r.y)*Math.min(1, dt*3);
@@ -1725,7 +1875,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   // walls with tall windows at every level (the low sills stop you falling out, mostly)
   const wins = y => [[13, 15, y + 1.2, y + 5], [21, 23, y + 1.2, y + 5], [29, 31, y + 1.2, y + 5]];
   const holes = (lvls, extra) => lvls.flatMap(wins).concat(extra || []);
-  B.wallRun(['stone'], 'x', X0 - T, X1 + T, Z0 - T, Z0, 0, HT, holes([0, L1, L2]).concat([[20, 24, 0, 3.2]]), 3);       // north (door on the ground floor)
+  B.wallRun(['stone'], 'x', X0 - T, X1 + T, Z0 - T, Z0, 0, HT, holes([0, L1, L2]).filter(h => !(h[0] === 21 && h[2] < 2)).concat([[20, 24, 0, 3.2]]), 3);       // north (door on the ground floor)
   B.wallRun(['stone'], 'x', X0 - T, X1 + T, Z1, Z1 + T, 0, HT, holes([L3]), 3);                                     // south: the gear wall
   B.wallRun(['stone'], 'z', Z0, Z1, X0 - T, X0, 0, HT, holes([0, L1, L2, L3]), 3);
   B.wallRun(['stone'], 'z', Z0, Z1, X1, X1 + T, 0, HT, holes([0, L1, L2, L3]), 3);
@@ -1860,7 +2010,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
       for (const s of spins) s.g.rotation.y += s.w*spdK*dt;
       for (const c of cogs) c.m.rotation.z += c.w*spdK*dt;
       // the lift
-      liftPrev = liftY; liftY = liftAt((Date.now()/1000) % LP); liftM.position.set(LX, liftY - 0.1, LZ); setDyn(liftBox, LX - 1.4, liftY - 0.2, LZ - 1.4, LX + 1.4, liftY, LZ + 1.4);
+      liftPrev = liftY; liftY = liftAt((Date.now()/1000) % LP); liftM.position.set(LX, liftY - 0.088, LZ); setDyn(liftBox, LX - 1.4, liftY - 0.2, LZ - 1.4, LX + 1.4, liftY, LZ + 1.4);
       // the lever
       lvArm.rotation.x += ((odT > 0 ? 2.3 : 0.6) - lvArm.rotation.x)*Math.min(1, dt*8);
       // the cuckoo
@@ -1924,6 +2074,17 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const sailT = tex(256, 256, (g,w,h) => { g.fillStyle = '#f2e9d2'; g.fillRect(0,0,w,h); for (let x=0;x<w;x+=42){ g.fillStyle = 'rgba(140,110,70,.3)'; g.fillRect(x, 0, 2, h); } for (let y=0;y<h;y+=64){ g.fillStyle = 'rgba(140,110,70,.2)'; g.fillRect(0, y, w, 2); } noiseFill(g, w, h, 1200, 'rgba(140,110,70,A)', 0.12, 3); });
   const flagT = canvasTex(256, 160, (g,w,h) => { g.fillStyle = '#111'; g.fillRect(0,0,w,h); g.fillStyle = '#eee'; g.beginPath(); g.arc(128, 64, 34, 0, 7); g.fill(); g.fillRect(104, 76, 48, 26); g.fillStyle = '#111'; g.beginPath(); g.arc(114, 62, 10, 0, 7); g.arc(142, 62, 10, 0, 7); g.fill(); g.fillRect(118, 92, 4, 10); g.fillRect(128, 92, 4, 10); g.fillRect(138, 92, 4, 10);
     g.strokeStyle = '#eee'; g.lineWidth = 12; g.lineCap = 'round'; g.beginPath(); g.moveTo(66, 106); g.lineTo(190, 148); g.moveTo(190, 106); g.lineTo(66, 148); g.stroke(); });
+  // the captain's chart: an island, a dotted route, an X, a compass rose
+  const chartT = canvasTex(256, 192, (g,w,h) => { g.fillStyle = '#e8d6a8'; g.fillRect(0,0,w,h); noiseFill(g, w, h, 900, 'rgba(120,80,30,A)', 0.15, 3);
+    g.fillStyle = 'rgba(90,140,170,.35)'; g.fillRect(10, 10, w - 20, h - 20);
+    const isl = (cx, cy, r, n) => { g.fillStyle = '#c8b070'; g.strokeStyle = '#5a4020'; g.lineWidth = 2; g.beginPath(); for (let k=0;k<=n;k++){ const a = k/n*6.283, rr = r*(0.75 + 0.25*Math.sin(k*2.3 + cx)); k ? g.lineTo(cx + Math.cos(a)*rr, cy + Math.sin(a)*rr*0.8) : g.moveTo(cx + Math.cos(a)*rr, cy + Math.sin(a)*rr*0.8); } g.fill(); g.stroke(); };
+    isl(160, 100, 42, 14); isl(60, 50, 18, 9); isl(70, 150, 14, 8);
+    g.fillStyle = '#4a7a30'; for (const [x, y] of [[150, 92], [170, 108], [160, 118]]){ g.beginPath(); g.arc(x, y, 6, 0, 7); g.fill(); }
+    g.strokeStyle = '#8a2010'; g.lineWidth = 2.5; g.setLineDash([6, 5]); g.beginPath(); g.moveTo(24, 170); g.bezierCurveTo(60, 110, 110, 160, 150, 104); g.stroke(); g.setLineDash([]);
+    g.lineWidth = 4; g.beginPath(); g.moveTo(143, 97); g.lineTo(157, 111); g.moveTo(157, 97); g.lineTo(143, 111); g.stroke();
+    g.strokeStyle = '#3a2a18'; g.lineWidth = 1.5; g.beginPath(); g.arc(214, 42, 18, 0, 7); g.stroke(); g.fillStyle = '#3a2a18'; g.beginPath(); g.moveTo(214, 18); g.lineTo(219, 42); g.lineTo(214, 66); g.lineTo(209, 42); g.fill(); g.font = 'bold 11px serif'; g.fillText('N', 210, 14);
+    g.strokeStyle = 'rgba(80,50,20,.6)'; g.lineWidth = 3; g.strokeRect(4, 4, w - 8, h - 8); });
+  B.mat('chart', lam(0xffffff, {map:chartT, vertexColors:true}));
   B.mat('deck', lam(0xffffff, {map:plankT, vertexColors:true})).mat('hull', lam(0xffffff, {map:hullT, vertexColors:true})).mat('sail', lam(0xffffff, {map:sailT, vertexColors:true, side:T3.DoubleSide}))
    .mat('wood', lam(0x7a5230, {vertexColors:true})).mat('dark', lam(0x2e2016, {vertexColors:true})).mat('iron', lam(0x2a2c30, {vertexColors:true})).mat('gold', lam(0xe0b040, {vertexColors:true}))
    .mat('rope', lam(0xc0a878, {vertexColors:true})).mat('red', lam(0xa8241e, {vertexColors:true})).mat('lamp', new T3.MeshBasicMaterial({color:0xffd890})).mat('glass', new T3.MeshBasicMaterial({color:0xffc870}));
@@ -1965,8 +2126,11 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   for (const zc of [18.1, 25.9]) for (let i=0;i<8;i++) B.box('wood', [QX + 2.4 - 0.3*(i + 1), D, zc - 0.55], [QX + 2.4 - 0.3*i, D + (i + 1)*2.4/8, zc + 0.55]);
   for (const [z0, z1] of [[Z0, 17.5], [18.7, 25.3], [26.5, Z1]]) B.box('wood', [QX, QY - 0.2, z0], [QX + 0.1, QY + 0.9, z1]);
   // the captain's cabin: desk with a map, a red chest
-  B.box('dark', [7, D, 20.5], [10, D + 0.8, 23.5]); B.box('sail', [7.5, D + 0.8, 21], [8.8, D + 0.82, 22.6], {solid:false});
-  B.box('red', [6.3, D, 18], [7.3, D + 0.7, 19]); B.box('gold', [6.3, D + 0.7, 18], [7.3, D + 0.8, 19]);
+  B.box('dark', [7, D, 20.5], [10, D + 0.8, 23.5]); B.geo('chart', new T3.PlaneGeometry(1.25, 0.95), 8.15, D + 0.805, 21.75, -Math.PI/2, 0, Math.PI/2);
+  // the captain's sea chest: wood, iron bands, a curved lid and a brass lock
+  B.box('wood', [6.3, D, 18.1], [7.3, D + 0.55, 18.9]); B.geo('wood', new T3.CylinderGeometry(0.4, 0.4, 1.0, 12, 1, false, 0, Math.PI), 6.8, D + 0.55, 18.5, 0, 0, Math.PI/2); B.solid([6.3, D + 0.55, 18.1], [7.3, D + 0.9, 18.9]);
+  for (const x of [6.45, 7.15]){ B.box('iron', [x - 0.04, D, 18.08], [x + 0.04, D + 0.55, 18.92], {solid:false}); B.geo('iron', new T3.CylinderGeometry(0.415, 0.415, 0.08, 12, 1, false, 0, Math.PI), x, D + 0.55, 18.5, 0, 0, Math.PI/2); }
+  B.box('gold', [6.72, D + 0.38, 18.88], [6.88, D + 0.56, 18.92], {solid:false});
   for (const z of [17.5, 26.5]) B.box('lamp', [11.8, D + 1.7, z - 0.1], [12.0, D + 1.9, z + 0.1], {solid:false});
   // masts, yards, sails (they billow), crow's nest with a rope ladder up the main mast
   const sails = [], flags = [];
@@ -1986,26 +2150,33 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     const ends = [-1.2, -0.4, 0.4, 1.2].map(dx => new V(mx + dx, D + BW + 0.08, ZC + s*(5 - 0.05)));
     for (const e of ends) ropeAB(new V(mx, top, ZC + s*0.25), e);
     for (let k=1;k<9;k++){ const f = k/9, a = new V(mx, top, ZC + s*0.25).lerp(ends[0], f), b = new V(mx, top, ZC + s*0.25).lerp(ends[3], f); ropeAB(a, b, 0.015); } }
+  B.geo('wood', new T3.CylinderGeometry(0.1, 0.1, 7.7, 8), 28.15, D + 6.75, ZC, 0, 0, Math.PI/2);          // the spar the rope swings hang from
   for (const [a, b] of [[[24, D + 14.5, ZC], [32, D + 11.5, ZC]], [[24, D + 14.5, ZC], [9, QY + 9.5, ZC]], [[32, D + 11.5, ZC], [X1 + 9.5, D + 4.4, ZC]]]) ropeAB(new V(...a), new V(...b), 0.022);
   // the cannons, on carriages, pointing out of the gunports
   const cannons = [];
   for (const x of CAN) for (const s of [-1, 1]){
     const zb = ZC + s*3.6; B.box('wood', [x - 0.38, D, zb - 0.55], [x + 0.38, D + 0.35, zb + 0.55]);
-    B.geo('iron', new T3.CylinderGeometry(0.17, 0.22, 1.8, 14), x, D + 0.55, zb + s*0.65, Math.PI/2); B.geo('iron', new T3.SphereGeometry(0.22, 10, 8), x, D + 0.55, zb - s*0.25);
+    B.geo('iron', new T3.CylinderGeometry(0.17, 0.22, 1.8, 14), x, D + 0.55, zb + s*0.65, s*Math.PI/2); B.solid([x - 0.2, D + 0.35, Math.min(zb, zb + s*1.5)], [x + 0.2, D + 0.75, Math.max(zb, zb + s*1.5)]); B.geo('iron', new T3.SphereGeometry(0.22, 10, 8), x, D + 0.55, zb - s*0.25);
     B.geo('gold', new T3.TorusGeometry(0.2, 0.03, 6, 14), x, D + 0.55, zb + s*1.4, 0, 0, 0);
     for (const sx of [-0.32, 0.32]) for (const dz of [-0.35, 0.35]) B.geo('dark', new T3.CylinderGeometry(0.16, 0.16, 0.08, 10), x + sx, D + 0.16, zb + dz, 0, 0, Math.PI/2);
     cannons.push({x, s, load:new V(x + O.x, D + 0.78, zb - s*0.35 + O.z), muzzle:new V(x + O.x, D + 0.55, zb + s*1.6 + O.z), dir:new V(0, 0.18, s).normalize(), p:null, fuse:0});
   }
   // the hold: dry now. Crates, barrels, hammocks, a cannonball stack, and the treasure
   for (const [x, z, n] of [[8, 18, 2], [10, 18, 1], [27, 24.8, 2], [30, 18, 1], [33.5, 18, 2]]) for (let k=0;k<n;k++) B.box('wood', [x, HOLD + k*1.0, z], [x + 1.6, HOLD + k*1.0 + 0.95, z + 1.6]);
-  const hammocks = []; for (const [x, z] of [[26, 19], [28.6, 19], [12, 25.5]]){ const hm = new T3.Mesh(new T3.CylinderGeometry(0.45, 0.45, 2.1, 12, 1, true, Math.PI, Math.PI), lam(0xd8c8a0, {side:T3.DoubleSide})); hm.rotation.z = Math.PI/2; hm.position.set(x + 1 + O.x, HOLD + 1.8, z + O.z); hammocks.push(hm); }
-  for (let k=0;k<10;k++){ const row = k < 4 ? 0 : k < 7 ? 1 : k < 9 ? 2 : 3, i = [0,1,2,3,0,1,2,0,1,0][k]; B.geo('iron', new T3.SphereGeometry(0.16, 8, 6), 13 + i*0.33 + row*0.165, HOLD + 0.16 + row*0.27, 25.6); }
+  const hammocks = []; for (const [x, z] of [[24, 19], [27, 19], [12, 25.5]]){ const cx = x + 1;
+    for (const px of [cx - 1.3, cx + 1.3]){ B.box('wood', [px - 0.08, HOLD, z - 0.08], [px + 0.08, D - 0.3, z + 0.08]); B.box('rope', [Math.min(px, cx + Math.sign(px - cx)*1.05), HOLD + 1.78, z - 0.025], [Math.max(px, cx + Math.sign(px - cx)*1.05), HOLD + 1.82, z + 0.025], {solid:false}); }
+    B.solid([cx - 1.05, HOLD + 1.4, z - 0.4], [cx + 1.05, HOLD + 1.75, z + 0.4]); const hm = new T3.Mesh(new T3.CylinderGeometry(0.45, 0.45, 2.1, 12, 1, true, Math.PI, Math.PI), lam(0xd8c8a0, {side:T3.DoubleSide})); hm.rotation.z = Math.PI/2; hm.position.set(x + 1 + O.x, HOLD + 1.8, z + O.z); hammocks.push(hm); }
+  for (let k=0;k<10;k++){ const row = k < 4 ? 0 : k < 7 ? 1 : k < 9 ? 2 : 3, i = [0,1,2,3,0,1,2,0,1,0][k]; B.geo('iron', new T3.SphereGeometry(0.16, 8, 6), 12.505 + i*0.33 + row*0.165, HOLD + 0.16 + row*0.27, 25.5); }
   // the treasure chest (touch it and it opens: gold everywhere)
   const TCX = 33 + O.x, TCZ = 23.4 + O.z;
-  B.box('red', [32.3, HOLD, 22.9], [33.7, HOLD + 0.7, 23.9]); B.box('gold', [32.3, HOLD + 0.32, 22.88], [33.7, HOLD + 0.4, 23.92], {solid:false});
+  B.box('red', [32.3, HOLD, 22.9], [33.7, HOLD + 0.7, 23.9]); B.box('gold', [32.28, HOLD + 0.32, 22.88], [33.72, HOLD + 0.4, 23.92], {solid:false});
   for (let k=0;k<26;k++){ const a = mr()*6.28, r = 0.4 + mr()*1.4; B.geo('gold', new T3.CylinderGeometry(0.07, 0.07, 0.015, 10), 33 + Math.cos(a)*r, HOLD + 0.01 + mr()*0.03, 23.4 + Math.sin(a)*r, (mr() - 0.5)*0.4, 0, (mr() - 0.5)*0.4); }
   for (const [k, x, y, z] of [['barrel', 20, D, 18.2], ['barrel', 26, D, 25.8], ['barrel', 14, HOLD, 22], ['barrel', 16, HOLD, 19.5], ['box', 29, D, 18.3], ['box', 18, D, 25.7], ['bottle', 8, D + 0.8, 21.5], ['bottle', 25, HOLD, 22.5],
     ['ball', 12.6, HOLD, 23], ['stick', 22, D, 25.6], ['mug', 9, D + 0.8, 22.5], ['book', 8.5, D + 0.8, 22.9], ['duck', 30, D, 20], ['barrel', 34, D, 19], ['mug', 20, HOLD, 24.5]]) B.prop(k, x, y, z);
+  // the wheel's stand (binnacle and axle) and the bell's frame
+  B.cyl('wood', 0.16, 0.12, 0.95, 10.0, QY, ZC, 10); B.box('wood', [9.86, QY + 0.92, ZC - 0.13], [10.14, QY + 1.18, ZC + 0.13]); B.geo('iron', new T3.CylinderGeometry(0.04, 0.04, 0.36, 8), 10.24, QY + 1.05, ZC, 0, 0, Math.PI/2);
+  B.solid([10.27, QY + 0.45, ZC - 0.62], [10.33, QY + 1.65, ZC + 0.62]);
+  for (const z of [19.95, 21.45]) B.box('wood', [33.42, D, z - 0.08], [33.58, D + 2.56, z + 0.08]); B.box('wood', [33.4, D + 2.42, 19.85], [33.6, D + 2.58, 21.55]); B.box('iron', [33.46, D + 2.22, 20.66], [33.54, D + 2.42, 20.74], {solid:false});
   const lampPos = [[11.9, D + 1.8, 17.5], [11.9, D + 1.8, 26.5], [14, HOLD + 2.3, 19.5], [20, HOLD + 2.3, 19.5], [26, HOLD + 2.3, 21.5], [32, HOLD + 2.3, 21.5], [8.5, D + 1.8, 22]];
   const light = (x, y, z) => { x -= O.x; z -= O.z; let r = 1.05, g = 0.98, b = 0.9;
     if (y < D - 0.1 || (x < QX && y < QY - 0.1)){ r = 0.28; g = 0.22; b = 0.16; for (const [lx, ly, lz] of lampPos){ const d = Math.hypot(x - lx, y - ly, z - lz), k = 1.3*Math.exp(-d/2.8); r += k; g += k*0.72; b += k*0.36; } }
@@ -2018,17 +2189,16 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const lanterns = lampPos.slice(2, 6).map(([x, y, z], k) => { const g = new T3.Group(); g.position.set(x + O.x, y + 0.5, z + O.z); const l = new T3.Mesh(new T3.CylinderGeometry(0.1, 0.13, 0.26, 8), new T3.MeshBasicMaterial({color:0xffcf70})); l.position.y = -0.5; g.add(l);
     const c = new T3.Mesh(new T3.CylinderGeometry(0.01, 0.01, 0.4, 4), lam(0x333333)); c.position.y = -0.2; g.add(c); grp.add(g); return {g, k}; });
   // the wheel (spin it) and the bell (ring it)
-  B.cyl('wood', 0.09, 0.09, 1.0, 10.2, QY, ZC, 8);
   const wheel = new T3.Group(); wheel.position.set(10.3 + O.x, QY + 1.05, ZC + O.z); wheel.rotation.y = Math.PI/2; grp.add(wheel);
   wheel.add(new T3.Mesh(new T3.TorusGeometry(0.5, 0.045, 6, 18), lam(0x7a5230))); for (let k=0;k<8;k++){ const sp = new T3.Mesh(new T3.CylinderGeometry(0.025, 0.025, 1.3, 5), lam(0x7a5230)); sp.rotation.z = k*Math.PI/8; wheel.add(sp); }
   wheel.add(new T3.Mesh(new T3.CylinderGeometry(0.1, 0.1, 0.12, 10).rotateX(Math.PI/2), lam(0xe0b040)));
   let wheelV = 0, wheelA = 0, wheelHand = [null, null];
-  const bellG = new T3.Group(); bellG.position.set(33.5 + O.x, D + 2.3, 20.5 + O.z); grp.add(bellG); B.box('dark', [33.45, D, 20.45], [33.55, D + 2.4, 20.55]); B.box('dark', [33.4, D + 2.35, 20.3], [33.6, D + 2.45, 20.8]);
+  const bellG = new T3.Group(); bellG.position.set(33.5 + O.x, D + 2.25, 20.5 + O.z); grp.add(bellG); 
   const bellPts = []; for (let k=0;k<=10;k++){ const t = k/10; bellPts.push(new T3.Vector2(0.08 + 0.17*Math.pow(t, 1.8) + (t > 0.85 ? (t - 0.85)*0.6 : 0), 0.4 - t*0.4)); }
   const bellM = new T3.Mesh(new T3.LatheGeometry(bellPts, 16), lam(0xe0b040, {side:T3.DoubleSide})); bellM.position.set(0, -0.45, 0.2); bellG.add(bellM); let bellSw = 0, bellVv = 0, bellCD = 0;
   const ding = v => { bellVv += v*3; if (!AC) return; const d = lastPlayer.distanceTo(bellG.position), vol = Math.min(1, 6/(2 + d))*v; for (const [f, a] of [[880, 0.4], [1320, 0.2], [1760, 0.12]]) tone('sine', f, f, 1.6, a*vol*0.5); };
   // ropes to swing on, hanging from the main yard
-  const ropes = [[22.2, 19.6, 0], [22.2, 24.4, 2.2]].map(([x, z, ph]) => { const pv = new V(x + O.x, D + 6.6, z + O.z), L = 5.4; const g = new T3.Group(); g.position.copy(pv); grp.add(g);
+  const ropes = [[26.6, ZC, 0], [29.6, ZC, 2.2]].map(([x, z, ph]) => { const pv = new V(x + O.x, D + 6.62, z + O.z), L = 5.4; const g = new T3.Group(); g.position.copy(pv); grp.add(g);
     const rm = new T3.Mesh(new T3.CylinderGeometry(0.03, 0.03, L, 6), lam(0xc0a878)); rm.position.y = -L/2; g.add(rm); const kn = new T3.Mesh(new T3.SphereGeometry(0.1, 8, 6), lam(0xa08858)); kn.position.y = -L; g.add(kn);
     return {g, pv, L, ph, box:dynBox(), c:new V(), prev:new V()}; });
   // the sea (real waves), sky, sun, islands with palm trees, gulls, sharks
@@ -2054,7 +2224,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   // the kraken: every so often a tentacle rises beside the ship and slams the deck
   const tent = new T3.Group(); grp.add(tent); const TN = 28, tSegs = Array.from({length:TN}, (_, k) => { const m = new T3.Mesh(new T3.SphereGeometry(0.6 - k*0.018, 12, 8), lam(0x7e325f)); tent.add(m); return m; });
   for (let k=2;k<TN;k+=3){ const s = new T3.Mesh(new T3.SphereGeometry(0.11 - k*0.002, 8, 6), lam(0xf0c0d8)); tSegs[k].add(s); s.position.set(0, 0, 0.5 - k*0.016); }
-  tent.visible = false; const K_EVERY = 75, K_LEN = 7; let kSlamDone = -1, kSeen = -1;
+  tent.visible = false; const K_EVERY = 75, K_LEN = 15; let kSlamDone = -1, kSeen = -1;
   const kPlan = n => { const r = Math.abs(Math.sin(n*12.9898)*43758.5453) % 1, r2 = Math.abs(Math.sin(n*78.233)*12543.13) % 1; return {x:CAN[Math.floor(r*3) % 3] + O.x, side:r2 < 0.5 ? -1 : 1}; };
   let kDeadUntil = 0, kDeadN = -1;          // shot by a cannon: gone for 2 minutes
   const KRAKEN_NAP = 120;
@@ -2073,9 +2243,10 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     for (let k=0;k<25;k++) frostPuff(c.clone().add(new V((R()-0.5)*3, (R()-0.5)*4, (R()-0.5)*3))); sndBoom(1); if (AC) setTimeout(() => tone('sawtooth', 120, 30, 1.2, 0.15), 200);
     showMsg('THE KRAKEN IS BEATEN! The treasure chest is open!'); if (local && netGame) netSend('ev', {t:'mapev', m:'ship', k:'kdead', n});
     chestOpen = 1; chestT = 0; if (AC){ tone('triangle', 520, 520, 0.12, 0.1); setTimeout(() => tone('triangle', 780, 780, 0.25, 0.1), 120); }
-    for (let k=0;k<3;k++) spawnScrap('sc-kraken-' + n + '-' + k, new V(TCX - 0.6 + k*0.6, HOLD + 0.9, TCZ - 0.9)); };
+    for (let k=0;k<3;k++) spawnScrap('sc-kraken-' + n + '-' + k, new V(TCX - 0.45 + k*0.45, HOLD + 1.4, TCZ + 0.15)); };
   const lid = new T3.Group(); lid.position.set(TCX, HOLD + 0.7, TCZ - 0.5); grp.add(lid); const lidM = new T3.Mesh(new T3.CylinderGeometry(0.5, 0.5, 1.4, 12, 1, false, 0, Math.PI), lam(0xa8241e)); lidM.rotation.z = Math.PI/2; lidM.position.set(0, 0, 0.5); lid.add(lidM);
   const lidBand = new T3.Mesh(new T3.CylinderGeometry(0.52, 0.52, 0.1, 12, 1, false, 0, Math.PI), lam(0xe0b040)); lidBand.rotation.z = Math.PI/2; lidBand.position.set(0, 0, 0.5); lid.add(lidBand);
+  const lidBox = dynBox(), lidBB = new T3.Box3();
   const goldPile = new T3.Mesh(new T3.SphereGeometry(0.5, 12, 6, 0, 6.3, 0, 1.2), new T3.MeshBasicMaterial({color:0xffc830})); goldPile.scale.set(1.3, 0.35, 0.9); goldPile.position.set(TCX, HOLD + 0.62, TCZ); grp.add(goldPile);
   MAPS.ship = {name:'PIRATE SHIP', group:grp, spawn:new V(28, D, 21).add(O), yaw:Math.PI/2, nav, yMin:-8, yMax:30, props:B.props,
     sky:{bg:0x8fc6ea, fog:0xb8d8ee, near:40, far:130, hs:0xfff6e0, hg:0x2a5a7a, hi:1.05, ac:0xffffff, ai:0.32},
@@ -2098,14 +2269,15 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
       wheelV *= Math.exp(-dt*0.8); wheelA += wheelV*dt; wheel.rotation.z = wheelA;
       bellVv += (-bellSw*14 - bellVv*1.5)*dt; bellSw += bellVv*dt; bellG.rotation.z = bellSw*0.4; bellCD -= dt;
       if (chestOpen > 0){ chestT += dt; if (chestT > 30){ chestOpen = 0; } } lid.rotation.x += ((chestOpen ? -1.9 : 0) - lid.rotation.x)*Math.min(1, dt*5); goldPile.visible = lid.rotation.x < -0.3;
+      lid.updateMatrixWorld(true); lidBB.setFromObject(lidM); setDyn(lidBox, lidBB.min.x, Math.max(HOLD + 0.7, lidBB.min.y), lidBB.min.z, lidBB.max.x, lidBB.max.y, lidBB.max.z);
       if (chestOpen && chestT < 2 && R() < 0.5) spawnSparks(new V(TCX, HOLD + 0.9, TCZ), 1, 1.2);
       // rope swings
       for (const r of ropes){ const a = Math.sin(t*1.25 + r.ph)*0.55; r.g.rotation.x = a; r.prev.copy(r.c); r.c.set(r.pv.x, r.pv.y - Math.cos(a)*r.L, r.pv.z + Math.sin(a)*r.L);
         setDyn(r.box, r.c.x - 0.12, r.c.y - 0.15, r.c.z - 0.12, r.c.x + 0.12, r.c.y + 2.2, r.c.z + 0.12); }
-      // the kraken: rises (0-3 s), sways, slams down at 5 s, sinks away by 7 s
+      // the kraken: rises (0-3 s), sways (time to load a cannon!), slams down at 13 s, sinks away by 15 s
       const n = Math.floor(t/K_EVERY), kt = t - n*K_EVERY, kp = kPlan(n);
       if (kt < K_LEN && n > 0 && t > kDeadUntil && n !== kDeadN){ tent.visible = true; kSeen = n;
-        const up = kt < 3 ? kt/3 : kt < 5 ? 1 : kt < 5.4 ? 1 : Math.max(0, 1 - (kt - 5.4)/1.6), slam = kt < 4.4 ? 0 : Math.min(1, (kt - 4.4)/0.5);
+        const up = kt < 3 ? kt/3 : kt < 13.4 ? 1 : Math.max(0, 1 - (kt - 13.4)/1.6), slam = kt < 12.4 ? 0 : Math.min(1, (kt - 12.4)/0.5);
         const base = new V(kp.x, -0.5, ZC + O.z + kp.side*(7.2 + (1 - up)*1.5));             // right in front of a cannon's gunport
         tSegs.forEach((m, k) => { const u = k/(TN - 1), h = up*(u*8.5), bend = slam*u*u*(Math.PI*0.62), sway = Math.sin(t*2 + u*3)*0.3*(1 - slam)*u;
           m.position.set(base.x + sway, base.y + Math.cos(bend)*h, base.z - kp.side*Math.sin(bend)*h*0.95); });

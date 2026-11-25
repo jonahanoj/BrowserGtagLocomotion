@@ -465,7 +465,7 @@ const floorMat = new T3.MeshLambertMaterial({map:carpet}), ceilMat = new T3.Mesh
 
 // Merged wall mesh. Each face's winding is checked against its outward normal so the
 // wallpaper is on the outside of every wall (the old build had it reversed).
-function wallMesh(list){
+function wallMesh(list, mat){
   const pos=[], nor=[], uv=[], col=[], idx=[];
   for (const b of list){
     const [x0,y0,z0] = b.min, [x1,y1,z1] = b.max;
@@ -489,15 +489,15 @@ function wallMesh(list){
   const g = new T3.BufferGeometry();
   g.setAttribute('position', new T3.Float32BufferAttribute(pos,3)); g.setAttribute('normal', new T3.Float32BufferAttribute(nor,3));
   g.setAttribute('uv', new T3.Float32BufferAttribute(uv,2)); g.setAttribute('color', new T3.Float32BufferAttribute(col,3)); g.setIndex(idx);
-  return new T3.Mesh(g, wallMat);
+  return new T3.Mesh(g, mat || wallMat);
 }
-function floorCeil(parent, x0, z0, w, d){
+function floorCeil(parent, x0, z0, w, d, fm, cm){
   const fg = new T3.PlaneGeometry(w, d); fg.rotateX(-Math.PI/2);
   const u = fg.attributes.uv; for (let i=0;i<u.count;i++) u.setXY(i, u.getX(i)*w/1.5, u.getY(i)*d/1.5);
-  const f = new T3.Mesh(fg, floorMat); f.position.set(x0+w/2, 0, z0+d/2); parent.add(f);
+  const f = new T3.Mesh(fg, fm || floorMat); f.position.set(x0+w/2, 0, z0+d/2); parent.add(f);
   const cg = new T3.PlaneGeometry(w, d); cg.rotateX(Math.PI/2);
   const cu = cg.attributes.uv; for (let i=0;i<cu.count;i++) cu.setXY(i, cu.getX(i)*w/1.2, cu.getY(i)*d/1.2);
-  const c = new T3.Mesh(cg, ceilMat); c.position.set(x0+w/2, H, z0+d/2); parent.add(c);
+  const c = new T3.Mesh(cg, cm || ceilMat); c.position.set(x0+w/2, H, z0+d/2); parent.add(c);
 }
 const _sc0 = scene.children.length;
 // Drawn walls are trimmed a few mm so no two faces ever sit in the same plane (that was the flickering
@@ -758,6 +758,36 @@ function mapIcon(k){
   if (k === 'house'){ add(new T3.BoxGeometry(0.18,0.12,0.14), 0xf1e3c8, 0, -0.02, 0); const r = add(new T3.ConeGeometry(0.15,0.1,4), 0xb5452f, 0, 0.09, 0); r.rotation.y = Math.PI/4; add(new T3.BoxGeometry(0.04,0.07,0.01), 0x6b4a2b, 0, -0.045, 0.071); }
   return g;
 }
+// ---- the lobby's own look: a robot workshop (steel-blue riveted panels, diamond-plate floor, hazard kick plates) ----
+const lobbyWallMat = new T3.MeshLambertMaterial({vertexColors:true, map:canvasTex(256, 256, (g,w,h) => {
+  const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#36607a'); gr.addColorStop(1, '#2a4c62'); g.fillStyle = gr; g.fillRect(0,0,w,h);
+  for (let i=0;i<2500;i++){ g.fillStyle = `rgba(${R() < 0.5 ? '10,20,30' : '120,170,200'},${R()*0.08})`; g.fillRect(R()*w, R()*h, 2, 2); }
+  for (const [x0, y0, x1, y1] of [[0, 0, 128, 128], [128, 0, 256, 128], [0, 128, 256, 256]]){           // three panels per tile
+    g.strokeStyle = 'rgba(8,18,26,.85)'; g.lineWidth = 4; g.strokeRect(x0 + 2, y0 + 2, x1 - x0 - 4, y1 - y0 - 4);
+    g.strokeStyle = 'rgba(140,190,215,.25)'; g.lineWidth = 1.5; g.strokeRect(x0 + 6, y0 + 6, x1 - x0 - 12, y1 - y0 - 12);
+    for (const [x, y] of [[x0 + 12, y0 + 12], [x1 - 12, y0 + 12], [x0 + 12, y1 - 12], [x1 - 12, y1 - 12]]){ g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.arc(x + 1, y + 1.5, 4, 0, 7); g.fill(); g.fillStyle = '#9cc0d2'; g.beginPath(); g.arc(x, y, 3.5, 0, 7); g.fill(); } }
+  g.fillStyle = 'rgba(60,230,255,.55)'; g.fillRect(0, 186, w, 3);                                       // a glowing cyan trim line
+  g.fillStyle = 'rgba(0,0,0,.25)'; for (let k=0;k<5;k++) g.fillRect(150 + k*12, 40, 6, 60);              // vent slots
+}, true)});
+const lobbyFloorMat = new T3.MeshLambertMaterial({map:canvasTex(128, 128, (g,w,h) => {
+  g.fillStyle = '#4c535c'; g.fillRect(0,0,w,h);
+  for (let y=0;y<h;y+=16) for (let x=(y/16 % 2)*8; x<w+8; x+=16){ g.save(); g.translate(x, y + 8); g.rotate(((x + y)/16 % 2) ? 0.6 : -0.6); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(-5, -1, 11, 3.5); g.fillStyle = '#7c858f'; g.fillRect(-6, -2, 11, 3); g.restore(); }
+  for (let i=0;i<900;i++){ g.fillStyle = `rgba(${R() < 0.6 ? '20,20,24' : '160,150,120'},${R()*0.12})`; g.fillRect(R()*w, R()*h, 2, 2); }
+}, true)});
+const lobbyCeilMat = new T3.MeshLambertMaterial({map:canvasTex(128, 128, (g,w,h) => {
+  g.fillStyle = '#272d35'; g.fillRect(0,0,w,h); g.strokeStyle = '#151a20'; g.lineWidth = 6; g.strokeRect(0,0,w,h);
+  g.fillStyle = '#1a1f26'; for (let k=0;k<6;k++) g.fillRect(30, 30 + k*12, 68, 5);
+  for (let i=0;i<500;i++){ g.fillStyle = `rgba(150,170,190,${R()*0.06})`; g.fillRect(R()*w, R()*h, 2, 2); }
+}, true)});
+const hazardTex = canvasTex(128, 32, (g,w,h) => { g.fillStyle = '#f2c230'; g.fillRect(0,0,w,h); g.fillStyle = '#1c1d20'; for (let x=-32;x<w+32;x+=32){ g.beginPath(); g.moveTo(x, h); g.lineTo(x + 16, h); g.lineTo(x + 32, 0); g.lineTo(x + 16, 0); g.fill(); } }, true);
+// hazard-striped kick plates along the lobby's inside walls ([x0, z0, x1, z1, facing yaw])
+function kickPlates(parent){
+  const y = 0.22, mat = new T3.MeshLambertMaterial({map:hazardTex}), N_ = LB.z0 + TW/2 + 0.004, S_ = LB.z1 - TW/2 - 0.004, E_ = LB.x1 - TW/2 - 0.004, W_ = MIR + 0.004;
+  const runs = [[MIR, N_, LB.x1 - TW/2, N_, 0], [MIR, S_, LB.x1 - TW/2, S_, Math.PI], [E_, LB.z0 + TW/2, E_, RG.dz0, -Math.PI/2], [E_, RG.dz1, E_, LB.z1 - TW/2, -Math.PI/2],
+    [W_, LB.z0 + TW/2, W_, WIN.z0, Math.PI/2], [W_, WIN.z1, W_, LB.z1 - TW/2, Math.PI/2]];
+  for (const [x0, z0, x1, z1, ry] of runs){ const L = Math.hypot(x1 - x0, z1 - z0); if (L < 0.05) continue; const g = new T3.PlaneGeometry(L, y); const u = g.attributes.uv; for (let i=0;i<u.count;i++) u.setX(i, u.getX(i)*L/0.9);
+    const m = new T3.Mesh(g, mat); m.position.set((x0 + x1)/2, y/2, (z0 + z1)/2); m.rotation.y = ry; parent.add(m); }
+}
 function plane(parent, tex, w, h, x, y, z, ry){ const m = new T3.Mesh(new T3.PlaneGeometry(w,h), new T3.MeshBasicMaterial({map:tex})); m.position.set(x,y,z); m.rotation.y = ry; parent.add(m); return m; }
 function buildLobby(parent, real){
   const walls = [
@@ -770,9 +800,9 @@ function buildLobby(parent, real){
   if (real) walls.push(
     {min:[LB.x0-TW/2,0,LB.z0], max:[MIR,H,WIN.z0]}, {min:[LB.x0-TW/2,0,WIN.z1], max:[MIR,H,LB.z1]},
     {min:[LB.x0-TW/2,WIN.y1,WIN.z0], max:[MIR,H,WIN.z1]});
-  parent.add(wallMesh(walls));
-  floorCeil(parent, MIR, LB.z0, LB.x1-MIR, LB.z1-LB.z0);
-  floorCeil(parent, RG.x0, RG.z0, RG.x1-RG.x0, RG.z1-RG.z0);
+  parent.add(wallMesh(walls, lobbyWallMat)); kickPlates(parent);
+  floorCeil(parent, MIR, LB.z0, LB.x1-MIR, LB.z1-LB.z0, lobbyFloorMat, lobbyCeilMat);
+  floorCeil(parent, RG.x0, RG.z0, RG.x1-RG.x0, RG.z1-RG.z0, lobbyFloorMat, lobbyCeilMat);
   { const yel = new T3.MeshBasicMaterial({color:0xf2c230}), m = new T3.Mesh(new T3.BoxGeometry(0.08, 0.01, RG.z1-RG.z0-0.3), yel); m.position.set(-9.6, 0.006, (RG.z0+RG.z1)/2); parent.add(m);
     for (const z of [1.5, 3.5, 5.5]){ const t = new T3.Group(); for (const [r, c] of [[0.42, 0xffffff], [0.33, 0xd8302a], [0.24, 0xffffff], [0.15, 0xd8302a], [0.06, 0xffd23d]]){ const d = new T3.Mesh(new T3.CircleGeometry(r, 28), new T3.MeshBasicMaterial({color:c})); d.position.z = (0.5 - r)*0.01; t.add(d); }
       t.rotation.y = -Math.PI/2; t.position.set(RG.x1 - TW/2 - 0.02, 1.4, z); parent.add(t); }
@@ -782,19 +812,19 @@ function buildLobby(parent, real){
   for (const [x,z] of [[-17.8,1.9],[-17.8,5.1],[-14.2,1.9],[-14.2,5.1]]){ const m = new T3.Mesh(panelGeo, lightMat); m.position.set(x,H-0.004,z); parent.add(m); }
   const cap = new T3.Mesh(new T3.CylinderGeometry(PED.cap, PED.cap, 0.08, 32), new T3.MeshLambertMaterial({color:0xe8261b, emissive:0x5a0500}));
   cap.position.set(PED.x, PED.top+0.04, PED.z); parent.add(cap);
-  parent.add(Object.assign(wallMesh([{min:[PED2.x-0.25,0,PED2.z-0.25], max:[PED2.x+0.25,PED2.top,PED2.z+0.25]}])));
+  parent.add(Object.assign(wallMesh([{min:[PED2.x-0.25,0,PED2.z-0.25], max:[PED2.x+0.25,PED2.top,PED2.z+0.25]}], lobbyWallMat)));
   const cap2 = new T3.Mesh(new T3.CylinderGeometry(PED2.cap, PED2.cap, 0.08, 32), new T3.MeshLambertMaterial({color:0x1f7bff, emissive:0x05204a}));
   cap2.position.set(PED2.x, PED2.top+0.04, PED2.z); parent.add(cap2); caps2.push(cap2);
   const board = plane(parent, boardTex, 1.1, 0.645, PED2.x - 0.35, 1.25, PED2.z, Math.PI/2);
   for (const [B_, col, tex, caps] of [[SKB, 0xff8fb8, modeTex, skCaps], [ROLEB, 0xb08aff, roleTex, roleCaps]]){
-    parent.add(Object.assign(wallMesh([{min:[B_.x-0.2,0,B_.z-0.2], max:[B_.x+0.2,B_.top,B_.z+0.2]}])));
+    parent.add(Object.assign(wallMesh([{min:[B_.x-0.2,0,B_.z-0.2], max:[B_.x+0.2,B_.top,B_.z+0.2]}], lobbyWallMat)));
     const c = new T3.Mesh(new T3.CylinderGeometry(B_.cap, B_.cap, 0.06, 28), new T3.MeshLambertMaterial({color:col, emissive:0x000000})); c.position.set(B_.x, B_.top+0.03, B_.z); parent.add(c); caps.push(c);
     const pl = plane(parent, tex, 0.39, 0.39, B_.x + 0.202, 0.3, B_.z, Math.PI/2); (B_.labels = B_.labels || []).push(pl); }
-  parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
+  parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]})), lobbyWallMat));
   plane(parent, weaponTex, 4.48, 0.58, -16.28, 1.45, LB.z0+TW/2+0.006, 0);
   plane(parent, scrapTex, 0.9, 0.5625, -13.05, 1.55, LB.z0+TW/2+0.006, 0); drawScrapSign(); try { document.fonts.ready.then(drawScrapSign); } catch(e){}
   plane(parent, mapTex, 5.33, 0.55, -17.14, 1.45, LB.z1-TW/2-0.006, Math.PI);
-  parent.add(wallMesh(MAPBTN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
+  parent.add(wallMesh(MAPBTN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]})), lobbyWallMat));
   for (const w of MAPBTN){
     const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
     cap.position.set(w.x, w.top+0.03, w.z); parent.add(cap); (w.caps = w.caps || []).push(cap);
@@ -1668,6 +1698,7 @@ function updateBot(bot, dt, player){
   if (bot.stunT > 0){ bot.stunT -= dt; return; }
   if (bot.spin > 0){ bot.spin -= dt; root.obj.rotation.y += dt*9; root.obj.position.y = NAV.lv[(bot.cell && bot.cell[2]) || 0] + STAND + Math.abs(Math.sin(bot.t*12))*0.12; bot.ups.forEach((u, j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(2.4 + Math.sin(bot.t*14)*0.5); }); setFace(bot, 'happy'); return; }
   const imp = impGame();
+  { const MC = MAPS[curMap]; if (!imp && MC && MC.botCtl && MC.botCtl(bot, dt)) return; }   // a map can take over its robots (volcano: run for the rafts)
   if (!imp && socialTick(bot, dt)) return;
   if (!imp && !near_(bot, player) && R() < dt*0.25) trySocial(bot);
   if (imp && IMP.on && IMP.phase !== 'wait'){ bot.sayT -= dt; if (bot.sayT < 0){ bot.sayT = 30 + R()*40; const s_ = pick(IMP_SAY); say(bot, s_); netSend('ev', {t:'imp', k:'bsay', b:bot.id, s:s_}); } }
