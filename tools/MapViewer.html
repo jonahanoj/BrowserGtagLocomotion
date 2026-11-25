@@ -6156,6 +6156,7 @@ const impGame = () => mode === 'game' && !!netGame && netGame.split('~')[3] === 
 const amSeeker = () => IMP.on && IMP.seeker === NET.id, amHider = () => IMP.on && IMP.hiders.includes(NET.id) && !IMP.found[NET.id];
 const IMP_HIDE = 15, IMP_END = 8;
 const impHidden = id => impGame() && IMP.on && IMP.phase !== 'end' && IMP.phase !== 'wait' && IMP.hiders.includes(id) && !IMP.found[id];   // disguised right now
+const impColor = id => BOT_COLORS[Math.abs([...String(id)].reduce((a, ch) => (a*31 + ch.charCodeAt(0)) | 0, IMP.cs || 0)) % BOT_COLORS.length];   // new random colour every round, same for everyone
 const impCute = id => impGame() && IMP.on && IMP.phase !== 'wait' && IMP.hiders.includes(id);                                  // hiders are the cute robots
 const impLocked = () => impGame() && IMP.on && (IMP.phase === 'hide' || IMP.phase === 'seek');
 const seekTime = n => Math.min(120, 45 + 15*n);       // 1 hider 1 min, 2 hiders 75 s ... up to 2 min
@@ -6176,7 +6177,7 @@ function placeHud(head){
 function randomCell(){ for (let k=0;k<400;k++){ const x = Math.floor(R()*NAV.nx), y = Math.floor(R()*NAV.nz), l = Math.floor(R()*NAV.lv.length); if (NAV.ok(x, y, l)) return [x, y, l]; } return cellOf(SPAWN); }
 const IMP_SAY = ['beep boop','just a normal robot','nothing to see here','hello fellow robots','I love walking','*whistles*','01101000 01101001','I am definitely a robot'];
 function impStart(ev){
-  Object.assign(IMP, {on:true, phase:'hide', t:0, seeker:ev.s, hiders:ev.h, found:{}, guesses:ev.n, used:0, msg:'', picked:new Set(), seekT:ev.st || seekTime(ev.h.length), known:new Set(gameMembers())});
+  Object.assign(IMP, {on:true, phase:'hide', t:0, seeker:ev.s, hiders:ev.h, found:{}, guesses:ev.n, used:0, msg:'', picked:new Set(), seekT:ev.st || seekTime(ev.h.length), known:new Set(gameMembers()), cs:ev.c || 0});
   for (const b of bots.slice()) if (!b.fakeOf){ const i = bots.indexOf(b); bots.splice(i, 1); if (!b.root.obj.userData.dead) removePart(b.root, true); }
   for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead && p.name !== 'prop') removePart(p, true);
   // everyone starts the round in one piece: arms back, no burns, no ice
@@ -6276,7 +6277,7 @@ function updateImposter(dt, head){
   const cute = impCute(NET.id), hid = impHidden(NET.id);
   if (hid && !IMP.wsave){ IMP.wsave = wpn.slice(); wpn[0] = wpn[1] = 'none'; }
   if (!hid && IMP.wsave){ if (wpn[0] === 'none' && wpn[1] === 'none'){ wpn[0] = IMP.wsave[0]; wpn[1] = IMP.wsave[1]; } IMP.wsave = null; }
-  if (!!me.isCute !== cute){ setSkin(me, cute, 0x3aa0ff); setSkin(meMirror, cute, 0x3aa0ff); }
+  const myCuteKey = cute ? 'c' + IMP.cs : ''; if (IMP.myCute !== myCuteKey){ IMP.myCute = myCuteKey; const sc = cute || mySkin === 'cute', col = cute ? impColor(NET.id) : myColor(); setSkin(me, sc, col); setSkin(meMirror, sc, col); }
   if (!inImp){ if (IMP.on){ IMP.on = false; for (const b of bots.slice()) if (b.fakeOf) removeBot(b); } hud.visible = blind.visible = false; return; }
   hud.visible = true; placeHud(head);
   IMP.t += dt;
@@ -6290,7 +6291,7 @@ function updateImposter(dt, head){
       const pref = id => id === NET.id ? rolePref : (NET.peers[id].rp || 'random');
       const pool = members.filter(id => pref(id) === 'seeker'), pool2 = members.filter(id => pref(id) !== 'hider');
       const seeker = pick(pool.length ? pool : pool2.length ? pool2 : members), hiders = members.filter(id => id !== seeker);
-      const ev = {t:'imp', k:'start', s:seeker, h:hiders, n:hiders.length + 2, st:seekTime(hiders.length)}; netSend('ev', ev); impStart(ev);
+      const ev = {t:'imp', k:'start', s:seeker, h:hiders, n:hiders.length + 2, st:seekTime(hiders.length), c:Math.floor(Math.random()*1e6)}; netSend('ev', ev); impStart(ev);
       const total = 10 + Math.floor((members.length - 2)/2);
       for (let k=0;k<total - hiders.length;k++){ const pos = cellPos(...randomCell()), b = makeBot(pick(BOT_COLORS), pos); netSend('ev', {t:'spawn', b:b.id, c:b.color, x:r3(pos.x), y:r3(pos.y), z:r3(pos.z)}); }
     }
@@ -6300,7 +6301,7 @@ function updateImposter(dt, head){
     if (!members.includes(IMP.seeker)) impEnd('ROUND OVER', 'the seeker left');
     else if (!IMP.hiders.some(h => !IMP.found[h] && members.includes(h))) impEnd('ROUND OVER', 'the hiders left');
     else if (isHost()) for (const id of members) if (!IMP.known.has(id)){ IMP.known.add(id);
-      netSend('ev', {t:'imp', k:'sync', ph:IMP.phase, tt:IMP.t, s:IMP.seeker, h:IMP.hiders, f:IMP.found, n:IMP.guesses, u:IMP.used, st:IMP.seekT}, [id]); }
+      netSend('ev', {t:'imp', k:'sync', ph:IMP.phase, tt:IMP.t, s:IMP.seeker, h:IMP.hiders, f:IMP.found, n:IMP.guesses, u:IMP.used, st:IMP.seekT, c:IMP.cs}, [id]); }
   }
   // a robot a hider messed with doesn't count against the seeker (touching it themselves still does)
   if (IMP.phase === 'seek' && amSeeker()) for (const b of bots.slice()) if (!IMP.picked.has(b) && !b.root.impHider && impDisturbed(b)) impPick(b);
@@ -6336,7 +6337,7 @@ function impEv(ev, from){
   else if (ev.k === 'say'){ const f = bots.find(b => b.fakeOf === from); if (f) say(f, ev.s); }
   else if (ev.k === 'bsay'){ const b = bots.find(b => b.id === ev.b); if (b && !b.dead) say(b, ev.s); }
   else if (ev.k === 'sync' && (!IMP.on || IMP.phase === 'wait')){        // joined mid-round: watch until the next one
-    Object.assign(IMP, {on:true, phase:ev.ph, t:ev.tt, seeker:ev.s, hiders:ev.h, found:ev.f || {}, guesses:ev.n, used:ev.u, msg:'', picked:new Set(), seekT:ev.st, known:new Set()}); showMsg('A round is on - you\'re watching until the next one'); }
+    Object.assign(IMP, {on:true, phase:ev.ph, t:ev.tt, seeker:ev.s, hiders:ev.h, found:ev.f || {}, guesses:ev.n, used:ev.u, msg:'', picked:new Set(), seekT:ev.st, known:new Set(), cs:ev.c || 0}); showMsg('A round is on - you\'re watching until the next one'); }
 }
 
 // ================= players ripping players =================
@@ -6719,8 +6720,8 @@ function updateRemoteAvatars(){
     P.trig = T.trig; P.gripV = T.gripV; P.thumb = T.thumb; P.grip = T.grip;
     let here = p.m === mode && (mode === 'lobby' || (p.g && p.g === netGame));
     if (impHidden(p.id)) here = false;
-    const skW = impCute(p.id) ? 'cute' : p.sk;
-    if (p.skinOn !== skW){ p.skinOn = skW; const col = BOT_COLORS[[...(p.n || 'x')].reduce((a, ch) => a + ch.charCodeAt(0), 0) % BOT_COLORS.length]; setSkin(p.av, skW === 'cute', col); if (p.avM) setSkin(p.avM, skW === 'cute', col); }
+    const impC = impCute(p.id), skW = impC ? 'cute' + IMP.cs : p.sk;
+    if (p.skinOn !== skW){ p.skinOn = skW; const col = impC ? impColor(p.id) : BOT_COLORS[[...(p.n || 'x')].reduce((a, ch) => a + ch.charCodeAt(0), 0) % BOT_COLORS.length]; setSkin(p.av, skW.startsWith('cute'), col); if (p.avM) setSkin(p.avM, skW.startsWith('cute'), col); }
     setAvVisible(p.av, here); setAvVisible(p.avM, here && mode === 'lobby'); p.tag.visible = here && !p.headless;
     if (p.headless){ p.av.head.visible = false; }
     if (!p.wp) p.wp = [p.av, p.avM].map(av => [0,1].map(i => weaponSet(av.claws[i])));
