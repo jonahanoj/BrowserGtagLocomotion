@@ -654,6 +654,54 @@ const helpTex = signTex(640, 400, (g,W,Hh) => {
   ['RED button  play alone','BLUE button  play together','PINK button  game mode','GRIP  grab · both hands: rip','SWING  punch parts off','Y  back to this lobby']
     .forEach((s,i) => g.fillText(s, 34, 36 + i*58));
 });
+// ---- SCRAP: one floats up wherever a robot or a player is finished off (the monster drops 5).
+// Touch it with anything (hand, weapon, body, whatever you're holding) to collect it. Saved in this browser.
+const SCRAP_KEY = 'scraps';
+function loadScraps(){ let a = 0, b = 0; try { a = +localStorage.getItem(SCRAP_KEY) || 0; } catch(e){} try { const m = document.cookie.match(/(?:^|; )scraps=(\d+)/); b = m ? +m[1] : 0; } catch(e){} return Math.max(a, b); }
+let myScraps = loadScraps();
+function saveScraps(){ try { localStorage.setItem(SCRAP_KEY, String(myScraps)); } catch(e){} try { document.cookie = 'scraps=' + myScraps + '; max-age=315360000; path=/; SameSite=Lax'; } catch(e){} }
+const scrapItems = new Map(), scrapGone = new Set();
+const scrapGeo = (() => { const s = new T3.Shape(), n = 8; for (let k=0;k<n*4;k++){ const a = k/(n*4)*Math.PI*2, r = (k % 4 === 1 || k % 4 === 2) ? 0.1 : 0.075; if (!k) s.moveTo(Math.cos(a)*r, Math.sin(a)*r); else s.lineTo(Math.cos(a)*r, Math.sin(a)*r); }
+  const h = new T3.Path(); h.absarc(0, 0, 0.03, 0, Math.PI*2, true); s.holes.push(h); const g = new T3.ExtrudeGeometry(s, {depth:0.03, bevelEnabled:false}); g.translate(0, 0, -0.015); return g; })();
+const scrapMat = new T3.MeshBasicMaterial({color:0xffc84a}), scrapHaloMat = new T3.MeshBasicMaterial({color:0xffb020, transparent:true, opacity:0.28, blending:T3.AdditiveBlending, depthWrite:false});
+const scrapHaloGeo = new T3.SphereGeometry(0.17, 14, 10);
+function spawnScrap(id, pos){
+  if (mode !== 'game' || scrapItems.has(id) || scrapGone.has(id)) return;
+  const g = new T3.Group(), m = new T3.Mesh(scrapGeo, scrapMat), halo = new T3.Mesh(scrapHaloGeo, scrapHaloMat); g.add(m); g.add(halo);
+  const fy = floorBelow(pos.clone().add(new V(0, 0.3, 0))), y = Math.max(pos.y, (fy > -50 ? fy : pos.y) + 0.9);
+  g.position.set(pos.x, y, pos.z); scene.add(g); scrapItems.set(id, {g, m, halo, y0:y, t:R()*6, born:clock});
+}
+function removeScrap(id){ const s = scrapItems.get(id); if (s){ scene.remove(s.g); scrapItems.delete(id); } scrapGone.add(id); }
+function clearScraps(){ for (const id of [...scrapItems.keys()]) removeScrap(id); scrapGone.clear(); }
+function collectScrap(id, s){
+  removeScrap(id); myScraps++; saveScraps(); lastWrist = ''; drawScrapSign();
+  spawnSparks(s.g.position.clone(), 25, 2); pulse(0, 0.5, 60); pulse(1, 0.5, 60);
+  if (AC){ tone('square', 880, 880, 0.06, 0.08); setTimeout(() => tone('square', 1320, 1320, 0.1, 0.08), 70); }
+  showMsg('+1 SCRAP  (' + myScraps + ')');
+  if (room()) netSend('ev', {t:'scget', id});
+}
+function updateScraps(dt){
+  if (!scrapItems.size) return;
+  const hd = loco.headPos(), pts = [hd, hd.clone().add(new V(0, -0.5, 0))];
+  for (const i of [0,1]){ if (me.lost[i]) continue; pts.push(handW[i]);
+    if (wpn[i] !== 'none' && myW[i][wpn[i]]) pts.push(myW[i][wpn[i]].localToWorld(new V(0, -0.25, 0)));
+    if (hs[i].mode === 'hold' && hs[i].root && !hs[i].root.obj.userData.dead) pts.push(centerW(hs[i].root)); }
+  for (const [id, s] of scrapItems){
+    s.t += dt; s.g.position.y = s.y0 + Math.sin(s.t*2)*0.06; s.m.rotation.y += dt*2.5; s.halo.scale.setScalar(1 + Math.sin(s.t*4)*0.12);
+    if (clock - s.born < 0.4) continue;
+    const p = s.g.position; if (pts.some(q => q.distanceTo(p) < 0.25 + (q === pts[1] ? 0.15 : 0))){ collectScrap(id, s); }
+  }
+}
+// the scrap total on the lobby wall
+const scrapCanvas = document.createElement('canvas'); scrapCanvas.width = 256; scrapCanvas.height = 160;
+const scrapTex = new T3.CanvasTexture(scrapCanvas); scrapTex.encoding = T3.sRGBEncoding;
+function drawScrapSign(){
+  const g = scrapCanvas.getContext('2d'); g.fillStyle = '#16120a'; g.fillRect(0, 0, 256, 160); g.strokeStyle = '#e2cf72'; g.lineWidth = 6; g.strokeRect(3, 3, 250, 154);
+  g.fillStyle = '#ffc84a'; g.textAlign = 'center'; g.font = 'bold 30px VT323, monospace'; g.fillText('YOUR SCRAP', 128, 40);
+  g.save(); g.translate(62, 104); g.beginPath(); for (let k=0;k<32;k++){ const a = k/32*Math.PI*2, r = (k % 4 === 1 || k % 4 === 2) ? 30 : 22; g.lineTo(Math.cos(a)*r, Math.sin(a)*r); } g.closePath(); g.fill(); g.fillStyle = '#16120a'; g.beginPath(); g.arc(0, 0, 9, 0, Math.PI*2); g.fill(); g.restore();
+  g.fillStyle = '#fff'; g.textAlign = 'left'; g.font = 'bold 64px VT323, monospace'; g.fillText(String(myScraps), 104, 126);
+  scrapTex.needsUpdate = true;
+}
 const boardCanvas = document.createElement('canvas'); boardCanvas.width = 512; boardCanvas.height = 300;
 const boardTex = new T3.CanvasTexture(boardCanvas); boardTex.encoding = T3.sRGBEncoding;
 function drawBoard(lines){
@@ -734,6 +782,7 @@ function buildLobby(parent, real){
     const pl = plane(parent, tex, 0.39, 0.39, B_.x + 0.202, 0.3, B_.z, Math.PI/2); (B_.labels = B_.labels || []).push(pl); }
   parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
   plane(parent, weaponTex, 4.48, 0.58, -16.28, 1.45, LB.z0+TW/2+0.006, 0);
+  plane(parent, scrapTex, 0.9, 0.5625, -13.05, 1.55, LB.z0+TW/2+0.006, 0); drawScrapSign(); try { document.fonts.ready.then(drawScrapSign); } catch(e){}
   plane(parent, mapTex, 5.28, 0.55, -17.18, 1.45, LB.z1-TW/2-0.006, Math.PI);
   parent.add(wallMesh(MAPBTN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
   for (const w of MAPBTN){
@@ -3006,6 +3055,9 @@ function killBot(bot, remote){
   if (bot.root.mode === 'bot'){ bot.root.mode = 'free'; bot.root.v.set(0,0,0); }
   if (bot.social) endSocial(bot);
   if (bot.dummy) return;
+  { const hp = bot.head && !bot.head.obj.userData.dead ? centerW(bot.head) : centerW(bot.root);
+    if (bot.mon) for (let k=0;k<5;k++){ const a = k/5*Math.PI*2; spawnScrap('sc-' + bot.id + '-' + k, hp.clone().add(new V(Math.cos(a)*0.7, 0, Math.sin(a)*0.7))); }
+    else spawnScrap('sc-' + bot.id, hp); }
   if (bot.mon){ say(bot, pick(['noooo','ow ow ow :(','i just wanted a hug'])); if (MAPS.backrooms.monsterDone) MAPS.backrooms.monsterDone('killed'); return; }
   if ((!netGame || isHost()) && !impGame()) respawnTimers.push(3);
 }
@@ -3209,6 +3261,7 @@ function poseAvatar(av, P){
   }
 }
 
+
 // wrist display
 const wristCanvas = document.createElement('canvas'); wristCanvas.width = 256; wristCanvas.height = 128;
 const wristTex = new T3.CanvasTexture(wristCanvas); wristTex.encoding = T3.sRGBEncoding;
@@ -3220,11 +3273,14 @@ function updateWristVis(){ const n = new V(-1,0,0).applyQuaternion(me.claws[0].g
 let startT = performance.now(), lastWrist = '';
 function drawWrist(){
   const s = Math.floor((performance.now()-startT)/1000), cl = typeof lastCombat === 'number' ? Math.ceil(10 - (clock - lastCombat)) : 0;
-  const txt = (mode === 'game' ? (impLocked() ? 'ROUND ON' : cl > 0 ? `LEAVE IN ${cl}s` : 'Y = LEAVE') : 'LOBBY') + '|' + `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+  const txt = (mode === 'game' ? (impLocked() ? 'ROUND ON' : cl > 0 ? `LEAVE IN ${cl}s` : 'Y = LEAVE') : 'LOBBY') + '|' + `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` + '|' + myScraps;
   if (txt === lastWrist) return; lastWrist = txt;
-  const g = wristCanvas.getContext('2d'), [a,b] = txt.split('|');
+  const g = wristCanvas.getContext('2d'), [a, b, c] = txt.split('|');
   g.fillStyle = '#16090a'; g.fillRect(0,0,256,128); g.fillStyle = '#ff3b2f'; g.textAlign = 'center';
-  g.font = 'bold 40px monospace'; g.fillText(a, 128, 54); g.fillStyle = '#e2cf72'; g.font = '36px monospace'; g.fillText(b, 128, 104);
+  g.font = 'bold 40px monospace'; g.fillText(a, 128, 54); g.fillStyle = '#e2cf72'; g.font = '34px monospace'; g.textAlign = 'left'; g.fillText(b, 14, 106);
+  // scrap: a little gear and the count
+  g.fillStyle = '#ffc84a'; g.save(); g.translate(150, 94); g.beginPath(); for (let k=0;k<24;k++){ const an = k/24*Math.PI*2, r = (k % 4 === 1 || k % 4 === 2) ? 15 : 11; g.lineTo(Math.cos(an)*r, Math.sin(an)*r); } g.closePath(); g.fill(); g.fillStyle = '#16090a'; g.beginPath(); g.arc(0, 0, 4.5, 0, Math.PI*2); g.fill(); g.restore();
+  g.fillStyle = '#ffc84a'; g.font = 'bold 34px monospace'; g.fillText(c, 172, 106);
   wristTex.needsUpdate = true; $('score').textContent = a;
 }
 
@@ -3693,7 +3749,7 @@ function updateWeapon(dt){
     if (w === 'boomer') updateBoomer(i, dt); else { booms_[i] = null; boomPrev[i] = false; myBlades[i].visible = false; }
     if (w === 'hook') updateHook(i, dt); else { hooks[i] = null; hookPrev[i] = false; myRopes[i].visible = myHooks[i].visible = false; }
   }
-  updateCannonballs(); updateSizing(dt); updateShieldClash();
+  updateCannonballs(); updateSizing(dt); updateShieldClash(); updateScraps(dt);
   noise = noise*Math.exp(-dt*0.45) + dt*(sawLvl*2.2 + (flameOn[0] || flameOn[1] ? 1.6 : 0) + (laserOn[0] || laserOn[1] ? 1.2 : 0) + (freezeOn[0] || freezeOn[1] ? 0.8 : 0) + (booms_[0] || booms_[1] ? 0.8 : 0) + (blowOn[0] || blowOn[1] ? 1.2 : 0)); noise = Math.min(6, noise);
   sawSound(sawLvl, sawCut ? 1 : 0.2); flameSound(flameOn[0] || flameOn[1] ? 1 : 0); laserSound(laserOn[0] || laserOn[1]);
   // things cool off when the flames aren't on them
@@ -5627,6 +5683,7 @@ function die(by){
   if (clock - (die.t != null ? die.t : -9) < 2) return;          // once: the fade back to the lobby takes a moment
   die.t = clock;
   lastDeath = by || 'another robot'; window.__ld = lastDeath;
+  if (mode === 'game' && netGame){ const sid = 'sc-p-' + NET.id + '-' + Date.now().toString(36), hp = loco.headPos(); netSend('ev', {t:'scrap', id:sid, p:r3(hp.toArray())}); }
   for (const i of [0,1]) release(i, true);
   spawnSparks(loco.headPos(), 120, 4); sndSnap(); pulse(0, 1, 300); pulse(1, 1, 300);
   fadeDir = 0; fade = 0; netGame = null; goto('lobby');
@@ -5840,6 +5897,7 @@ function hostId(){
 function isHost(){ return !netGame || hostId() === NET.id; }
 function claim(root){ impTouch(root); root.owner = NET.id; if (room() && root.id) netSend('ev', {t:'claim', r:root.id}); }
 function resetWorld(){
+  clearScraps();
   for (const p of parts.slice()) if (!p.parent && !p.obj.userData.dead) removePart(p, true);
   bots.length = 0; respawnTimers.length = 0; wires.length = 0;
 }
@@ -6020,6 +6078,8 @@ function onEvent(ev, from){
   else if (ev.t === 'ism'){ const r = partsById.get(ev.r); if (r) shatterIce(r, null, true); }
   else if (ev.t === 'thaw'){ const r = partsById.get(ev.r); if (r) thawRoot(r, true); }
   else if (ev.t === 'pfrz'){ if (mode === 'game') freezeMe(ev.a); }
+  else if (ev.t === 'scrap'){ spawnScrap(ev.id, new V().fromArray(ev.p)); }
+  else if (ev.t === 'scget'){ removeScrap(ev.id); }
   else if (ev.t === 'sblk'){ spawnSparks(new V().fromArray(ev.p), 20, 2); sndClank(6); for (const i of [0,1]) if (wpn[i] === 'shield') pulse(i, Math.min(1, 0.5*(ev.k || 1)), 100); }
   else if (ev.t === 'cload'){ const r = partsById.get(ev.r); if (r) cannonHide(r, true); }
   else if (ev.t === 'cfire'){ const r = partsById.get(ev.r); if (r){ cannonHide(r, false); r.noLoad = clock + 1.2; } cannonFx(new V().fromArray(ev.p), new V().fromArray(ev.d)); }
@@ -6176,7 +6236,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261125042715';
+const BUILD = '20261125043414';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
