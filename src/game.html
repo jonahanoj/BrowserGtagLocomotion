@@ -393,7 +393,7 @@ const PED2 = {x:-18.9, z:4.9, top:0.55, cap:0.2};   // PLAY TOGETHER (front-left
 const SKB = {x:-18.9, z:3.15, top:0.55, cap:0.16};   // GAME MODE button: free play / imposter
 const ROLEB = {x:-18.9, z:4.05, top:0.55, cap:0.16}; // IMPOSTER role wish: random / seeker / hider
 // weapon buttons along the north wall: the claw that presses one gets that weapon
-const WPN = ['none','hammer','saw','flame','mine','laser','hook','freeze','glue','boomer','blower','cannon','size','shield'].map((k, i) => ({k, x:-14.2 - i*0.32, col:[0x9aa0a6,0xff9a2a,0xff3b2f,0x3aa0ff,0x5fd35a,0xff3050,0xb0905a,0x8fe0ff,0xe8e070,0xd0d6de,0x7fd0a0,0x8a5a30,0xc070ff,0xc8a048][i]})).map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
+const WPN = ['none','hammer','saw','flame','mine','laser','hook','freeze','glue','boomer','blower','cannon','size','shield','thermal'].map((k, i) => ({k, x:-14.2 - i*0.32, col:[0x9aa0a6,0xff9a2a,0xff3b2f,0x3aa0ff,0x5fd35a,0xff3050,0xb0905a,0x8fe0ff,0xe8e070,0xd0d6de,0x7fd0a0,0x8a5a30,0xc070ff,0xc8a048,0xff6a2a][i]})).map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
 addBox([LB.x0-1,-1,LB.z0-1],[LB.x1+1,0,LB.z1+1]); addBox([LB.x0-1,H,LB.z0-1],[LB.x1+1,H+1,LB.z1+1]);
 addBox([LB.x0-TW/2,0,LB.z0-TW/2],[LB.x0+TW/2,H,LB.z1+TW/2]);
 const RG = {x0:LB.x1, x1:-1, z0:LB.z0, z1:LB.z1, dz0:5.0, dz1:6.5, dh:2.35};   // target range, through a door in the lobby's east wall
@@ -642,6 +642,11 @@ const brGroup = new T3.Group(); for (const o of scene.children.slice(_sc0)) brGr
 // ================= maps =================
 const SPAWN0 = SPAWN.clone();
 const MAPS = {backrooms:{name:'BACKROOMS', group:brGroup, spawn:SPAWN0, yaw:0, nav:navBR, yMin:-5, yMax:H+2,
+  // robots bust out a little dance now and then
+  botIdea(bot, imp){ if (imp || R() > 0.3) return null; const st = R() < 0.5;
+    return actDo(4 + R()*4, (b, t) => { const r = b.root; botYaw(b, (new T3.Euler().setFromQuaternion(r.obj.quaternion, 'YXZ')).y + (st ? 0.05 : 0)); r.obj.position.y = STAND*(r.szK || 1) + Math.abs(Math.sin(t*7))*0.1;
+      botLimbs(b, j => Math.sin(t*7 + j*Math.PI)*0.6, j => st ? 2.4 + Math.sin(t*14 + j)*0.4 : 1.2 + Math.sin(t*7 + j*Math.PI)*1.0, j => st ? 0 : Math.sin(t*7 + j)*0.5); setFace(b, 'happy');
+      if (t < 0.02) say(b, pick(['dance break!','robot dance!','beep bop boop','sick moves'])); }); },
   sky:{bg:FOG, fog:FOG, near:3, far:26, hs:0xfff3c4, hg:0x6a5822, hi:0.95, ac:0xffeeb0, ai:0.35}}};
 let curMap = 'backrooms', selMap = 'backrooms'; window.gravK = 1; var gravK = 1;
 function applySky(k){ const s = k.bg != null ? k : MAPS[k].sky; scene.background.setHex(s.bg); scene.fog.color.setHex(s.fog); scene.fog.near = s.near; scene.fog.far = s.far;
@@ -736,10 +741,10 @@ const mapTex = signTex(1900, 200, (g,W,Hh) => {
   g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('then RED = play solo,  BLUE = play online', W/2, 108);
   g.font = 'bold 25px VT323, monospace'; [['SHIP','#6ab4ff'],['CLOCK','#f0c860'],['VOLCANO','#ff8a4a'],['MANSION','#c0a0ff'],['FACTORY','#f2d040'],['STATION','#8fe0ff'],['MARKET','#8fd0ff'],['SEWERS','#a8d08a'],['HOUSE','#ffb08a'],['CAVE','#e0a070'],['CITY','#c9d3e0'],['FOREST','#7fe07a'],['BACKROOMS','#e2cf72']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/13, 168); });
 });
-const weaponTex = signTex(1900, 200, (g,W,Hh) => {
+const weaponTex = signTex(2036, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK YOUR WEAPON', W/2, 62);
   g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('one per claw: press with the claw you want it on', W/2, 108);
-  g.font = 'bold 27px VT323, monospace'; [['SHIELD','#f0c860'],['SIZE RAY','#d8a0ff'],['CANNON','#d09060'],['BLOWER','#9fe0b8'],['BOOMSAW','#dfe5ec'],['GLUE','#f0ea80'],['FREEZE','#9fe6ff'],['GRAPPLE','#e0c08a'],['LASER','#ff6070'],['MINE','#7fe07a'],['FLAMER','#5ab4ff'],['CHAINSAW','#ff6a5e'],['HAMMER','#ffb04a'],['NONE','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/14, 168); });
+  g.font = 'bold 27px VT323, monospace'; [['THERMAL','#ff8a5a'],['SHIELD','#f0c860'],['SIZE RAY','#d8a0ff'],['CANNON','#d09060'],['BLOWER','#9fe0b8'],['BOOMSAW','#dfe5ec'],['GLUE','#f0ea80'],['FREEZE','#9fe6ff'],['GRAPPLE','#e0c08a'],['LASER','#ff6070'],['MINE','#7fe07a'],['FLAMER','#5ab4ff'],['CHAINSAW','#ff6a5e'],['HAMMER','#ffb04a'],['NONE','#c9cdd2']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/15, 168); });
 });
 function mapIcon(k){
   const g = new T3.Group(), L = c => new T3.MeshLambertMaterial({color:c}), add = (geo, c, x, y, z) => { const m = new T3.Mesh(geo, L(c)); m.position.set(x,y,z); g.add(m); return m; };
@@ -821,7 +826,7 @@ function buildLobby(parent, real){
     const c = new T3.Mesh(new T3.CylinderGeometry(B_.cap, B_.cap, 0.06, 28), new T3.MeshLambertMaterial({color:col, emissive:0x000000})); c.position.set(B_.x, B_.top+0.03, B_.z); parent.add(c); caps.push(c);
     const pl = plane(parent, tex, 0.39, 0.39, B_.x + 0.202, 0.3, B_.z, Math.PI/2); (B_.labels = B_.labels || []).push(pl); }
   parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]})), lobbyWallMat));
-  plane(parent, weaponTex, 4.48, 0.58, -16.28, 1.45, LB.z0+TW/2+0.006, 0);
+  plane(parent, weaponTex, 4.8, 0.58, -16.44, 1.45, LB.z0+TW/2+0.006, 0);
   plane(parent, scrapTex, 0.9, 0.5625, -13.05, 1.55, LB.z0+TW/2+0.006, 0); drawScrapSign(); try { document.fonts.ready.then(drawScrapSign); } catch(e){}
   plane(parent, mapTex, 5.33, 0.55, -17.14, 1.45, LB.z1-TW/2-0.006, Math.PI);
   parent.add(wallMesh(MAPBTN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]})), lobbyWallMat));
@@ -833,7 +838,7 @@ function buildLobby(parent, real){
   for (const w of WPN){
     const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
     cap.position.set(w.x, w.top+0.03, w.z); parent.add(cap); (w.caps = w.caps || []).push(cap);
-    if (w.k !== 'none'){ const m = w.k === 'saw' ? makeSaw() : w.k === 'flame' ? makeFlamer() : w.k === 'mine' ? makeMine() : w.k === 'laser' ? makeLaser() : w.k === 'hook' ? makeHook() : w.k === 'freeze' ? makeFreezer() : w.k === 'glue' ? makeGlue() : w.k === 'boomer' ? makeBoomer() : w.k === 'blower' ? makeBlower() : w.k === 'cannon' ? makeCannon() : w.k === 'size' ? makeSizer() : w.k === 'shield' ? (() => { const sh = makeShield(); sh.rotation.x = Math.PI/2; sh.position.y = 0.05; return sh; })() : makeHammer(); if (w.k === 'saw'){ m.ext = 1; m.bar.scale.y = 1; } m.scale.setScalar(0.8); m.position.set(w.x, w.top + (w.k === 'saw' ? 0.62 : w.k === 'mine' ? 0.25 : 0.6), w.z); if (w.k === 'mine') m.scale.setScalar(1.6); m.rotation.z = 0.25; parent.add(m); (w.models = w.models || []).push(m); }
+    if (w.k !== 'none'){ const m = w.k === 'saw' ? makeSaw() : w.k === 'flame' ? makeFlamer() : w.k === 'mine' ? makeMine() : w.k === 'laser' ? makeLaser() : w.k === 'hook' ? makeHook() : w.k === 'freeze' ? makeFreezer() : w.k === 'glue' ? makeGlue() : w.k === 'boomer' ? makeBoomer() : w.k === 'blower' ? makeBlower() : w.k === 'cannon' ? makeCannon() : w.k === 'size' ? makeSizer() : w.k === 'shield' ? (() => { const sh = makeShield(); sh.rotation.x = Math.PI/2; sh.position.y = 0.05; return sh; })() : w.k === 'thermal' ? makeGoggles() : makeHammer(); if (w.k === 'saw'){ m.ext = 1; m.bar.scale.y = 1; } m.scale.setScalar(0.8); m.position.set(w.x, w.top + (w.k === 'saw' ? 0.62 : w.k === 'mine' ? 0.25 : 0.6), w.z); if (w.k === 'mine') m.scale.setScalar(1.6); m.rotation.z = 0.25; parent.add(m); (w.models = w.models || []).push(m); }
   }
   plane(parent, playTex, 1.2, 0.47, -19.1, 1.25, LB.z0+TW/2+0.006, 0);
   const arrow = new T3.Mesh(new T3.ConeGeometry(0.12,0.25,4), new T3.MeshBasicMaterial({color:0xff3b2f})); arrow.rotation.x = Math.PI; arrow.position.set(PED.x, 1.05, PED.z); arrow.userData.bob = true; parent.add(arrow);
@@ -1685,7 +1690,7 @@ function updateBot(bot, dt, player){
   if (root.mode === 'free'){
     // gets back up after landing, if it still has its head
     if (root.v.length() < 0.35 && root.grounded) root.still += dt; else root.still = 0;
-    if (root.still > 1.0 && bot.head.parent === root){
+    if (root.still > 1.0 && bot.head.parent === root && !(bot.noGetUp > clock)){
       const e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ');
       const c = reachableCell(root.obj.position) || cellOf(root.obj.position);
       root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y, 0)); root.obj.position.y = NAV.lv[c[2]] + STAND*(root.szK || 1);
@@ -1699,6 +1704,11 @@ function updateBot(bot, dt, player){
   if (bot.spin > 0){ bot.spin -= dt; root.obj.rotation.y += dt*9; root.obj.position.y = NAV.lv[(bot.cell && bot.cell[2]) || 0] + STAND + Math.abs(Math.sin(bot.t*12))*0.12; bot.ups.forEach((u, j) => { if (u.parent === root) u.obj.rotation.z = (j ? 1 : -1)*(2.4 + Math.sin(bot.t*14)*0.5); }); setFace(bot, 'happy'); return; }
   const imp = impGame();
   { const MC = MAPS[curMap]; if (!imp && MC && MC.botCtl && MC.botCtl(bot, dt)) return; }   // a map can take over its robots (volcano: run for the rafts)
+  // map activities (the TV, the shops, the stairs...): see botIdea in the maps
+  if (bot.act && (clock - bot.act.last > 0.35 || bot.burning)){ const a = bot.act; bot.act = null; if (a.cancel) a.cancel(bot); }
+  if (bot.act){ const a = bot.act; a.last = clock; if (a.step(bot, dt)) return;
+    const nx = a.then ? a.then(bot, !!a.failed) : null; if (nx){ nx.last = clock; bot.act = nx; } else { bot.act = null; if (a.cancel) a.cancel(bot, true); botSettle(bot); } return; }
+  { const MC = MAPS[curMap]; if (MC && MC.botIdea && !bot.social && R() < dt*(imp ? 0.05 : 0.12)){ const a = MC.botIdea(bot, imp); if (a){ a.last = clock; bot.act = a; return; } } }
   if (!imp && socialTick(bot, dt)) return;
   if (!imp && !near_(bot, player) && R() < dt*0.25) trySocial(bot);
   if (imp && IMP.on && IMP.phase !== 'wait'){ bot.sayT -= dt; if (bot.sayT < 0){ bot.sayT = 30 + R()*40; const s_ = pick(IMP_SAY); say(bot, s_); netSend('ev', {t:'imp', k:'bsay', b:bot.id, s:s_}); } }
@@ -1758,7 +1768,7 @@ function physics(root, dt){
       const vn = root.v.dot(n);
       if (vn < 0){
         const imp = -vn; root.v.addScaledVector(n, -vn*1.3);
-        const vt = root.v.clone().addScaledVector(n, -root.v.dot(n)); root.v.sub(vt.multiplyScalar(0.25));
+        const vt = root.v.clone().addScaledVector(n, -root.v.dot(n)); root.v.sub(vt.multiplyScalar(root.kind === 'cart' && n.y > 0.6 ? 0.004 : 0.25));   // carts roll
         const arm = c.clone().sub(centerW(root)); root.w.add(arm.cross(n).multiplyScalar(imp*4)); root.w.multiplyScalar(0.85);
         if (imp > bestImpact){ bestImpact = imp; bestPt = q.clone(); }
       }
@@ -1766,6 +1776,9 @@ function physics(root, dt){
       root.obj.updateMatrixWorld(true);
     }
   }
+  if (root.kind === 'cart'){ // shopping carts stay on their wheels and roll a long way
+    const e = new T3.Euler().setFromQuaternion(root.obj.quaternion, 'YXZ'); if (root.grounded || Math.abs(e.x) + Math.abs(e.z) > 0.01){ root.obj.quaternion.setFromEuler(new T3.Euler(0, e.y, 0, 'YXZ')); root.w.set(0, root.w.y*0.9, 0); }
+    if (root.grounded){ const k = Math.exp(-0.45*dt); root.v.x *= k; root.v.z *= k; } }
   if (root.grounded){ root.w.multiplyScalar(Math.pow(0.05, dt)); if (root.v.length() < 0.06) root.v.set(0,0,0); }
   if (root.grounded && root.v.lengthSq() < 0.01 && root.w.lengthSq() < 0.05){ root.sleepT = (root.sleepT || 0) + dt; if (root.sleepT > 0.6) root.asleep = true; } else root.sleepT = 0;
   const calm = root.calmT > clock;
@@ -1830,7 +1843,7 @@ function makeHammer(){
 const blowOn = [false, false], booms_ = [null, null], boomPrev = [false, false], gluePrev = [false, false], freezeOn = [false, false];
 let myFrz = 0, myIce = false, myIceT = 0;
 const wpn = ['none', 'none'], sawRun = [0, 0], sawPrevMid = [new V(), new V()], hammerPrev = [new V(), new V()], hammerVs = [new V(), new V()], hammerT = [-1, -1], cutJobs = [null, null], flameOn = [false, false], mineCD = [0, 0], minePrev = [false, false];
-function weaponSet(claw){ const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer(), mine:makeMine(), laser:makeLaser(), hook:makeHook(), freeze:makeFreezer(), glue:makeGlue(), boomer:makeBoomer(), blower:makeBlower(), cannon:makeCannon(), size:makeSizer(), shield:makeShield()}; w.mine.position.set(0, -0.12, -0.03);
+function weaponSet(claw){ const w = {saw:makeSaw(), hammer:makeHammer(), flame:makeFlamer(), mine:makeMine(), laser:makeLaser(), hook:makeHook(), freeze:makeFreezer(), glue:makeGlue(), boomer:makeBoomer(), blower:makeBlower(), cannon:makeCannon(), size:makeSizer(), shield:makeShield(), thermal:makeGoggles()}; w.mine.position.set(0, -0.12, -0.03);
   for (const k in w){ w[k].userData.weapon = true; claw.add(w[k]); } return w; }
 function makeLaser(){
   const g = new T3.Group(), add = (geo, mat, x, y, z) => { const m = new T3.Mesh(geo, mat); m.position.set(x,y,z); g.add(m); return m; };
@@ -1855,7 +1868,7 @@ const myW = [0,1].map(i => weaponSet(me.claws[i]));
 const myWm = [0,1].map(i => weaponSet(meMirror.claws[i]));
 function showWeapons(){
   for (const i of [0,1]){
-    for (const set of [myW, myWm]){ const w = wpn[i]; set[i].saw.visible = w === 'saw'; set[i].hammer.visible = w === 'hammer'; set[i].flame.visible = w === 'flame'; set[i].mine.visible = w === 'mine' && mineCD[i] <= 0; set[i].laser.visible = w === 'laser'; set[i].hook.visible = w === 'hook'; set[i].freeze.visible = w === 'freeze'; set[i].glue.visible = w === 'glue'; set[i].boomer.visible = w === 'boomer'; set[i].boomer.blade.visible = !booms_[i]; set[i].blower.visible = w === 'blower'; set[i].cannon.visible = w === 'cannon'; set[i].size.visible = w === 'size'; set[i].shield.visible = w === 'shield'; }
+    for (const set of [myW, myWm]){ const w = wpn[i]; set[i].saw.visible = w === 'saw'; set[i].hammer.visible = w === 'hammer'; set[i].flame.visible = w === 'flame'; set[i].mine.visible = w === 'mine' && mineCD[i] <= 0; set[i].laser.visible = w === 'laser'; set[i].hook.visible = w === 'hook'; set[i].freeze.visible = w === 'freeze'; set[i].glue.visible = w === 'glue'; set[i].boomer.visible = w === 'boomer'; set[i].boomer.blade.visible = !booms_[i]; set[i].blower.visible = w === 'blower'; set[i].cannon.visible = w === 'cannon'; set[i].size.visible = w === 'size'; set[i].shield.visible = w === 'shield'; set[i].thermal.visible = w === 'thermal'; }
     myWm[i].saw.bar.scale.y = myW[i].saw.bar.scale.y;
   }
 }
@@ -1869,7 +1882,7 @@ function sawSound(level, pitch){
   sawOsc[0].frequency.setTargetAtTime(70 + pitch*60, AC.currentTime, 0.05); sawOsc[1].frequency.setTargetAtTime(140 + pitch*120, AC.currentTime, 0.05);
 }
 function updateWeapon(dt){
-  showWeapons();
+  showWeapons(); thermalTick(dt);
   let sawLvl = 0, sawCut = 0;
   for (const i of [0,1]){
     const w = me.lost[i] ? 'none' : wpn[i];
@@ -2923,6 +2936,74 @@ function makeShield(){
   const stripe = new T3.Mesh(new T3.BoxGeometry(SR_*1.9, 0.034, 0.07), new T3.MeshLambertMaterial({color:0xd8302a})); g.add(stripe);
   const stripe2 = stripe.clone(); stripe2.rotation.y = Math.PI/2; g.add(stripe2);
   return g;
+}
+// ================= THERMAL GOGGLES =================
+// Hold them up to your eyes (they don't stay on: you have to keep holding them there) and the world goes cold and dark,
+// while robots and players glow hot, right through the walls, with their circuits pulsing inside.
+function makeGoggles(){
+  const g = new T3.Group(), body = new T3.MeshLambertMaterial({color:0x2c3036}), trim = new T3.MeshLambertMaterial({color:0xff6a2a}), lens = new T3.MeshBasicMaterial({color:0xff5a20, fog:false});
+  for (const x of [-0.045, 0.045]){ const t = new T3.Mesh(new T3.CylinderGeometry(0.032, 0.036, 0.07, 16), body); t.position.set(x, -0.08, 0); g.add(t);
+    const r = new T3.Mesh(new T3.TorusGeometry(0.033, 0.006, 6, 16), trim); r.rotation.x = Math.PI/2; r.position.set(x, -0.116, 0); g.add(r);
+    const l = new T3.Mesh(new T3.CircleGeometry(0.028, 16), lens); l.rotation.x = Math.PI/2; l.position.set(x, -0.117, 0); g.add(l); }
+  const br = new T3.Mesh(new T3.BoxGeometry(0.04, 0.03, 0.03), body); br.position.set(0, -0.07, 0); g.add(br);
+  const st = new T3.Mesh(new T3.TorusGeometry(0.075, 0.006, 4, 20, Math.PI), new T3.MeshLambertMaterial({color:0x1a1c20})); st.position.set(0, -0.05, 0); st.rotation.x = -Math.PI/2; g.add(st);
+  const led = new T3.Mesh(new T3.SphereGeometry(0.008, 6, 4), new T3.MeshBasicMaterial({color:0x40ff60})); led.position.set(0, -0.06, -0.02); g.add(led);
+  g.lensPos = new V(0, -0.12, 0); return g;
+}
+const TH = {on:0, wasOn:false, orig:new WeakMap(), hidden:[], scanT:0, t:0, bg:new T3.Color(0x0a0618), realBg:null};
+const thVert = `varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec3 vW;
+  void main(){ vP = position; vec4 w = modelMatrix*vec4(position, 1.0); vW = w.xyz; vN = normalize(mat3(modelMatrix)*normal); vV = normalize(cameraPosition - w.xyz); gl_Position = projectionMatrix*viewMatrix*w; }`;
+const thRamp = `vec3 ramp(float h){ h = clamp(h, 0.0, 1.0);
+  vec3 a = vec3(0.02, 0.02, 0.10), b = vec3(0.40, 0.03, 0.55), c = vec3(1.0, 0.25, 0.05), d = vec3(1.0, 0.8, 0.12), e = vec3(1.0, 1.0, 0.92);
+  if (h < 0.25) return mix(a, b, h/0.25); if (h < 0.5) return mix(b, c, (h - 0.25)/0.25); if (h < 0.75) return mix(c, d, (h - 0.5)/0.25); return mix(d, e, (h - 0.75)/0.25); }`;
+const thCold = new T3.ShaderMaterial({vertexShader:thVert, fragmentShader:`varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec3 vW; uniform float uT; ${thRamp}
+  void main(){ float f = 0.5 + 0.5*dot(normalize(vN), normalize(vec3(0.3, 0.8, 0.5)));
+    float n = 0.5 + 0.5*sin(vW.x*0.7 + uT*0.3)*sin(vW.z*0.6 - uT*0.2);
+    float h = 0.03 + 0.09*f + 0.04*n;
+    float fr = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.0); h += 0.05*fr;
+    gl_FragColor = vec4(ramp(h), 1.0); }`, uniforms:{uT:{value:0}}});
+const thHot = heat => { const m = new T3.ShaderMaterial({vertexShader:thVert, fragmentShader:`varying vec3 vN; varying vec3 vV; varying vec3 vP; varying vec3 vW; uniform float uT; uniform float uHeat; ${thRamp}
+  void main(){ float fr = abs(dot(normalize(vN), normalize(vV))); float h = uHeat*(0.5 + 0.5*pow(fr, 0.7));
+    vec3 q = vP*34.0; vec2 g1 = abs(fract(q.xy) - 0.5), g2 = abs(fract(q.zy + 0.5) - 0.5);
+    float tr = max(step(0.46, max(g1.x, g1.y))*step(0.5, fract(floor(q.x)*0.37 + floor(q.y)*0.61)), step(0.47, max(g2.x, g2.y))*step(0.6, fract(floor(q.z)*0.53 + floor(q.y)*0.29)));
+    float pulse = 0.5 + 0.5*sin(uT*7.0 - (vP.y + vP.x)*60.0);
+    h += uHeat*0.35*tr*(0.4 + 0.6*pulse);
+    gl_FragColor = vec4(ramp(h), 1.0); }`, uniforms:{uT:{value:0}, uHeat:{value:heat}}, depthTest:false, depthWrite:false});
+  m.userData.thermal = true; m.color = new T3.Color(); m.emissive = new T3.Color(); return m; };
+thCold.userData.thermal = true; thCold.color = new T3.Color(); thCold.emissive = new T3.Color();
+const thMats = {bot:thHot(0.95), piece:thHot(0.6), dead:thHot(0.35), player:thHot(1.0)};
+// the view through the goggles: a rounded window, soft dark edges, scanlines and a bit of grain
+const thOverlay = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, 512, 512); g.globalCompositeOperation = 'destination-out';
+  const gr = g.createRadialGradient(256, 256, 120, 256, 256, 250); gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(0.75, 'rgba(0,0,0,0.85)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = gr; g.save(); g.scale(1.25, 1); g.beginPath(); g.arc(205, 256, 250, 0, 7); g.fill(); g.restore(); g.globalCompositeOperation = 'source-over';
+  for (let y=0;y<512;y+=4){ g.fillStyle = 'rgba(0,0,0,0.12)'; g.fillRect(0, y, 512, 1); }
+  for (let k=0;k<2500;k++){ g.fillStyle = `rgba(255,${120 + R()*100|0},60,${R()*0.08})`; g.fillRect(R()*512, R()*512, 2, 2); }
+  g.fillStyle = 'rgba(255,140,60,.8)'; g.font = 'bold 18px monospace'; g.fillText('THERMAL', 214, 96); g.fillRect(250, 250, 12, 2); g.fillRect(255, 245, 2, 12);
+  const t = new T3.CanvasTexture(c); const m = new T3.Mesh(new T3.PlaneGeometry(0.62, 0.5), new T3.MeshBasicMaterial({map:t, transparent:true, depthTest:false, depthWrite:false, fog:false, opacity:0}));
+  m.position.set(0, 0, -0.105); m.renderOrder = 1001; m.visible = false; camera.add(m); return m; })();
+function thermalSwap(on){
+  const peerRoots = new Set(); for (const p of Object.values(NET.peers)) if (p.av) peerRoots.add(p.av);
+  if (!on){ scene.traverse(o => { if (o.isMesh){ const m = TH.orig.get(o); if (m){ o.material = m; TH.orig.delete(o); o.renderOrder = o.userData.thRO || 0; } else if (o.material && o.material.userData && o.material.userData.thermal) o.material = new T3.MeshLambertMaterial({color:0x8d939a}); } });
+    for (const o of TH.hidden) o.visible = true; TH.hidden = []; if (TH.realBg){ scene.background = TH.realBg; TH.realBg = null; } return; }
+  if (scene.background !== TH.bg){ TH.realBg = scene.background; scene.background = TH.bg; } TH.bg.setHex(0x0a0618);
+  const walk = (o, kind) => { if (!o.visible || o === rig || o === thOverlay) return;
+    if (peerRoots.has(o)) kind = 'player';
+    const pp = o.userData && o.userData.part; if (pp && !kind){ const r = rootOf(pp), b = r.bot || pp.bot; kind = b ? (b.dead ? 'dead' : 'bot') : (pp.name === 'prop' || pp.name === 'chunk' ? null : 'piece'); }
+    if (o.isSprite || o.isPoints || o.isLine){ o.visible = false; TH.hidden.push(o); return; }
+    if (o.isMesh){ const want = kind ? thMats[kind] : thCold; if (o.material !== want){ if (!(o.material && o.material.userData && o.material.userData.thermal)) TH.orig.set(o, o.material); o.material = want; if (kind){ if (o.userData.thRO == null) o.userData.thRO = o.renderOrder; o.renderOrder = 990; } } }
+    for (const c of o.children) walk(c, kind); };
+  for (const c of scene.children) walk(c, null);
+}
+function thermalTick(dt){
+  let want = 0;
+  for (const i of [0, 1]) if (wpn[i] === 'thermal' && !me.lost[i]){ const lp = myW[i].thermal.localToWorld(myW[i].thermal.lensPos.clone()), hp = loco.headPos(); if (lp.distanceTo(hp) < 0.17) want = 1; }
+  if (window.__thermForce) want = 1;
+  TH.on += ((want ? 1 : 0) - TH.on)*Math.min(1, dt*(want ? 9 : 12));
+  const on = TH.on > 0.5; TH.t += dt; thCold.uniforms.uT.value = TH.t; for (const k in thMats) thMats[k].uniforms.uT.value = TH.t;
+  thOverlay.visible = TH.on > 0.02; thOverlay.material.opacity = Math.min(1, TH.on*1.2); thOverlay.material.map.offset.set(R()*0.004, R()*0.004);
+  if (on !== TH.wasOn){ TH.wasOn = on; thermalSwap(on); if (AC){ if (on){ tone('sine', 300, 1800, 0.35, 0.05); tone('square', 60, 60, 0.4, 0.015); } else tone('sine', 1500, 200, 0.2, 0.04); } }
+  else if (on){ TH.scanT -= dt; if (TH.scanT <= 0){ TH.scanT = 0.2; thermalSwap(true); } }
 }
 const shieldOf = (m, id, i) => ({id, i, c:m.localToWorld(new V(0, 0, 0)), n:new V(0, -1, 0).applyQuaternion(m.getWorldQuaternion(new Q())).normalize()});
 // every shield in play (mine too unless skipMine)
@@ -4099,7 +4180,7 @@ function updateRemoteAvatars(){
     p.wp.forEach((set, mi) => set.forEach((w, i) => {
       const on = here && (mi === 0 || mode === 'lobby'), t = p.wType[i], act = p.wAct[i];
       if (mi === 0) for (const k of [0, 1]) if (k === i) setShieldCollider(p.id + ':' + i, on && t === 13 && !p.lost[i] && mode === 'game' ? w.shield : null);
-      w.saw.visible = on && t === 2; w.hammer.visible = on && t === 1; w.flame.visible = on && t === 3; w.mine.visible = on && t === 4 && act > 0.5; w.laser.visible = on && t === 5; w.hook.visible = on && t === 6; w.freeze.visible = on && t === 7; w.glue.visible = on && t === 8; w.boomer.visible = on && t === 9; w.blower.visible = on && t === 10; w.cannon.visible = on && t === 11; w.size.visible = on && t === 12; w.shield.visible = on && t === 13; if (t === 11) w.cannon.glow.material.color.setHex(act > 0.5 ? 0xff9a30 : 0x331a08); if (t === 12){ const cc = act > 0.5 ? 0x50ff70 : 0xff5ab4; w.size.dish.material.color.setHex(cc); w.size.tipM.material.color.setHex(cc); } w.boomer.blade.visible = act > 0.5;
+      w.saw.visible = on && t === 2; w.hammer.visible = on && t === 1; w.flame.visible = on && t === 3; w.mine.visible = on && t === 4 && act > 0.5; w.laser.visible = on && t === 5; w.hook.visible = on && t === 6; w.freeze.visible = on && t === 7; w.glue.visible = on && t === 8; w.boomer.visible = on && t === 9; w.blower.visible = on && t === 10; w.cannon.visible = on && t === 11; w.size.visible = on && t === 12; w.shield.visible = on && t === 13; if (t === 11) w.cannon.glow.material.color.setHex(act > 0.5 ? 0xff9a30 : 0x331a08); if (t === 12){ const cc = act > 0.5 ? 0x50ff70 : 0xff5ab4; w.size.dish.material.color.setHex(cc); w.size.tipM.material.color.setHex(cc); } w.boomer.blade.visible = act > 0.5; w.thermal.visible = on && t === 14;
       if (mi === 0){ p.fx = p.fx || [0,1].map(() => ({beam:makeBeam(), rope:makeRope(), head:makeHookHead(), frost:makeFrostBeam(), blade:makeFlyBlade()})); const fx = p.fx[i];
         fx.beam.visible = false; fx.rope.visible = false; fx.head.visible = false; fx.frost.visible = false; fx.blade.visible = false; w.hook.head.visible = true;
         if (w.blower.visible && act > 0.5){ const [tip, dir] = weaponRay(w.blower, -0.28); emitMist(tip, dir, worldRayLen(tip, dir, BLOW_LEN), 1, 0.35); }
@@ -4127,7 +4208,7 @@ function sendPose(){
   const a = [...head.toArray(), hq.x, hq.y, hq.z, hq.w, io.yaw + io.headYaw];
   for (const i of [0,1]) a.push(...handW[i].toArray(), handQW[i].x, handQW[i].y, handQW[i].z, handQW[i].w);
   for (const i of [0,1]) a.push(io.trig[i], io.gripV[i], io.thumb[i] ? 1 : 0);
-  const WT = {none:0, hammer:1, saw:2, flame:3, mine:4, laser:5, hook:6, freeze:7, glue:8, boomer:9, blower:10, cannon:11, size:12, shield:13}, act = i => wpn[i] === 'saw' ? myW[i].saw.ext : wpn[i] === 'flame' && flameOn[i] ? 1 : wpn[i] === 'mine' && mineCD[i] > 0 ? 0 : wpn[i] === 'laser' ? (laserOn[i] ? 1 : 0) : wpn[i] === 'freeze' ? (freezeOn[i] ? 1 : 0) : wpn[i] === 'boomer' ? (booms_[i] ? 0 : 1) : wpn[i] === 'blower' ? (blowOn[i] ? 1 : 0) : wpn[i] === 'cannon' ? (cannons_[i].p ? 1 : 0) : wpn[i] === 'size' ? (sizeMode[i] > 0 ? 1 : 0) : 1;
+  const WT = {none:0, hammer:1, saw:2, flame:3, mine:4, laser:5, hook:6, freeze:7, glue:8, boomer:9, blower:10, cannon:11, size:12, shield:13, thermal:14}, act = i => wpn[i] === 'saw' ? myW[i].saw.ext : wpn[i] === 'flame' && flameOn[i] ? 1 : wpn[i] === 'mine' && mineCD[i] > 0 ? 0 : wpn[i] === 'laser' ? (laserOn[i] ? 1 : 0) : wpn[i] === 'freeze' ? (freezeOn[i] ? 1 : 0) : wpn[i] === 'boomer' ? (booms_[i] ? 0 : 1) : wpn[i] === 'blower' ? (blowOn[i] ? 1 : 0) : wpn[i] === 'cannon' ? (cannons_[i].p ? 1 : 0) : wpn[i] === 'size' ? (sizeMode[i] > 0 ? 1 : 0) : 1;
   a.push(me.lost[0] ? 1 : 0, me.lost[1] ? 1 : 0, WT[wpn[0]], WT[wpn[1]], act(0), act(1), ...burnVals());
   a.push(myChar.arm0, myChar.arm1, myChar.head, myChar.torso);
   for (const i of [0,1]){ const h = hooks[i]; a.push(...(h ? h.p.toArray() : [0, -999, 0])); }

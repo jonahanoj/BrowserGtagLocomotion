@@ -360,13 +360,22 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const fireW = fireAt.clone().add(O).setY(0.35);
   for (let i=0;i<22;i++){ const p = placeFree(taken.slice(), 6, 38, 6, 38, 0.2); if (p) B.prop(['pinecone','apple','stick','rock'][i % 4], p[0], 0, p[1]); }
   const grp = B.finish(), nav = buildNav(B.solids, O, 44, 2, [0]);
-  const bounceCD = new WeakMap(); let meCD = 0;
-  MAPS.forest = {name:'FOREST', group:grp, spawn:new V(22, 0, 22).add(O), yaw:0, nav, yMin:-5, yMax:20, props:B.props,
+  const bounceCD = new WeakMap(); let meCD = 0, fireOut = false;
+  // robots love the mushrooms: they climb up, jump on, and get flung (then do it again)
+  const shroomIdea = (bot, imp) => { if (imp || R() > 0.5) return null; const s = pick(shrooms), a0 = R()*6.283, ax = s.x + Math.cos(a0)*(s.r + 0.7), az = s.z + Math.sin(a0)*(s.r + 0.7);
+    return actWalk(new V(ax, 0, az), [], {then:(b, failed) => { if (failed) return null; let t = 0; const from = b.root.obj.position.clone(); say(b, pick(['wheee!','mushroom time','again!!','boing boing','watch me fly']));
+      return {step(b2, dt){ t += dt; const r = b2.root, pos = r.obj.position, k = Math.min(1, t/0.6);
+        pos.set(from.x + (s.x - from.x)*k, from.y + (s.top + 0.2 - from.y)*k + Math.sin(k*Math.PI)*1.0, from.z + (s.z - from.z)*k); botYaw(b2, yawOf(new V(s.x - from.x, 0, s.z - from.z))); botLimbs(b2, -0.5, 2.5, 0); setFace(b2, 'happy');
+        if (k >= 1){ r.mode = 'free'; r.asleep = false; r.v.set(0, -2, 0); r.w.set(R() - 0.5, R() - 0.5, R() - 0.5).multiplyScalar(6); return false; } return true; }}; }}); };
+  MAPS.forest = {name:'FOREST', O, botIdea:shroomIdea, group:grp, spawn:new V(22, 0, 22).add(O), yaw:0, nav, yMin:-5, yMax:20, props:B.props,
     sky:{bg:0xa9d6f0, fog:0xb6dcef, near:12, far:48, hs:0xeef8ff, hg:0x4c6b30, hi:1.0, ac:0xffffff, ai:0.32},
     update(dt, inGame){
       meCD -= dt;
-      if (fireW.distanceTo(lastPlayer) < 14) for (let k=0;k<3;k++) emitFire(fireW.clone().add(new V((R()-0.5)*0.3, -0.15, (R()-0.5)*0.3)), new V((R()-0.5)*0.3, 0.9 + R()*0.6, (R()-0.5)*0.3), 0.06 + R()*0.05, 0.5 + R()*0.3);
-      if (inGame) fireHazard(dt, [fireW, fireW.clone().add(new V(0, 0.35, 0))], 0.5);
+      // rain puts the campfire out (smoke and a hiss); it lights again when the rain stops. Snow doesn't.
+      const wet = (MAPS.forest.rainK || 0) > 0.35; if (wet !== fireOut){ fireOut = wet; if (AC && fireW.distanceTo(lastPlayer) < 14) noiseHit(wet ? 0.8 : 0.3, wet ? 3000 : 600, 0.8, 0.15); }
+      if (fireOut){ if (fireW.distanceTo(lastPlayer) < 14 && R() < 0.12) emitAsh(fireW.clone(), 1, 0.02); }
+      else if (fireW.distanceTo(lastPlayer) < 14) for (let k=0;k<3;k++) emitFire(fireW.clone().add(new V((R()-0.5)*0.3, -0.15, (R()-0.5)*0.3)), new V((R()-0.5)*0.3, 0.9 + R()*0.6, (R()-0.5)*0.3), 0.06 + R()*0.05, 0.5 + R()*0.3);
+      if (inGame && !fireOut) fireHazard(dt, [fireW, fireW.clone().add(new V(0, 0.35, 0))], 0.5);
       for (const s of shrooms){ if (s.t > 0){ s.t -= dt; const k = s.t/0.35; s.cap.scale.set(1 + 0.25*Math.sin(k*Math.PI), 0.55*(1 - 0.35*Math.sin(k*Math.PI)), 1 + 0.25*Math.sin(k*Math.PI)); } }
       if (!inGame) return;
       const on = (p, pad) => { for (const s of shrooms) if (Math.hypot(p.x - s.x, p.z - s.z) < s.r*0.95 && p.y > s.top - 0.35 && p.y < s.top + pad) return s; return null; };
@@ -449,7 +458,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     // snow settles slowly and melts slowly
     snowU.value = Math.max(0, Math.min(1, snowU.value + (snowK > 0.5 ? dt/35 : -dt/70)));
     // falling stuff
-    rain.visible = rainK > 0.01; snow.visible = snowK > 0.01;
+    rain.visible = rainK > 0.01; snow.visible = snowK > 0.01; F.rainK = rainK;
     if (rain.visible){ const n = Math.floor(RN*rainK); rg.setDrawRange(0, n*2);
       for (let i=0;i<n;i++){ const j = i*6; rp[j+1] -= 16*dt; if (rp[j+1] < lastPlayer.y - 3 || Math.abs(rp[j] - lastPlayer.x) > BOX || Math.abs(rp[j+2] - lastPlayer.z) > BOX){ seed(rp, j); rp[j+1] = lastPlayer.y + 6 + R()*5; }
         rp[j+3] = rp[j] + 0.03; rp[j+4] = rp[j+1] + 0.45; rp[j+5] = rp[j+2]; } rg.attributes.position.needsUpdate = true;
@@ -597,7 +606,11 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const sndCrash = () => { if (!AC) return; noiseHit(0.5, 700, 0.7, 0.9); noiseHit(0.2, 2400, 2, 0.5); tone('square', 300, 60, 0.3, 0.15); };
   const honk = (vol) => { if (!AC) return; const o = AC.createOscillator(), o2 = AC.createOscillator(), gg = AC.createGain(), t = AC.currentTime; o.type = o2.type = 'square'; o.frequency.value = 415; o2.frequency.value = 523;
     gg.gain.setValueAtTime(0.05*vol, t); gg.gain.setValueAtTime(0.05*vol, t+0.35); gg.gain.exponentialRampToValueAtTime(0.001, t+0.45); o.connect(gg); o2.connect(gg); gg.connect(AC.destination); o.start(t); o2.start(t); o.stop(t+0.5); o2.stop(t+0.5); };
-  MAPS.city = {name:'CITY', group:grp, spawn:new V(15.5, 0.15, 15.5).add(O), yaw:-Math.PI*0.75, nav, yMin:-5, yMax:36, props:B.props,
+  const roadIdea = (bot, imp) => { if (imp || R() > 0.35) return null; const t = (R() < 0.5 ? 4 + R()*12 : 28 + R()*12), alongX = R() < 0.5, back = R() < 0.5;
+    let a = alongX ? new V(t, 0, 17.6) : new V(17.6, 0, t), b = alongX ? new V(t, 0, 26.4) : new V(26.4, 0, t); if (back){ const q = a; a = b; b = q; }
+    return actWalk(a.clone().add(O), [], {then:(bt, failed) => { if (failed) return null; say(bt, pick(['why did the robot cross the road?','YOLO','last one across is rusty','run run run']));
+      return actWalk(null, [b.clone().add(O)], {speed:1.7}); }}); };
+  MAPS.city = {name:'CITY', O, botIdea:roadIdea, group:grp, spawn:new V(15.5, 0.15, 15.5).add(O), yaw:-Math.PI*0.75, nav, yMin:-5, yMax:36, props:B.props,
     sky:{bg:0x9ec9ea, fog:0xb4cbe0, near:14, far:60, hs:0xffffff, hg:0x8a8070, hi:1.0, ac:0xffffff, ai:0.3},
     update(dt, inGame){
       hitMeCD -= dt;
@@ -719,7 +732,10 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [0]);
   const glow = new T3.SpriteMaterial({map:flashTex, blending:T3.AdditiveBlending, depthWrite:false, transparent:true, fog:false, color:0xffb060});
   const glows = torches.map(t => { const s = new T3.Sprite(glow); s.position.copy(t).add(new V(0, 0.08, 0)); s.scale.setScalar(0.7); grp.add(s); return s; });
-  MAPS.cave = {name:'CAVE', group:grp, spawn:new V(22, 0, 22).add(O), yaw:0, nav, yMin:-5, yMax:CH + 1.5, props:B.props,
+  const torchIdea = (bot, imp) => { if (imp || R() > 0.4) return null; const t = pick(torches), st = t.clone().add(t.wall.clone().multiplyScalar(1.05)).setY(0);
+    return actWalk(st, [], {then:(b, failed) => failed ? null : actDo(6 + R()*6, (b2, tt) => { botYaw(b2, yawOf(t.clone().sub(b2.root.obj.position))); botLimbs(b2, 0, 0.3, j => -1.3 + Math.sin(tt*5 + j*2)*0.15);
+      if (tt < 0.02) say(b2, pick(['toasty','ahh warm circuits','cozy','marshmallows anyone?'])); setFace(b2, 'happy'); })}); };
+  MAPS.cave = {name:'CAVE', O, botIdea:torchIdea, group:grp, spawn:new V(22, 0, 22).add(O), yaw:0, nav, yMin:-5, yMax:CH + 1.5, props:B.props,
     sky:{bg:0x000000, fog:0x050302, near:4, far:22, hs:0xffd2a0, hg:0x302015, hi:0.65, ac:0xffd0a0, ai:0.34},
     update(dt, inGame){
       for (let i=0;i<torches.length;i++){
@@ -748,8 +764,68 @@ function pianoKeys(grp, O, PK, s, mapKey){
   const press = (k, vol, local) => { k.t = 0.18; playNote(k.n, vol/(1 + at.distanceTo(lastPlayer)*0.15)); if (local && netGame) netSend('ev', {t:'mapev', m:mapKey, k:'note', i:keys.indexOf(k)}); };
   return {keys, play(i){ if (keys[i]) press(keys[i], 1, false); },
     update(dt, inGame){
-      piano.update(dt, inGame); } };
+      for (const k of keys){ if (k.t > 0) k.t -= dt; k.m.position.y = k.y0 - (k.t > 0 ? 0.022 : 0); k.m.rotation.x = k.t > 0 ? 0.08*s : 0; }
+      if (!inGame) return;
+      for (const i of [0, 1]){
+        const h = handW[i], hz = h.z - O.z, x = h.x - O.x; let hit = null;
+        if (!me.lost[i] && hz > PK.z0 - (s > 0 ? 0.06 : 0) && hz < PK.z1 + (s < 0 ? 0.06 : 0) && h.y < PK.y + 0.12 && h.y > PK.y - 0.16)
+          hit = keys.find(k => k.black && (hz - back(0.4))*s > 0 && h.y > PK.y + 0.04 && x > k.x0 && x < k.x1) || keys.find(k => !k.black && x > k.x0 && x < k.x1) || null;
+        if (hit && hit !== keyOn[i]){ press(hit, Math.min(1.4, 0.5 + hv[i].length()*0.4), true); pulse(i, 0.3, 25); }
+        keyOn[i] = hit;
+      } },
+    // a robot playing: press key i (everyone hears it, the robot's owner sends it)
+    botPress(i, local){ if (keys[i]) press(keys[i], 0.8, local); } };
 }
+
+// ======================= robots doing things =======================
+// A map can give its robots things to do: MAPS[k].botIdea(bot, imp) returns an activity (or null).
+// An activity is {step(bot, dt) -> true while it's still going, then(bot, failed) -> the next one, cancel(bot)}.
+// Robots run them from their own update; being grabbed, knocked over or set on fire cancels the chain.
+const botLegsOn = bot => bot.legs.filter(l => l.parent === bot.root).length;
+// legs: rotation.x (forward is negative), arms: zz = how far out/up to the side, xx = how far forward (negative)
+function botLimbs(bot, legs, zz, xx){ const r = bot.root, f = (v, j) => typeof v === 'function' ? v(j) : v;
+  bot.legs.forEach((l, j) => { if (l.parent === r && !isStretched(l)) l.obj.rotation.x = f(legs, j); });
+  bot.ups.forEach((u, j) => { if (u.parent === r && !isStretched(u)){ u.obj.rotation.z = (j ? 1 : -1)*f(zz, j); u.obj.rotation.x = f(xx || 0, j); } }); }
+function botYaw(bot, yaw, dt){ const q = bot.root.obj.quaternion, e = new T3.Euler().setFromQuaternion(q, 'YXZ'); let d = yaw - e.y; d = Math.atan2(Math.sin(d), Math.cos(d));
+  q.setFromEuler(new T3.Euler(0, dt == null ? yaw : e.y + d*Math.min(1, dt*8), 0, 'YXZ')); }
+const yawOf = dir => Math.atan2(dir.x, dir.z);
+function botLevel(y){ let l = 0; for (let k=0;k<NAV.lv.length;k++) if (y >= NAV.lv[k] - 0.3) l = k; return l; }
+// back on its feet, on the robots' grid, where it stands
+function botSettle(bot){ const r = bot.root, pos = r.obj.position, sk = r.szK || 1, e = new T3.Euler().setFromQuaternion(r.obj.quaternion, 'YXZ');
+  r.obj.quaternion.setFromEuler(new T3.Euler(0, e.y, 0, 'YXZ')); bot.ups.forEach(u => { if (u.parent === r) u.obj.rotation.x = 0; });
+  const l = botLevel(pos.y - STAND*sk), c = reachableCell(pos, l) || reachableCell(cellPos(...cellOf(pos)), l) || cellOf(pos);
+  bot.cell = c; bot.target = cellPos(...c); bot.prev = null; }
+// walk: along the grid to `goal` (a world point, its y = the floor it's on), then straight through `pts` (stairs and so on).
+// o: speed, each(bot, dt, dir) every step, then, cancel, ptsFn(bot) -> pts worked out on arrival
+function actWalk(goal, pts, o){ o = o || {}; let path = null, pi = 0, k = 0, seg = -1, sx = 0, sz = 0, sy = 0, sL = 1, cy = null;
+  const a = {then:o.then, cancel:o.cancel, step(bot, dt){
+    const r = bot.root, pos = r.obj.position, sk = r.szK || 1, legs = botLegsOn(bot);
+    if (!legs){ a.failed = true; return false; }
+    if (cy == null) cy = bot.cell ? NAV.lv[bot.cell[2]] : pos.y - STAND*sk;
+    if (!path){ path = [];
+      if (goal){ const l = botLevel(goal.y + 0.05), gc = reachableCell(new V(goal.x, NAV.lv[l] + STAND, goal.z), l), sc = bot.cell && bot.cell[2] === l ? bot.cell : reachableCell(pos, l);
+        if (!gc || !sc){ a.failed = true; return false; } const pp = navPath(sc, gc); if (!pp){ a.failed = true; return false; } path = pp; } }
+    if (pi >= path.length && o.ptsFn){ pts = o.ptsFn(bot) || []; o.ptsFn = null; }
+    let tgt, ty; if (pi < path.length){ tgt = cellPos(...path[pi]); ty = NAV.lv[path[pi][2]]; } else if (pts && k < pts.length){ tgt = pts[k]; ty = pts[k].y; } else return false;
+    const si = pi*1000 + k; if (si !== seg){ seg = si; sx = pos.x; sz = pos.z; sy = cy; sL = Math.max(0.01, Math.hypot(tgt.x - pos.x, tgt.z - pos.z)); }
+    const to = new V(tgt.x - pos.x, 0, tgt.z - pos.z), d = to.length(), spd = bot.speed*(o.speed || 0.55)*(legs === 2 ? 1 : 0.55)*Math.sqrt(sk)*dt;
+    if (d <= spd + 1e-3){ pos.x = tgt.x; pos.z = tgt.z; cy = ty; if (pi < path.length){ bot.cell = path[pi]; pi++; } else k++; }
+    else { to.normalize(); pos.x += to.x*spd; pos.z += to.z*spd; botYaw(bot, yawOf(to), dt); cy = sy + (ty - sy)*Math.min(1, Math.max(0, 1 - (d - spd)/sL)); if (o.each) o.each(bot, dt, to, spd/dt); }
+    const ph = bot.t*7; pos.y = cy + STAND*sk + Math.abs(Math.sin(ph))*0.05*sk;
+    if (!o.limbs) botLimbs(bot, j => (j ? -1 : 1)*Math.sin(ph)*0.7, j => 0.2 + Math.sin(ph + j)*0.15); else o.limbs(bot, ph);
+    return true; } };
+  return a; }
+// do something on the spot for a while: fn(bot, t, dt) every frame
+function actDo(dur, fn, o){ o = o || {}; let t = 0; return {then:o.then, cancel:o.cancel, step(bot, dt){ t += dt; fn(bot, t, dt); return t < dur; }}; }
+// take a flight of stairs: stairs = [{lo, hi, bottom:[x,y,z], pts:[[x,y,z]...]}] from bottom (on level lo) up to level hi
+function actStairs(stairs, bot, up, then){ const l = bot.cell ? bot.cell[2] : botLevel(bot.root.obj.position.y - STAND);
+  const st = stairs.filter(q => up ? q.lo === l : q.hi === l); if (!st.length) return null; const q = pick(st);
+  const P = q.pts.map(v => new V(v[0] + MAPS_O().x, v[1], v[2] + MAPS_O().z)), bot0 = new V(q.bottom[0] + MAPS_O().x, q.bottom[1], q.bottom[2] + MAPS_O().z);
+  return up ? actWalk(bot0, P, {then}) : actWalk(P[P.length - 1], P.slice(0, -1).reverse().concat([bot0]), {then}); }
+const MAPS_O = () => MAPS[curMap].O || new V();
+// go to floor `want` (taking stairs one flight at a time), then do `then`
+function actToLevel(stairs, bot, want, then){ const l = bot.cell ? bot.cell[2] : botLevel(bot.root.obj.position.y - STAND); if (l === want) return then(bot);
+  return actStairs(stairs, bot, want > l, (b, failed) => failed ? null : actToLevel(stairs, b, want, then)); }
 
 // ======================= HOUSE =======================
 // Three floors (basement, ground, upstairs), furnished. Quirk: a robot vacuum does its rounds downstairs
@@ -845,7 +921,7 @@ function pianoKeys(grp, O, PK, s, mapKey){
   // ground floor: living room (west), hall, kitchen (east), dining/den (back)
   f('rug', 13, 0, 17.6, 4, 0.01, 3, false);
   couch(13.4, 0, 21.9, 2, 'fabric'); f('wood', 13.4, 0, 18.4, 1.4, 0.42, 0.7);
-  f('darkwood', 13.4, 0, 13.0, 2.0, 0.55, 0.5); f('black', 13.4, 0.55, 13.0, 1.6, 0.9, 0.08); B.geo('tv', new T3.PlaneGeometry(1.5, 0.8), 13.4, 1.0, 13.05, 0, 0, 0);
+  f('darkwood', 13.4, 0, 13.0, 2.0, 0.55, 0.5); f('black', 13.4, 0.55, 13.0, 1.6, 0.9, 0.08); B.geo('black', new T3.PlaneGeometry(1.5, 0.8), 13.4, 1.0, 13.045, 0, 0, 0);
   shelf(8.75, 0, 16.5, 0.4, 1.8, 2.0, 0); couch(9.6, 0, 19.6, 1, 'fabric2'); plant(17.2, 0, 13.0); lampStand(17.3, 0, 22.8);
   pic(0, 13.4, 1.5, 23.4, Math.PI); pic(1, 8.33, 1.4, 20.6, Math.PI/2);
   f('darkwood', 19, 0, 13.0, 1.2, 0.5, 0.4); plant(25.2, 0, 13.0); f('rug', 22, 0, 17, 2, 0.01, 6, false); pic(2, 18.1, 1.4, 20.5, Math.PI/2);
@@ -891,6 +967,54 @@ function pianoKeys(grp, O, PK, s, mapKey){
   for (const [x, z] of [[13, 16.5], [21, 16.5], [30, 16.5], [17, 27.6], [30, 27.6], [20, 22.2]]) ceilingLight(x, z, U + CEIL);
   for (const [x, z] of [[16, 18], [28, 18], [24, 27]]) ceilingLight(x, z, D + CEIL);
   const grp = B.finish(), nav = buildNav(B.solids, O, 44, 2, [D, 0, U]);
+  // ---- the living-room TV: robots (or you) turn it on. It shows Robot TV.
+  const tvC = document.createElement('canvas'); tvC.width = 256; tvC.height = 144; const tvT2 = new T3.CanvasTexture(tvC); tvT2.encoding = T3.sRGBEncoding;
+  const tvM = new T3.Mesh(new T3.PlaneGeometry(1.5, 0.8), new T3.MeshBasicMaterial({map:tvT2})); tvM.position.set(13.4 + O.x, 1.0, 13.055 + O.z); tvM.visible = false; grp.add(tvM);
+  const TICK = '   ROBOT NEWS: human seen ripping arms off again  ***  weather: oily  ***  today on Robot Cooking: bolts au gratin  ***  ';
+  const drawTV = t => { const g = tvC.getContext('2d'), W = 256, Hh = 144, sc = Math.floor(t/8) % 3;
+    g.fillStyle = ['#3a7bd5', '#f2a33a', '#47b36b'][sc]; g.fillRect(0, 0, W, Hh);
+    if (sc === 0){ const x = 60 + Math.sin(t*2)*50, y = 70 - Math.abs(Math.sin(t*4))*30; g.fillStyle = '#f4f4f2'; g.fillRect(x - 18, y - 6, 36, 34); g.fillRect(x - 22, y - 40, 44, 34); g.fillStyle = '#0d1a2a'; g.fillRect(x - 17, y - 35, 34, 24);
+      g.fillStyle = '#6fe8ff'; g.fillRect(x - 11, y - 28, 6, 8); g.fillRect(x + 5, y - 28, 6, 8); g.fillStyle = '#f4f4f2'; g.fillRect(x - 2, y - 52, 4, 12); g.fillStyle = '#ff6a5e'; g.beginPath(); g.arc(x, y - 54, 5, 0, 7); g.fill(); }
+    else if (sc === 1){ g.fillStyle = '#fff'; g.font = 'bold 26px monospace'; g.textAlign = 'center'; g.fillText('ROBOT COOKING', W/2, 40); g.fillStyle = '#5a5e66'; g.beginPath(); g.ellipse(W/2, 92, 50, 16, 0, 0, 7); g.fill();
+      for (let k=0;k<6;k++){ g.fillStyle = '#c9cdd2'; g.beginPath(); g.arc(W/2 - 30 + k*12, 86 - Math.abs(Math.sin(t*3 + k))*24, 5, 0, 7); g.fill(); } }
+    else { g.fillStyle = '#fff'; g.font = 'bold 22px monospace'; g.textAlign = 'center'; g.fillText('BEEP BOOP FC  ' + (Math.floor(t) % 5) + ' - 3', W/2, 36); g.fillStyle = '#2f8a46'; g.fillRect(20, 50, W - 40, 60);
+      const bx = W/2 + Math.sin(t*1.7)*90, by = 80 + Math.sin(t*3.1)*22; g.fillStyle = '#fff'; g.beginPath(); g.arc(bx, by, 6, 0, 7); g.fill(); }
+    g.fillStyle = '#d8302a'; g.fillRect(0, Hh - 22, W, 22); g.fillStyle = '#fff'; g.font = 'bold 15px monospace'; g.textAlign = 'left'; const off = (t*40) % (TICK.length*9); g.fillText(TICK + TICK, -off, Hh - 6);
+    tvT2.needsUpdate = true; };
+  let tvOn = false, tvTime = 0, tvDraw = 0, tvLast = 0, tvCD = 0;
+  const setTV = (on, local) => { if (tvOn === on) return; tvOn = on; tvM.visible = on; tvLast = clock; if (AC && lastPlayer.distanceTo(tvM.position) < 12) tone('square', on ? 900 : 300, on ? 1400 : 120, 0.12, 0.05); if (local && netGame) netSend('ev', {t:'mapev', m:'house', k:'tv', on}); };
+  // ---- what robots do here: watch TV on the couch, nap in a bed, play the piano, take the stairs
+  const HS = [{lo:1, hi:2, bottom:[9.3, 0, 22.9], pts:[[9.3, 0.25, 23.9], [9.3, 3, 31.2], [11.4, 3, 31.2]]},
+              {lo:0, hi:1, bottom:[13.7, -3, 31.2], pts:[[11.75, -3, 31.2], [11.75, -0.25, 23.9], [11.75, 0, 22.9]]}];
+  const busy = new Set(), V3 = (x, y, z) => new V(x + O.x, y, z + O.z);
+  const seats = [[12.8, 21.75, Math.PI], [13.4, 21.75, Math.PI], [14.0, 21.75, Math.PI], [9.6, 19.0, Math.PI/2], [9.6, 19.6, Math.PI/2], [9.6, 20.2, Math.PI/2]].map(([x, z, yaw], i) => ({id:'seat' + i, x, z, yaw, y:0.45}));
+  const beds = [{id:'bed0', x:11.5, z:15.2, ax:12.75, az:15.6, top:U + 0.55}, {id:'bed1', x:31.5, z:15.2, ax:30.35, az:15.6, top:U + 0.55}];
+  const TWINKLE = [0, 0, 4, 4, 5, 5, 4, -1, 3, 3, 2, 2, 1, 1, 0];
+  const sit = (bot, st, dur, watching) => { const r = bot.root, sk = r.szK || 1;
+    return actDo(dur, (b, t) => { r.obj.position.set(st.x + O.x - Math.sin(st.yaw)*0.08, st.y + 0.2*sk, st.z + O.z - Math.cos(st.yaw)*0.08); botYaw(b, st.yaw);
+      botLimbs(b, -1.45, j => 0.15 + (watching && t % 7 < 0.6 ? 1.6 : 0), 0); if (watching && tvOn) tvLast = clock;
+      if (b.blinkT !== undefined){ b.blinkT -= 1/60; if (b.blinkT < 0) b.blinkT = 2 + R()*3; setFace(b, b.blinkT < 0.12 ? 'blink' : watching ? 'happy' : 'idle'); }
+      if (watching && R() < 0.002) say(b, pick(['ha!','this show rules','more bolts please','beep boop!','shhh']));
+    }, {cancel:(b) => busy.delete(st.id), then:(b) => actWalk(null, [V3(st.x + Math.sin(st.yaw)*0.75, 0, st.z + Math.cos(st.yaw)*0.75)], {cancel:() => busy.delete(st.id)})}); };
+  const goSit = (bot, watching) => { const free = seats.filter(q => !busy.has(q.id)); if (!free.length) return null; const st = pick(free); busy.add(st.id);
+    return actToLevel(HS, bot, 1, b => actWalk(V3(st.x + Math.sin(st.yaw)*0.75, 0, st.z + Math.cos(st.yaw)*0.75), [], {cancel:() => busy.delete(st.id), then:(b2, failed) => failed ? (busy.delete(st.id), null) : sit(b2, st, 15 + R()*20, watching)})); };
+  const houseIdea = (bot, imp) => {
+    const lvl = bot.cell ? bot.cell[2] : 1, r = R();
+    if (imp || r < 0.25) return actStairs(HS, bot, lvl === 0 ? true : lvl === 2 ? false : R() < 0.5, null);
+    if (r < 0.5){ // the TV: turn it on if it's off, then sit and watch
+      if (!tvOn && !busy.has('tv')){ busy.add('tv'); return actToLevel(HS, bot, 1, b => actWalk(V3(13.4, 0, 13.95), [], {cancel:() => busy.delete('tv'), then:(b2, failed) => { busy.delete('tv'); if (failed) return null;
+        return actDo(1.0, (b3, t) => { botYaw(b3, Math.PI); botLimbs(b3, 0, 0.3, t > 0.3 && t < 0.7 ? -1.5 : 0); if (t > 0.5 && !tvOn){ setTV(true, true); say(b3, pick(['TV time!','ooh my show','click'])); } }, {then:(b4) => goSit(b4, true)}); }})); }
+      return goSit(bot, true); }
+    if (r < 0.65) return goSit(bot, false);
+    if (r < 0.85){ const free = beds.filter(q => !busy.has(q.id)); if (!free.length) return null; const bd = pick(free); busy.add(bd.id); const rel = () => busy.delete(bd.id);
+      return actToLevel(HS, bot, 2, b => actWalk(V3(bd.ax, U, bd.az), [], {cancel:rel, then:(b2, failed) => failed ? (rel(), null) : actDo(18 + R()*20, (b3, t) => { const rr = b3.root, sk = rr.szK || 1;
+        rr.obj.position.set(bd.x + O.x, bd.top + 0.17*sk, bd.z + O.z); rr.obj.quaternion.setFromEuler(new T3.Euler(-Math.PI/2, 0, 0, 'YXZ')); botLimbs(b3, 0, 0.15, 0); setFace(b3, 'blink');
+        if (t > 1 && (t % 6) < 0.02) say(b3, 'z z z'); }, {cancel:rel, then:(b4) => actWalk(null, [V3(bd.ax, U, bd.az)], {cancel:rel})})})); }
+    if (!busy.has('piano')){ busy.add('piano'); const rel = () => busy.delete('piano');
+      return actToLevel(HS, bot, 1, b => actWalk(V3(33.5, 0, 29.55), [], {cancel:rel, then:(b2, failed) => { if (failed){ rel(); return null; } let n = -1;
+        return actDo(TWINKLE.length*0.45 + 1, (b3, t) => { botYaw(b3, 0); const i = Math.floor(t/0.45); botLimbs(b3, 0, 0.35, j => -1.2 - (i % 2 === j && t % 0.45 < 0.15 ? 0.25 : 0));
+          if (i !== n && i < TWINKLE.length){ n = i; if (TWINKLE[i] >= 0) piano.botPress(TWINKLE[i], true); } setFace(b3, 'happy'); }, {cancel:rel}); }})); }
+    return null; };
   // ---- the robot vacuum: drives a fixed loop on the ground floor (timed by the clock, same for everyone) ----
   const route = [[11.5,16.8],[17.5,16.8],[22,16.8],[27.2,16.8],[27.6,14],[33.4,14],[33.4,22.6],[29.8,22.6],[29.8,25.1],[22,25.1],[22,22.4],[22,16.8],[17.5,16.8]].map(([x,z]) => new V(x + O.x, 0.06, z + O.z));
   const segs = route.map((p, i) => { const q = route[(i+1) % route.length]; return {p, q, len:p.distanceTo(q)}; }), total = segs.reduce((s, g) => s + g.len, 0);
@@ -904,16 +1028,13 @@ function pianoKeys(grp, O, PK, s, mapKey){
   const piano = pianoKeys(grp, O, {x0:32.8, x1:34.2, z0:30.025, z1:30.275, y:0.72}, 1, 'house');
   MAPS.house = {name:'HOUSE', group:grp, spawn:new V(22, 0, 6).add(O), yaw:Math.PI, nav, yMin:-8, yMax:18, props:B.props,
     sky:{bg:0xa9d2ee, fog:0xc4dbe8, near:14, far:55, hs:0xfffaf0, hg:0x7a6a50, hi:0.95, ac:0xfff4e0, ai:0.38},
-    keys:piano.keys, onEv(ev){ if (ev.k === 'note') piano.play(ev.i); },
+    O, botIdea:houseIdea, keys:piano.keys, onEv(ev){ if (ev.k === 'note') piano.play(ev.i); else if (ev.k === 'tv') setTV(ev.on, false); },
+    leave(){ setTV(false, false); busy.clear(); },
     update(dt, inGame){
-      for (const k of keys){ if (k.t > 0) k.t -= dt; k.m.position.y = k.y0 - (k.t > 0 ? 0.022 : 0); k.m.rotation.x = k.t > 0 ? 0.08 : 0; }
-      if (inGame) for (const i of [0,1]){
-        const h = handW[i]; let hit = null;
-        if (!me.lost[i] && h.z > PK.z0 - 0.06 + O.z && h.z < PK.z1 + O.z && h.y < PK.y + 0.09 && h.y > PK.y - 0.16){ const x = h.x - O.x;
-          hit = keys.find(k => k.black && h.z > PK.z0 + (PK.z1 - PK.z0)*0.4 + O.z && h.y > PK.y + 0.04 && x > k.x0 && x < k.x1) || keys.find(k => !k.black && x > k.x0 && x < k.x1) || null; }
-        if (hit && hit !== keyOn[i]){ press(hit, Math.min(1.4, 0.5 + hv[i].length()*0.4), true); pulse(i, 0.3, 25); }
-        keyOn[i] = hit;
-      }
+      piano.update(dt, inGame);
+      if (tvOn){ tvTime += dt; tvDraw -= dt; if (tvDraw <= 0){ tvDraw = 0.08; drawTV(tvTime); } if (clock - tvLast > 90 && !netGame) setTV(false, false); }
+      // touch the TV screen to switch it on or off
+      tvCD -= dt; if (inGame && tvCD <= 0) for (const i of [0, 1]){ const h = handW[i]; if (!me.lost[i] && Math.abs(h.x - tvM.position.x) < 0.75 && Math.abs(h.y - 1.0) < 0.4 && Math.abs(h.z - tvM.position.z) < 0.12){ tvCD = 1; setTV(!tvOn, true); pulse(i, 0.4, 40); break; } }
       let s = ((Date.now()/1000*0.7) % total + total) % total, seg = segs[0];
       for (const g of segs){ if (s <= g.len){ seg = g; break; } s -= g.len; }
       const dir = seg.q.clone().sub(seg.p).normalize(); vac.position.copy(seg.p).addScaledVector(dir, s);
@@ -1062,7 +1183,12 @@ function pianoKeys(grp, O, PK, s, mapKey){
   const inChan = (x, z) => { x -= O.x; z -= O.z; for (const c of CEN){ if (Math.abs(z - c) < CHW) return [new V(1, 0, 0), c, 'x']; if (Math.abs(x - c) < CHW) return [new V(0, 0, 1), c, 'z']; } return null; };
   let flushWas = false;
   const rumble = () => { if (!AC) return; noiseHit(3.5, 160, 0.5, 0.9); tone('sine', 55, 40, 3, 0.4); };
-  MAPS.sewer = {name:'SEWERS', group:grp, spawn:new V(24.4, 0, 14.5).add(O), yaw:Math.PI, nav, yMin:-6, yMax:TOPY + 1.5, props:B.props,
+  const riverIdea = (bot, imp) => { if (imp || R() > 0.3) return null; const c = pick(CEN), u = pick([12, 14, 16, 28, 30, 32]), sd = R() < 0.5 ? -1 : 1, alongX = R() < 0.5;
+    const bank = alongX ? new V(u, 0, c + sd*1.9) : new V(c + sd*1.9, 0, u), wat = alongX ? new V(u, -0.2, c) : new V(c, -0.2, u);
+    return actWalk(bank.clone().add(O), [], {then:(b, failed) => { if (failed) return null; let t = 0; const from = b.root.obj.position.clone(), to = wat.clone().add(O); say(b, pick(['LAZY RIVER!','cannonball!','it is fine, I am waterproof','wheeee']));
+      return {step(b2, dt){ t += dt; const k = Math.min(1, t/0.5), r = b2.root; r.obj.position.lerpVectors(from, to, k); r.obj.position.y += Math.sin(k*Math.PI)*0.8; botLimbs(b2, -0.5, 2.5, 0);
+        if (k >= 1){ r.mode = 'free'; r.asleep = false; r.v.set(0, -1, 0); b2.noGetUp = clock + 6; return false; } return true; }}; }}); };
+  MAPS.sewer = {name:'SEWERS', O, botIdea:riverIdea, group:grp, spawn:new V(24.4, 0, 14.5).add(O), yaw:Math.PI, nav, yMin:-6, yMax:TOPY + 1.5, props:B.props,
     sky:{bg:0x050805, fog:0x0c140a, near:3, far:24, hs:0xd8f0c0, hg:0x202a18, hi:0.55, ac:0xd0e8b0, ai:0.32},
     update(dt, inGame){
       const ph = (Date.now()/1000) % 60, flush = ph > 50 && ph < 58, k = flush ? Math.min(1, (ph - 50)/1.5)*Math.min(1, (58 - ph)/1.5) : 0;
@@ -1165,7 +1291,34 @@ function pianoKeys(grp, O, PK, s, mapKey){
   let saleT = 0, paT = 20;
   const PA = ['Attention shoppers. Robots are not for sale. Unless you put them on the belt.', 'Clean up on aisle three.', 'Reminder: please do not throw the melons.', 'Today only: robot parts, buy one get one free.', 'Would the owner of the robot leaking oil please return to the checkout.'];
   const sellBeep = () => { if (!AC) return; tone('square', 1800, 1800, 0.08, 0.12); setTimeout(() => tone('square', 2400, 2400, 0.12, 0.1), 100); };
-  MAPS.market = {name:'SUPERMARKET', group:grp, spawn:new V(22, 0, 7).add(O), yaw:Math.PI, nav, yMin:-5, yMax:16, props:B.props,
+  // ---- robots go shopping: grab a cart, push it round the aisles, take things off the shelves, pay, and send the cart rolling
+  const AISLES = [[10.75, 8.5, 13], [15.25, 13, 17.5], [28.75, 26.5, 31], [33.25, 31, 35.5]];
+  const cartItems = (cart, cols) => { for (const k of cart.obj.children.slice()) if (k.userData.cartItem) cart.obj.remove(k);
+    cols.forEach((c, i) => { const m = new T3.Mesh(new T3.BoxGeometry(0.12 + (i % 3)*0.03, 0.14 + (i % 2)*0.06, 0.1), lam(prodCols[c])); m.userData.cartItem = true;
+      m.position.set(-0.14 + (i % 3)*0.14, 0.12 + Math.floor(i/6)*0.12, -0.24 + (Math.floor(i/3) % 2)*0.22 + (i % 2)*0.1); m.rotation.y = i*0.7; cart.obj.add(m); }); cart.items = cols; };
+  const setItems = (cart, cols) => { cartItems(cart, cols); if (netGame && cart.id) netSend('ev', {t:'mapev', m:'market', k:'ci', id:cart.id, cols}); };
+  const pushCart = (cart) => (b, dt, dir, spd) => { if (!cart || cart.obj.userData.dead || cart.parent) return; const r = b.root, f = new V(Math.sin(yawOf(dir)), 0, Math.cos(yawOf(dir)));
+    cart.obj.position.set(r.obj.position.x + f.x*0.85, 0.32, r.obj.position.z + f.z*0.85); cart.obj.quaternion.setFromEuler(new T3.Euler(0, yawOf(dir), 0)); cart.v.copy(f).multiplyScalar(spd); cart.w.set(0, 0, 0); cart.asleep = false; cart.calmT = clock + 1; };
+  const pushLimbs = (b, ph) => botLimbs(b, j => (j ? -1 : 1)*Math.sin(ph)*0.6, 0.15, -1.35);
+  const shopIdea = (bot, imp) => { if (imp) return null;
+    const carts = parts.filter(q => q.kind === 'cart' && !q.obj.userData.dead && !q.parent && q.mode !== 'held' && !q.shopper && mine(q));
+    if (!carts.length) return null; const pos = bot.root.obj.position, cart = carts.sort((a, b) => a.obj.position.distanceTo(pos) - b.obj.position.distanceTo(pos))[0];
+    cart.shopper = bot; const rel = () => { if (cart.shopper === bot) cart.shopper = null; };
+    let stops = 2 + Math.floor(R()*3); const lane = cx => R() < 0.5 ? -1 : 1;
+    const shelfStop = (b) => { const A = pick(AISLES), z = 27.5 + R()*9, sd = R() < 0.5 ? -1 : 1, sx = sd < 0 ? A[1] + 0.56 : A[2] - 0.56;
+      return actWalk(new V(A[0] + O.x, 0, z + O.z), [new V(A[0] + sd*0.55 + O.x, 0, z + O.z)], {each:pushCart(cart), limbs:pushLimbs, cancel:rel, then:(b2, failed) => { if (failed){ rel(); return null; } let got = false;
+        return actDo(1.4, (b3, t) => { botYaw(b3, sd < 0 ? -Math.PI/2 : Math.PI/2, 1/60); botLimbs(b3, 0, 0.3, j => (sd < 0) === (j === 0) && t > 0.3 && t < 1.0 ? -1.6 : 0);
+          if (t > 0.7 && !got){ got = true; if (!cart.obj.userData.dead) setItems(cart, (cart.items || []).concat([Math.floor(R()*prodCols.length)])); if (R() < 0.3) say(b3, pick(['ooh, oil flakes','this one!','on sale!','two of these','nom'])); } },
+          {cancel:rel, then:(b4) => --stops > 0 ? shelfStop(b4) : checkout(b4)}); }}); };
+    const checkout = (b) => { const cx = pick([8, 13, 31, 36]);
+      return actWalk(new V(cx - 1.2 + O.x, 0, 24.6 + O.z), [new V(cx - 1.0 + O.x, 0, 22 + O.z)], {each:pushCart(cart), limbs:pushLimbs, cancel:rel, then:(b2, failed) => { if (failed){ rel(); return null; } let k = 0;
+        return actDo(0.6 + (cart.items || []).length*0.45, (b3, t) => { botYaw(b3, Math.PI/2, 1/60); botLimbs(b3, 0, 0.3, j => j === 1 && t % 0.45 < 0.25 ? -1.5 : 0);
+          if (t > 0.5 + k*0.45 && cart.items && cart.items.length){ k++; setItems(cart, cart.items.slice(1)); if (b3.root.obj.position.distanceTo(lastPlayer) < 10) sellBeep(); } },
+          {cancel:rel, then:(b4) => { say(b4, pick(['bye bye cart!','wheee go cart','free cart!'])); return actWalk(new V(22 + O.x, 0, 13.5 + O.z), [], {each:pushCart(cart), limbs:pushLimbs, cancel:rel,
+            then:(b5) => { rel(); if (!cart.obj.userData.dead){ const f = new V(Math.sin(R()*6.28), 0, Math.cos(R()*6.28)).multiplyScalar(3); f.z = -Math.abs(f.z); cart.v.copy(f); cart.asleep = false; } return null; }}); }}); }}); };
+    return actWalk(cart.obj.position.clone().setY(0), [], {cancel:rel, ptsFn:(b) => { const c = cart.obj.position, d = new V(b.root.obj.position.x - c.x, 0, b.root.obj.position.z - c.z); if (d.lengthSq() < 1e-4) d.set(0, 0, -1); d.setLength(0.85); return [new V(c.x + d.x, 0, c.z + d.z)]; },
+      then:(b, failed) => { if (failed || cart.obj.userData.dead){ rel(); return null; } say(b, pick(['shopping time!','I need bolts','grocery run','where is the oil aisle'])); return shelfStop(b); }}); };
+  MAPS.market = {name:'SUPERMARKET', O, botIdea:shopIdea, onEv(ev){ if (ev.k === 'ci'){ const c = partsById.get(ev.id); if (c) cartItems(c, ev.cols || []); } }, group:grp, spawn:new V(22, 0, 7).add(O), yaw:Math.PI, nav, yMin:-5, yMax:16, props:B.props,
     sky:{bg:0xa9d2ee, fog:0xc4dbe8, near:16, far:60, hs:0xffffff, hg:0x8a8070, hi:1.0, ac:0xffffff, ai:0.4},
     update(dt, inGame){
       // doors open when anyone (or any robot) walks up
@@ -1277,7 +1430,13 @@ function pianoKeys(grp, O, PK, s, mapKey){
   let lostT = 0, warned = false, phWas = 0;
   const alarm = () => { if (!AC) return; tone('square', 880, 660, 0.25, 0.06); };
   const whoosh = () => { if (!AC) return; noiseHit(2.5, 900, 0.4, 1.0); noiseHit(1.5, 3000, 0.6, 0.4); };
-  MAPS.station = {name:'SPACE STATION', group:grp, spawn:new V(22, 0, 17).add(O), yaw:Math.PI, nav, yMin:-60, yMax:80, props:B.props, g:0.3,
+  const moonIdea = (bot, imp) => { if (imp || !bot.cell || R() > 0.4) return null; const [cx, cz, l] = bot.cell, opts = [];
+    for (const [dx, dz] of [[2,0],[-2,0],[0,2],[0,-2],[1,1],[-1,1],[1,-1],[-1,-1]]) if (NAV.ok(cx + dx, cz + dz, l) && NAV.ok(cx + Math.sign(dx), cz + Math.sign(dz), l)) opts.push([cx + dx, cz + dz, l]);
+    if (!opts.length) return null; const c = pick(opts), to = cellPos(...c); let t = 0, from = null; const H_ = 2.2 + R()*1.2, T_ = 1.8;
+    return {step(b, dt){ const r = b.root, sk = r.szK || 1; if (!from){ from = r.obj.position.clone(); say(b, pick(['one small step','moon jump!','floaty floaty','I can fly (kind of)'])); }
+      t += dt; const k = Math.min(1, t/T_); r.obj.position.set(from.x + (to.x - from.x)*k, NAV.lv[l] + STAND*sk + Math.sin(k*Math.PI)*H_, from.z + (to.z - from.z)*k); botYaw(b, yawOf(to.clone().sub(from)), dt);
+      botLimbs(b, j => -0.3 + Math.sin(t*3 + j)*0.3, j => 1.8 + Math.sin(t*4 + j*2)*0.6, 0); setFace(b, 'happy'); if (k >= 1){ b.cell = c; return false; } return true; }}; };
+  MAPS.station = {name:'SPACE STATION', O, botIdea:moonIdea, group:grp, spawn:new V(22, 0, 17).add(O), yaw:Math.PI, nav, yMin:-60, yMax:80, props:B.props, g:0.3,
     sky:{bg:0x01020a, fog:0x01020a, near:40, far:80, hs:0xf4f8ff, hg:0x60708a, hi:0.9, ac:0xffffff, ai:0.35},
     update(dt, inGame){
       sky.position.copy(lastPlayer); sky.rotation.y += dt*0.004;
@@ -1348,9 +1507,9 @@ function pianoKeys(grp, O, PK, s, mapKey){
   }
   // the assembler
   const AS = [24, 31, 6, 14];
-  B.box('blue', [AS[0], 0, AS[2]], [AS[1], 4.2, 9.2]); B.box('blue', [AS[0], 0, 10.8], [AS[1], 4.2, AS[3]]); B.box('blue', [AS[0], 1.6, 9.2], [AS[1], 4.2, 10.8]); B.box('dark', [AS[0] + 0.5, 0, 9.2], [AS[1] - 0.5, 1.6, 10.8], {solid:false, skip:['x+','x-','y+','y-']}); B.box('yellow', [AS[0] - 0.02, 3.6, AS[2]], [AS[1] + 0.02, 4.17, AS[3]], {solid:false});
+  B.box('blue', [AS[0], 0, AS[2]], [AS[1], 4.2, 9.2]); B.box('blue', [AS[0], 0, 10.8], [AS[1], 4.2, AS[3]]); B.box('blue', [AS[0], 1.6, 9.2], [AS[1], 4.2, 10.8]); B.box('dark', [AS[0] + 0.5, 0, 9.2], [AS[1] - 0.5, 1.6, 10.8], {solid:false, skip:['x+','x-','y+','y-']}); B.box('yellow', [AS[0] - 0.03, 3.6, AS[2] - 0.03], [AS[1] + 0.03, 4.17, AS[3] + 0.03], {solid:false});
   B.box('dark', [AS[0] + 1.5, 0, 9.2], [AS[0] + 1.6, 1.6, 10.8], {solid:false}); B.box('dark', [AS[1] - 1.6, 0, 9.2], [AS[1] - 1.5, 1.6, 10.8], {solid:false});
-  B.geo('sign', new T3.PlaneGeometry(4.4, 1.1), 27.5, 2.6, AS[2] - 0.02, 0, Math.PI, 0); B.geo('sign', new T3.PlaneGeometry(4.4, 1.1), 27.5, 2.6, AS[3] + 0.02, 0, 0, 0);
+  B.geo('sign', new T3.PlaneGeometry(4.4, 1.1), 27.5, 2.6, AS[2] - 0.015, 0, Math.PI, 0); B.geo('sign', new T3.PlaneGeometry(4.4, 1.1), 27.5, 2.6, AS[3] + 0.015, 0, 0, 0);
   for (const x of [25, 30]) B.cyl('steel', 0.4, 0.4, 1.5, x, 4.2, 10, 12);
   // the crusher over the middle line
   const CX = 21.5, CW = 1.4;
@@ -1389,9 +1548,9 @@ function pianoKeys(grp, O, PK, s, mapKey){
   const beam = new T3.Group(); beam.position.copy(siren.position); grp.add(beam); sirenL.position.set(0, 0, 0); sirenL.rotation.x = Math.PI/2.6; beam.add(sirenL); Object.defineProperty(sirenL, '_b', {value:beam});
   let sirenWas = false;
   const scrC = document.createElement('canvas'); scrC.width = 256; scrC.height = 96; const scrT = new T3.CanvasTexture(scrC); scrT.encoding = T3.sRGBEncoding;
-  const scr = new T3.Mesh(new T3.PlaneGeometry(1.6, 0.6), new T3.MeshBasicMaterial({map:scrT})); scr.position.set(22.5 + O.x, 2.2, 7.5 + O.z); scr.rotation.y = -Math.PI/2; grp.add(scr);
+  const scr = new T3.Mesh(new T3.PlaneGeometry(1.6, 0.6), new T3.MeshBasicMaterial({map:scrT})); scr.position.set(AS[0] - 0.03 + O.x, 2.6, 7.6 + O.z); scr.rotation.y = -Math.PI/2;      // on the assembler's west wall grp.add(scr);
   const scr2 = scr.clone(); scr2.position.set(27.5 + O.x, 1.4, AS[2] - 0.03 + O.z); scr2.rotation.y = Math.PI; grp.add(scr2);
-  let scrap = 0, need = 5;
+  let scrap = 0, need = 5, rejectT = 0;
   const drawScr = () => { const g = scrC.getContext('2d'); g.fillStyle = '#04121c'; g.fillRect(0,0,256,96); g.fillStyle = '#7fffa0'; g.font = 'bold 40px monospace'; g.textAlign = 'center'; g.fillText('SCRAP ' + scrap + '/' + need, 128, 58); scrT.needsUpdate = true; };
   drawScr();
   const arms = [];
@@ -1415,7 +1574,18 @@ function pianoKeys(grp, O, PK, s, mapKey){
       say(b, pick(['hello world','I am new here','fresh off the line','who made me?'])); spawnSparks(pos.clone().add(new V(0, 1, 0)), 60, 3); flash(pos.clone().add(new V(0, 1, 0)), 1.0); ding();
       if (lastPlayer.distanceTo(pos) < 30) showMsg('NEW ROBOT ASSEMBLED!'); }
     drawScr(); };
-  MAPS.factory = {name:'FACTORY', group:grp, spawn:new V(10, 0, 16).add(O), yaw:Math.PI*0.5, nav, yMin:-5, yMax:HT + 2, props:B.props,
+  // robots think the crusher belt is a ride: they hop on, surf it, and either jump off just in time... or don't
+  const surfIdea = (bot, imp) => { if (imp || R() > 0.3) return null; const bt = belts[2], x0 = bt.x0 + 1.5 + R()*8, side = R() < 0.5 ? -1 : 1, zs = bt.z + side*1.6, chicken = R() < 0.4;
+    return actWalk(new V(x0 + O.x, 0, zs + O.z), [], {then:(b, failed) => { if (failed) return null; let t = 0, ph = 0, from = b.root.obj.position.clone();
+      say(b, pick(['conveyor surfing!!','watch this','wheee','hold my oil'])); setFace(b, 'happy');
+      return {step(b2, dt){ t += dt; const r = b2.root, pos = r.obj.position, sk = r.szK || 1;
+        if (ph === 0){ const k = Math.min(1, t/0.5); pos.set(from.x, 0, from.z).lerp(new V(x0 + O.x, 0, bt.z + O.z), k); pos.y = BT + (STAND*sk)*k + (1 - k)*STAND*sk - (1 - k)*BT + Math.sin(k*Math.PI)*0.7; botYaw(b2, Math.PI/2*bt.d); botLimbs(b2, -0.4, 2.4, 0); if (k >= 1){ ph = 1; t = 0; } return true; }
+        if (ph === 1){ pos.x += bt.d*1.3*dt; pos.y = BT + STAND*sk + Math.sin(t*9)*0.02; botLimbs(b2, j => (j ? 1 : -1)*0.25, j => 1.5 + Math.sin(t*6 + j*3)*0.5, 0); botYaw(b2, Math.PI/2*bt.d);
+          if (chicken && pos.x > CX - CW - 3.2 + O.x){ ph = 2; t = 0; from = pos.clone(); say(b2, pick(['NOPE','too spicy','not today crusher'])); }
+          if (!chicken && pos.x > CX - CW - 0.6 + O.x){ say(b2, pick(['uh oh','wait no','I regret this'])); setFace(b2, 'scared'); r.mode = 'free'; r.asleep = false; r.v.set(bt.d*1.3, 0, 0); b2.noGetUp = clock + 8; return false; }
+          return true; }
+        const k = Math.min(1, t/0.5); pos.set(from.x, 0, from.z).lerp(new V(from.x + 0.6, 0, bt.z + side*1.7 + O.z), k); pos.y = BT + STAND*sk + (0 - BT)*k + Math.sin(k*Math.PI)*0.7; botLimbs(b2, -0.4, 2.4, 0); return k < 1; }}; }}); };
+  MAPS.factory = {name:'FACTORY', O, botIdea:surfIdea, group:grp, spawn:new V(10, 0, 16).add(O), yaw:Math.PI*0.5, nav, yMin:-5, yMax:HT + 2, props:B.props,
     sky:{bg:0x2a2c30, fog:0x3a3c40, near:16, far:55, hs:0xfff4e0, hg:0x4a4a50, hi:0.8, ac:0xffffff, ai:0.3},
     onEv(ev){ if (ev.k === 'scrap' && isHost()) addScrap(ev.n || 1); else if (ev.k === 'n'){ scrap = ev.n; drawScr(); } },
     update(dt, inGame){
@@ -1451,6 +1621,9 @@ function pianoKeys(grp, O, PK, s, mapKey){
           for (const q of all) if (!q.obj.userData.dead && q.name !== 'mine'){ if (q.r >= 0.05) shatter(q, false, Array.from({length:3}, (_, k) => ({id:q.id ? q.id + 'x' + k : null, s:0.03 + R()*0.03})), new V(0, 2, 0)); else removePart(q); }
           quietFx = false; if (root.bot && !root.bot.dead) killBot(root.bot); continue;
         }
+        if (c.x > AS[0] - 0.15 + O.x && c.x < AS[1] - 0.2 + O.x && Math.abs(c.z - 10 - O.z) < 0.85 && c.y < 1.7 && (p.name === 'chunk' || (p.planes && p.planes.length))){
+          // only whole parts count: chainsaw halves and smashed bits get spat out as smoke (and don't pile up)
+          emitAsh(c, 8, 0.3); removePart(p); if (clock > rejectT && c.distanceTo(lastPlayer) < 14){ rejectT = clock + 4; if (AC) tone('square', 160, 90, 0.25, 0.08); showMsg('ASSEMBLER: whole parts only! (no chopped or smashed bits)'); } continue; }
         if (c.x > AS[0] - 0.15 + O.x && c.x < AS[1] - 0.2 + O.x && Math.abs(c.z - 10 - O.z) < 0.85 && c.y < 1.7){ spawnSparks(c, 20, 2); if (p.bot && !p.bot.dead) killBot(p.bot); removePart(p); if (!netGame || isHost()) addScrap(1); else netSend('ev', {t:'mapev', m:'factory', k:'scrap', n:1}); continue; }
         if (p.bot && !p.bot.dead && p === p.bot.root && p.mode === 'bot') continue;
         if (c.x > 40.7 + O.x && c.x < 43.3 + O.x && c.z > 20.3 + O.z && c.z < 23.7 + O.z && c.y < 1.0){ for (let k=0;k<6;k++) emitFire(c.clone(), new V((R()-0.5), 1.5 + R(), (R()-0.5)), 0.08, 0.5); removePart(p); continue; }
@@ -1634,7 +1807,14 @@ function pianoKeys(grp, O, PK, s, mapKey){
   const thunder = () => { if (!AC) return; noiseHit(3.0, 110, 0.4, 1.0); noiseHit(1.2, 400, 0.6, 0.4); tone('sine', 50, 30, 2.5, 0.4); };
   const ooo = (v) => { if (!AC) return; const o = AC.createOscillator(), l = AC.createOscillator(), lg = AC.createGain(), gg = AC.createGain(), t = AC.currentTime; o.type = 'sine'; o.frequency.value = 330; l.frequency.value = 5; lg.gain.value = 18; l.connect(lg); lg.connect(o.frequency);
     gg.gain.setValueAtTime(0.001, t); gg.gain.linearRampToValueAtTime(0.06*v, t + 0.6); gg.gain.linearRampToValueAtTime(0.001, t + 2.2); o.frequency.linearRampToValueAtTime(220, t + 2.2); o.connect(gg); gg.connect(AC.destination); o.start(t); l.start(t); o.stop(t + 2.3); l.stop(t + 2.3); };
-  MAPS.mansion = {name:'HAUNTED MANSION', group:grp, spawn:new V(22, 0, 5).add(O), yaw:Math.PI, nav, yMin:-5, yMax:14, props:B.props, sky:DARK,
+  let pianoBusy = false; const ELISE = [9, 21, 9, 21, 9, 6, 8, 7, 5, -1, 0, 2, 5, 6, -1, 2, 18, 6, 7];
+  const mansionIdea = (bot, imp) => { if (imp || pianoBusy || R() > 0.5) return null; pianoBusy = true; const rel = () => { pianoBusy = false; };
+    return actWalk(new V(36.25 + O.x, 0, 33.55 + O.z), [], {cancel:rel, then:(b, failed) => { if (failed){ rel(); return null; } let n = -1;
+      return actDo(ELISE.length*0.38 + 1.2, (b2, t) => { const r = b2.root, sk = r.szK || 1; r.obj.position.set(36.25 + O.x, 0.48 + 0.2*sk, 32.8 + O.z); botYaw(b2, Math.PI);
+        const i = Math.floor((t - 0.6)/0.38); botLimbs(b2, -1.45, 0.35, j => -1.25 - (i % 2 === j && (t - 0.6) % 0.38 < 0.12 ? 0.25 : 0)); setFace(b2, 'happy');
+        if (t > 0.6 && i !== n && i < ELISE.length){ n = i; if (ELISE[i] >= 0) piano.botPress(ELISE[i], true); } },
+        {cancel:rel, then:(b3) => (rel(), actWalk(null, [new V(36.25 + O.x, 0, 33.6 + O.z)]))}); }}); };
+  MAPS.mansion = {name:'HAUNTED MANSION', O, botIdea:mansionIdea, group:grp, spawn:new V(22, 0, 5).add(O), yaw:Math.PI, nav, yMin:-5, yMax:14, props:B.props, sky:DARK,
     pose(P, inGame){
       if (!mAv){ mAv = makeScary(mh, true); mAv.lost = me.lost; } showAv(mAv, inGame); if (inGame) poseAvatar(mAv, P);
       if (!!mAv.isCute !== impCute(NET.id)) setSkin(mAv, impCute(NET.id), 0x3aa0ff);
@@ -1754,7 +1934,7 @@ function pianoKeys(grp, O, PK, s, mapKey){
   const blobMat = new T3.MeshBasicMaterial({color:0xff8a28, fog:false}), blobGeo = new T3.IcosahedronGeometry(0.1, 0), blobs = [];
   for (let i=0;i<40;i++){ const m = new T3.Mesh(blobGeo, blobMat); m.visible = false; grp.add(m); blobs.push(m); }
   const spurtOf = slot => { const t0 = slot*SL + hsh(slot, 1)*0.8, lv = levelAt(((t0 % P) + P) % P); let x, z, y;
-    if (lv > 0.2){ const a = hsh(slot, 2)*6.283, rr = 3 + hsh(slot, 3)*(RC - 6); x = CX + Math.cos(a)*rr; z = CZ + Math.sin(a)*rr; y = lv; }
+    if (lv > 0.2){ let k = 0; do { const a = hsh(slot, 2 + k*90)*6.283, rr = 3 + hsh(slot, 3 + k*90)*(RC - 6); x = CX + Math.cos(a)*rr; z = CZ + Math.sin(a)*rr; k++; } while (k < 8 && rafts.some(r => Math.abs(r.x - O.x - x) < r.w/2 + 1.5 && Math.abs(r.z - O.z - z) < r.d/2 + 1.5)); if (k >= 8) return null; y = lv; }
     else if (lv < -0.3 && hsh(slot, 4) < 0.55){ [x, z] = vents[Math.floor(hsh(slot, 5)*vents.length)]; y = 0.02; } else return null;
     const n = 9 + Math.floor(hsh(slot, 6)*5), up = 4.5 + hsh(slot, 7)*3, bl = [];
     for (let k=0;k<n;k++){ const a = hsh(slot, 10 + k)*6.283, sp = 0.3 + hsh(slot, 30 + k)*1.1; bl.push([Math.cos(a)*sp, up*(0.7 + hsh(slot, 50 + k)*0.4), Math.sin(a)*sp]); }
@@ -1797,7 +1977,7 @@ function pianoKeys(grp, O, PK, s, mapKey){
         v.s = 'hop'; v.t = 0; v.from = pos.clone(); v.ox = (R() - 0.5)*(r.w - 0.9); v.oz = (R() - 0.5)*(r.d - 0.9); v.trip = R() < 0.2; return true; }
       if (!v.path || v.pi >= v.path.length){ const goal = reachableCell(new V(r.x, NAV.lv[0], r.z)) || cellOf(new V(r.x, 0, r.z)); v.path = navPath(bot.cell || cellOf(pos), goal) || []; v.pi = 0; }
       const wp = v.pi < v.path.length ? cellPos(...v.path[v.pi]) : new V(r.x, 0, r.z), to = wp.sub(pos); to.y = 0;
-      const spd = bot.speed*1.9*(legs === 2 ? 1 : 0.55)*Math.sqrt(sk)*dt;
+      const spd = bot.speed*2.6*(legs === 2 ? 1 : 0.55)*Math.sqrt(sk)*dt;
       if (to.length() < spd + 0.05 && v.pi < v.path.length){ bot.cell = v.path[v.pi]; v.pi++; } else { pos.addScaledVector(to.normalize(), Math.min(to.length(), spd)); face(to); }
       pos.y = NAV.lv[0] + STAND*sk + Math.abs(Math.sin(bot.t*13))*0.1*sk; anim(1.3, true); bot.target = pos.clone(); return true;
     }
@@ -1828,7 +2008,7 @@ function pianoKeys(grp, O, PK, s, mapKey){
       spurts(dt, inGame);
       const ph = (Date.now()/1000) % P, lv = levelAt(ph), shaking = ph > CALM && ph < CALM + RUMBLE + RISE*0.4;
       lava.position.y = lv;
-      for (const r of rafts){ const want = Math.max(0.3, lv + 0.18 + Math.sin(Date.now()/900 + r.ph)*(lv > 0.3 ? 0.06 : 0)); r.y += (want - r.y)*Math.min(1, dt*3);
+      for (const r of rafts){ r.py = r.y; r.y = Math.max(0.3, lv + 0.18 + Math.sin(Date.now()/900 + r.ph)*(lv > 0.3 ? 0.06 : 0));
         r.mesh.position.y = r.y; r.mesh.rotation.z = lv > 0.3 ? Math.sin(Date.now()/1300 + r.ph)*0.04 : 0; setDyn(r.box, r.x - r.w/2, r.y - 0.3, r.z - r.d/2, r.x + r.w/2, r.y + 0.3, r.z + r.d/2); } lavaT.offset.x = (Date.now()/1000)*0.01; lavaT.offset.y = Math.sin(Date.now()/4000)*0.05;
       lava.material.color.setRGB(1, 0.85 + 0.15*Math.sin(Date.now()/400), 0.8 + 0.2*Math.sin(Date.now()/700));
       // the whole place shakes while it's rumbling
@@ -1836,6 +2016,12 @@ function pianoKeys(grp, O, PK, s, mapKey){
       if (!inGame){ warned = false; return; }
       if (ph > CALM && ph < CALM + 1 && !warned){ warned = true; showMsg('THE VOLCANO IS RUMBLING! GET UP HIGH!'); }
       if (ph < CALM) warned = false;
+      // standing (or hanging on) on a raft: you go up and down with it, like you're part of it
+      { const h = loco.headPos();
+        for (const r of rafts){ const dy = r.y - (r.py == null ? r.y : r.py), top = r.y + 0.3; if (!dy) continue;
+          const over = q => Math.abs(q.x - r.x) < r.w/2 + 0.25 && Math.abs(q.z - r.z) < r.d/2 + 0.25;
+          const onIt = (over(h) && h.y - top > 0.2 && h.y - top < 2.4 && floorBelow(h) > top - 0.15) || [0, 1].some(i => !me.lost[i] && loco.S.wasTouching && loco.S.wasTouching[i] && over(loco.S.lastHand[i]) && Math.abs(loco.S.lastHand[i].y - top) < 0.25);
+          if (onIt){ rig.position.y += dy; for (const i of [0, 1]) if (loco.S.lastHand[i]) loco.S.lastHand[i].y += dy; break; } } }
       if (shaking){ rumbleT -= dt; if (rumbleT <= 0){ rumbleT = 0.35; if (AC) noiseHit(0.6, 90, 0.4, 0.5); pulse(0, 0.5, 120); pulse(1, 0.5, 120);
           const a = R()*6.3, rr = 6 + R()*13; emitAsh(new V(CX + Math.cos(a)*rr + O.x, 14 + R()*8, CZ + Math.sin(a)*rr + O.z), 8, 0.4); } }
       if (lv > 0){ bubbleT -= dt; if (bubbleT <= 0){ bubbleT = 0.08; const a = R()*6.3, rr = R()*RC, p = new V(CX + Math.cos(a)*rr + O.x, lv + 0.05, CZ + Math.sin(a)*rr + O.z); if (p.distanceTo(lastPlayer) < 14) emitFire(p, new V(0, 1 + R(), 0), 0.12 + R()*0.1, 0.6); } }
@@ -1992,7 +2178,15 @@ function pianoKeys(grp, O, PK, s, mapKey){
     for (const i of [0,1]) if (!on && !me.lost[i] && loco.S.wasTouching && loco.S.wasTouching[i]){ const p = loco.S.lastHand[i]; if (p.x > box.min[0] - 0.1 && p.x < box.max[0] + 0.1 && p.y > box.min[1] - 0.1 && p.y < box.max[1] + 0.1 && p.z > box.min[2] - 0.1 && p.z < box.max[2] + 0.1) on = true; }
     if (on){ rig.position.add(dlt); for (const i of [0,1]) loco.S.lastHand[i].add(dlt); }
     return on; };
-  MAPS.clock = {name:'CLOCK TOWER', group:grp, spawn:new V(22, 0, 11).add(O), yaw:Math.PI, nav, yMin:-5, yMax:HT + 3, props:B.props,
+  const CSt = [{lo:0, hi:1, bottom:[10, 0, 10.8], pts:[[10, 0.5, 11.9], [10, L1, 25.1], [10, L1, 26.6]]},
+               {lo:1, hi:2, bottom:[34, L1, 32.4], pts:[[34, L1 + 0.5, 31.1], [34, L2, 19.1], [34, L2, 17.8]]},
+               {lo:2, hi:3, bottom:[10.8, L2, 10], pts:[[12, L2 + 0.5, 10], [25, L3, 10], [26.3, L3, 10]]}];
+  const clockIdea = (bot, imp) => { const l = bot.cell ? bot.cell[2] : 0;
+    if (!imp && l === 3 && R() < 0.5) return actWalk(new V(24 + O.x, L3, 27.5 + O.z), [], {then:(b, failed) => { if (failed) return null; let n = 0;
+      return actDo(2.6, (b2, t) => { botYaw(b2, 0); const sw = t % 0.85 < 0.3; botLimbs(b2, 0, 0.4, j => j === 1 && sw ? -2.4 : -0.3);
+        if (t > 0.25 + n*0.85 && n < 3){ n++; bong(0.8); if (netGame) netSend('ev', {t:'mapev', m:'clock', k:'bell', v:0.8}); if (n === 1) say(b2, pick(['DONG','ding dong!','what time is it? BELL TIME'])); } }); }});
+    return actStairs(CSt, bot, l === 0 ? true : l === 3 ? false : R() < 0.5, null); };
+  MAPS.clock = {name:'CLOCK TOWER', O, botIdea:clockIdea, group:grp, spawn:new V(22, 0, 11).add(O), yaw:Math.PI, nav, yMin:-5, yMax:HT + 3, props:B.props,
     sky:{bg:0xe8956a, fog:0xc89070, near:20, far:70, hs:0xffe0b0, hg:0x5a4030, hi:0.85, ac:0xfff0d8, ai:0.35},
     onEv(ev){ if (ev.k === 'bell') bong(ev.v || 1); else if (ev.k === 'od') overdrive(false); },
     dbg:() => ({bellV, pAng, gears, bobBox, spins, liftBox, get liftY(){ return liftY; }, get odT(){ return odT; }, get spdK(){ return spdK; }, lever:lvKnob, cuckoo, set cuckooT(v){ cuckooT = v; }}),
@@ -2181,7 +2375,7 @@ function pianoKeys(grp, O, PK, s, mapKey){
   const light = (x, y, z) => { x -= O.x; z -= O.z; let r = 1.05, g = 0.98, b = 0.9;
     if (y < D - 0.1 || (x < QX && y < QY - 0.1)){ r = 0.28; g = 0.22; b = 0.16; for (const [lx, ly, lz] of lampPos){ const d = Math.hypot(x - lx, y - ly, z - lz), k = 1.3*Math.exp(-d/2.8); r += k; g += k*0.72; b += k*0.36; } }
     return [r, g, b]; };
-  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [D, HOLD]);
+  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [HOLD, D]);
   for (const s of sails){ const m = new T3.Mesh(s.geo, lam(0xffffff, {map:sailT, side:T3.DoubleSide})); m.position.set(s.x, s.y, s.z); m.rotation.y = Math.PI/2; grp.add(m); }
   for (const f of flags){ const m = new T3.Mesh(f.geo, new T3.MeshBasicMaterial({map:flagT, side:T3.DoubleSide})); m.position.set(f.x, f.y, f.z); m.rotation.y = Math.PI/2; grp.add(m); }
   for (const h of hammocks) grp.add(h);
@@ -2248,7 +2442,13 @@ function pianoKeys(grp, O, PK, s, mapKey){
   const lidBand = new T3.Mesh(new T3.CylinderGeometry(0.52, 0.52, 0.1, 12, 1, false, 0, Math.PI), lam(0xe0b040)); lidBand.rotation.z = Math.PI/2; lidBand.position.set(0, 0, 0.5); lid.add(lidBand);
   const lidBox = dynBox(), lidBB = new T3.Box3();
   const goldPile = new T3.Mesh(new T3.SphereGeometry(0.5, 12, 6, 0, 6.3, 0, 1.2), new T3.MeshBasicMaterial({color:0xffc830})); goldPile.scale.set(1.3, 0.35, 0.9); goldPile.position.set(TCX, HOLD + 0.62, TCZ); grp.add(goldPile);
-  MAPS.ship = {name:'PIRATE SHIP', group:grp, spawn:new V(28, D, 21).add(O), yaw:Math.PI/2, nav, yMin:-8, yMax:30, props:B.props,
+  const SSt = [{lo:0, hi:1, bottom:[16.2, HOLD, 22], pts:[[17.3, HOLD, 22], [22.7, D - 0.3, 22], [23.9, D, 22]]}];   // nav floors: 0 = the hold, 1 = the deck
+  const shipIdea = (bot, imp) => { const l = bot.cell ? bot.cell[2] : 1;
+    if (imp || l === 0 || R() < 0.4) return actStairs(SSt, bot, l === 0, null);
+    return actWalk(new V(32.5 + O.x, D, 20.7 + O.z), [], {then:(b, failed) => { if (failed) return null; let n = 0;
+      return actDo(2.4, (b2, t) => { botYaw(b2, Math.PI/2); const sw = t % 0.7 < 0.25; botLimbs(b2, 0, 0.4, j => j === 0 && sw ? -2.0 : -0.3);
+        if (t > 0.2 + n*0.7 && n < 3){ n++; ding(1); if (netGame) netSend('ev', {t:'mapev', m:'ship', k:'bell', v:1}); if (n === 1) say(b2, pick(['ALL HANDS ON DECK','ding ding ding','ahoy!'])); } }); }}); };
+  MAPS.ship = {name:'PIRATE SHIP', O, botIdea:shipIdea, group:grp, spawn:new V(28, D, 21).add(O), yaw:Math.PI/2, nav, yMin:-8, yMax:30, props:B.props,
     sky:{bg:0x8fc6ea, fog:0xb8d8ee, near:40, far:130, hs:0xfff6e0, hg:0x2a5a7a, hi:1.05, ac:0xffffff, ai:0.32},
     onEv(ev){ if (ev.k === 'boom' && cannons[ev.c]) fire(cannons[ev.c], false); else if (ev.k === 'bell') ding(ev.v || 1); else if (ev.k === 'kdead') krakenDown(ev.n, false); },
     dbg:() => ({ropes, tent, tSegs, get kSeen(){ return kSeen; }, get kDeadUntil(){ return kDeadUntil; }, get chestOpen(){ return chestOpen; }, cannons, D, HOLD}),
