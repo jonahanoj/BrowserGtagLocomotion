@@ -3007,7 +3007,9 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const tent = new T3.Group(); grp.add(tent); const TN = 28, tSegs = Array.from({length:TN}, (_, k) => { const m = new T3.Mesh(new T3.SphereGeometry(0.6 - k*0.018, 12, 8), lam(0x7e325f)); tent.add(m); return m; });
   for (let k=2;k<TN;k+=3){ const s = new T3.Mesh(new T3.SphereGeometry(0.11 - k*0.002, 8, 6), lam(0xf0c0d8)); tSegs[k].add(s); s.position.set(0, 0, 0.5 - k*0.016); }
   tent.visible = false; const K_EVERY = 75, K_LEN = 7; let kSlamDone = -1, kSeen = -1;
-  const kPlan = n => { const r = Math.abs(Math.sin(n*12.9898)*43758.5453) % 1, r2 = Math.abs(Math.sin(n*78.233)*12543.13) % 1; return {x:12 + r*20 + O.x, side:r2 < 0.5 ? -1 : 1}; };
+  const kPlan = n => { const r = Math.abs(Math.sin(n*12.9898)*43758.5453) % 1, r2 = Math.abs(Math.sin(n*78.233)*12543.13) % 1; return {x:CAN[Math.floor(r*3) % 3] + O.x, side:r2 < 0.5 ? -1 : 1}; };
+  let kDeadUntil = 0, kDeadN = -1;          // shot by a cannon: gone for 2 minutes
+  const KRAKEN_NAP = 120;
   const splash = pos => { for (let k=0;k<20;k++) frostPuff(pos.clone().add(new V((R()-0.5)*0.8, 0, (R()-0.5)*0.8))); if (AC && pos.distanceTo(lastPlayer) < 25) noiseHit(0.6, 900, 0.6, 0.4); };
   const sndBoom = v => { if (!AC) return; noiseHit(1.0, 220, 0.6, 1.0*v); tone('sine', 70, 30, 0.6, 0.7*v); noiseHit(0.2, 1500, 1, 0.5*v); };
   const fuseS = () => { if (AC) noiseHit(1.0, 5000, 2, 0.08); };
@@ -3017,14 +3019,20 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
   const ride = (box, dlt) => { const h = loco.headPos(); let on = false;
     for (const i of [0,1]) if (!on && !me.lost[i] && loco.S.wasTouching && loco.S.wasTouching[i]){ const p = loco.S.lastHand[i]; if (p.x > box.min[0] - 0.12 && p.x < box.max[0] + 0.12 && p.y > box.min[1] - 0.12 && p.y < box.max[1] + 0.12 && p.z > box.min[2] - 0.12 && p.z < box.max[2] + 0.12) on = true; }
     if (on){ rig.position.add(dlt); for (const i of [0,1]) loco.S.lastHand[i].add(dlt); } return on; };
-  let roll = 0, chestOpen = 0, chestT = 0;
+  let roll = 0, chestOpen = 0, chestT = 0, lockedMsgT = 0;
+  const krakenDown = (n, local) => { if (kDeadN === n) return; kDeadN = n; kDeadUntil = Date.now()/1000 + KRAKEN_NAP;
+    const c = tSegs[Math.floor(TN*0.4)].position.clone(); tent.visible = false; flash(c, 2.2); spawnSparks(c, 120, 6); emitAsh(c, 40, 0.5); for (let k=0;k<30;k++) emitFire(c.clone(), new V(R()-0.5, R()*0.8, R()-0.5).multiplyScalar(8), 0.2, 0.5);
+    for (let k=0;k<25;k++) frostPuff(c.clone().add(new V((R()-0.5)*3, (R()-0.5)*4, (R()-0.5)*3))); sndBoom(1); if (AC) setTimeout(() => tone('sawtooth', 120, 30, 1.2, 0.15), 200);
+    showMsg('THE KRAKEN IS BEATEN! The treasure chest is open!'); if (local && netGame) netSend('ev', {t:'mapev', m:'ship', k:'kdead', n});
+    chestOpen = 1; chestT = 0; if (AC){ tone('triangle', 520, 520, 0.12, 0.1); setTimeout(() => tone('triangle', 780, 780, 0.25, 0.1), 120); }
+    for (let k=0;k<3;k++) spawnScrap('sc-kraken-' + n + '-' + k, new V(TCX - 0.6 + k*0.6, HOLD + 0.9, TCZ - 0.9)); };
   const lid = new T3.Group(); lid.position.set(TCX, HOLD + 0.7, TCZ - 0.5); grp.add(lid); const lidM = new T3.Mesh(new T3.CylinderGeometry(0.5, 0.5, 1.4, 12, 1, false, 0, Math.PI), lam(0xa8241e)); lidM.rotation.z = Math.PI/2; lidM.position.set(0, 0, 0.5); lid.add(lidM);
   const lidBand = new T3.Mesh(new T3.CylinderGeometry(0.52, 0.52, 0.1, 12, 1, false, 0, Math.PI), lam(0xe0b040)); lidBand.rotation.z = Math.PI/2; lidBand.position.set(0, 0, 0.5); lid.add(lidBand);
   const goldPile = new T3.Mesh(new T3.SphereGeometry(0.5, 12, 6, 0, 6.3, 0, 1.2), new T3.MeshBasicMaterial({color:0xffc830})); goldPile.scale.set(1.3, 0.35, 0.9); goldPile.position.set(TCX, HOLD + 0.62, TCZ); grp.add(goldPile);
   MAPS.ship = {name:'PIRATE SHIP', group:grp, spawn:new V(28, D, 21).add(O), yaw:Math.PI/2, nav, yMin:-8, yMax:30, props:B.props,
     sky:{bg:0x8fc6ea, fog:0xb8d8ee, near:40, far:130, hs:0xfff6e0, hg:0x2a5a7a, hi:1.05, ac:0xffffff, ai:0.32},
-    onEv(ev){ if (ev.k === 'boom' && cannons[ev.c]) fire(cannons[ev.c], false); else if (ev.k === 'bell') ding(ev.v || 1); else if (ev.k === 'chest'){ chestOpen = 1; chestT = 0; } },
-    dbg:() => ({ropes, tent, get kSeen(){ return kSeen; }, cannons, D, HOLD}),
+    onEv(ev){ if (ev.k === 'boom' && cannons[ev.c]) fire(cannons[ev.c], false); else if (ev.k === 'bell') ding(ev.v || 1); else if (ev.k === 'kdead') krakenDown(ev.n, false); },
+    dbg:() => ({ropes, tent, tSegs, get kSeen(){ return kSeen; }, get kDeadUntil(){ return kDeadUntil; }, get chestOpen(){ return chestOpen; }, cannons, D, HOLD}),
     update(dt, inGame){
       const t = Date.now()/1000; roll = Math.sin(t*0.85)*0.045; const pitch = Math.sin(t*0.53 + 1)*0.018;
       sea.rotation.set(roll, 0, pitch); sea.position.y = Math.sin(t*0.7)*0.15;
@@ -3041,20 +3049,23 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
       for (const f of fins){ f.a += dt*0.25; f.f.position.set(Math.cos(f.a)*f.r, 0.1, Math.sin(f.a)*f.r*1.6); f.f.rotation.y = -f.a; }
       wheelV *= Math.exp(-dt*0.8); wheelA += wheelV*dt; wheel.rotation.z = wheelA;
       bellVv += (-bellSw*14 - bellVv*1.5)*dt; bellSw += bellVv*dt; bellG.rotation.z = bellSw*0.4; bellCD -= dt;
-      if (chestOpen > 0){ chestT += dt; if (chestT > 20){ chestOpen = 0; } } lid.rotation.x += ((chestOpen ? -1.9 : 0) - lid.rotation.x)*Math.min(1, dt*5); goldPile.visible = lid.rotation.x < -0.3;
+      if (chestOpen > 0){ chestT += dt; if (chestT > 30){ chestOpen = 0; } } lid.rotation.x += ((chestOpen ? -1.9 : 0) - lid.rotation.x)*Math.min(1, dt*5); goldPile.visible = lid.rotation.x < -0.3;
       if (chestOpen && chestT < 2 && R() < 0.5) spawnSparks(new V(TCX, HOLD + 0.9, TCZ), 1, 1.2);
       // rope swings
       for (const r of ropes){ const a = Math.sin(t*1.25 + r.ph)*0.55; r.g.rotation.x = a; r.prev.copy(r.c); r.c.set(r.pv.x, r.pv.y - Math.cos(a)*r.L, r.pv.z + Math.sin(a)*r.L);
         setDyn(r.box, r.c.x - 0.12, r.c.y - 0.15, r.c.z - 0.12, r.c.x + 0.12, r.c.y + 2.2, r.c.z + 0.12); }
       // the kraken: rises (0-3 s), sways, slams down at 5 s, sinks away by 7 s
       const n = Math.floor(t/K_EVERY), kt = t - n*K_EVERY, kp = kPlan(n);
-      if (kt < K_LEN && n > 0){ tent.visible = true; kSeen = n;
+      if (kt < K_LEN && n > 0 && t > kDeadUntil && n !== kDeadN){ tent.visible = true; kSeen = n;
         const up = kt < 3 ? kt/3 : kt < 5 ? 1 : kt < 5.4 ? 1 : Math.max(0, 1 - (kt - 5.4)/1.6), slam = kt < 4.4 ? 0 : Math.min(1, (kt - 4.4)/0.5);
-        const base = new V(kp.x, -0.5, ZC + O.z + kp.side*(5.2 + (1 - up)*1.5));
+        const base = new V(kp.x, -0.5, ZC + O.z + kp.side*(7.2 + (1 - up)*1.5));             // right in front of a cannon's gunport
         tSegs.forEach((m, k) => { const u = k/(TN - 1), h = up*(u*8.5), bend = slam*u*u*(Math.PI*0.62), sway = Math.sin(t*2 + u*3)*0.3*(1 - slam)*u;
           m.position.set(base.x + sway, base.y + Math.cos(bend)*h, base.z - kp.side*Math.sin(bend)*h*0.95); });
         if (kt > 0.1 && kt - dt <= 0.1 && AC && inGame) tone('sawtooth', 60, 40, 1.5, 0.12);
-        if (slam >= 1 && kSlamDone !== n){ kSlamDone = n; const hit = tSegs[TN - 1].position.clone().setY(D + 0.2); splash(hit); sndClank(9); sndBoom(0.6); spawnSparks(hit, 40, 4);
+        // hit by anything fired from a cannon: BOOM, it's beaten
+        if (inGame) for (const p of parts){ if (!(p.cball > clock) || p.parent || p.obj.userData.dead || !mine(p)) continue; const c = centerW(p);
+          if (tSegs.some(m => m.position.distanceTo(c) < 0.75 + p.r)){ p.cball = 0; p.v.multiplyScalar(-0.3); krakenDown(n, true); break; } }
+        if (tent.visible && slam >= 1 && kSlamDone !== n){ kSlamDone = n; const hit = tSegs[TN - 1].position.clone().setY(D + 0.2); splash(hit); sndClank(9); sndBoom(0.6); spawnSparks(hit, 40, 4);
           if (inGame){ const h = loco.headPos(); if (Math.hypot(h.x - hit.x, h.z - hit.z) < 2.4 && h.y < D + 3){ loco.S.velocity.add(h.clone().sub(hit).setY(0).setLength(6)).add(new V(0, 5, 0)); pulse(0, 1, 250); pulse(1, 1, 250); lastCombat = clock; showMsg('THE KRAKEN!'); }
             for (const p of parts){ if (p.parent || p.obj.userData.dead || !mine(p)) continue; const c = centerW(p); if (Math.hypot(c.x - hit.x, c.z - hit.z) < 2.6 && c.y < D + 2.5){ if (p.bot && p === p.bot.root && p.mode === 'bot'){ p.mode = 'free'; p.bot.stunT = 2; say(p.bot, pick(['KRAKEN!!','tentacles!','ahhh'])); } if (p.mode === 'free'){ p.asleep = false; p.v.add(c.clone().sub(hit).setY(0).setLength(5)).add(new V(0, 6, 0)); } } } } }
       } else tent.visible = false;
@@ -3068,7 +3079,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
       for (const i of [0,1]){ if (me.lost[i]) continue; const p = handW[i], wc = wheel.position;
         if (Math.abs(p.x - wc.x) < 0.15 && Math.hypot(p.y - wc.y, p.z - wc.z) < 0.62 && Math.hypot(p.y - wc.y, p.z - wc.z) > 0.3 && hv[i].length() > 0.6){ const rr = new V(0, p.y - wc.y, p.z - wc.z), tq = rr.y*hv[i].z - rr.z*hv[i].y; wheelV += tq*dt*12; if (AC && R() < 0.05) noiseHit(0.08, 600, 2, 0.06); }
         const bp = bellG.localToWorld(new V(0, -0.25, 0.2)); if (bellCD <= 0 && p.distanceTo(bp) < 0.3 && hv[i].length() > 1){ ding(Math.min(1.5, hv[i].length()/3)); bellCD = 0.4; pulse(i, 0.8, 80); if (netGame) netSend('ev', {t:'mapev', m:'ship', k:'bell', v:1}); }
-        if (!chestOpen && Math.abs(p.x - TCX) < 0.8 && Math.abs(p.z - TCZ) < 0.6 && p.y < HOLD + 1.1 && p.y > HOLD + 0.3){ chestOpen = 1; chestT = 0; if (AC){ tone('triangle', 520, 520, 0.12, 0.1); setTimeout(() => tone('triangle', 780, 780, 0.25, 0.1), 120); } showMsg('TREASURE!'); if (netGame) netSend('ev', {t:'mapev', m:'ship', k:'chest'}); }
+        if (!chestOpen && clock > lockedMsgT && Math.abs(p.x - TCX) < 0.8 && Math.abs(p.z - TCZ) < 0.6 && p.y < HOLD + 1.1 && p.y > HOLD + 0.3){ lockedMsgT = clock + 3; pulse(i, 0.4, 60); if (AC) noiseHit(0.1, 1200, 2, 0.1); showMsg('Locked tight. Shoot the KRAKEN with a cannon to open it!'); }
       }
       for (const c of cannons){
         if (c.p){ c.fuse -= dt; const p = c.p;
@@ -3282,7 +3293,7 @@ function killBot(bot, remote){
   if (bot.social) endSocial(bot);
   if (bot.dummy) return;
   { const hp = bot.head && !bot.head.obj.userData.dead ? centerW(bot.head) : centerW(bot.root);
-    if (bot.mon) for (let k=0;k<5;k++){ const a = k/5*Math.PI*2; spawnScrap('sc-' + bot.id + '-' + k, hp.clone().add(new V(Math.cos(a)*0.7, 0, Math.sin(a)*0.7))); }
+    if (bot.mon) for (let k=0;k<3;k++){ const a = k/3*Math.PI*2; spawnScrap('sc-' + bot.id + '-' + k, hp.clone().add(new V(Math.cos(a)*0.7, 0, Math.sin(a)*0.7))); }
     else spawnScrap('sc-' + bot.id, hp); }
   if (bot.mon){ say(bot, pick(['noooo','ow ow ow :(','i just wanted a hug'])); if (MAPS.backrooms.monsterDone) MAPS.backrooms.monsterDone('killed'); return; }
   if ((!netGame || isHost()) && !impGame()) respawnTimers.push(3);
@@ -6466,7 +6477,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261125053752';
+const BUILD = '20261125054145';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
