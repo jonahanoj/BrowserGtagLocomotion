@@ -1500,7 +1500,8 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     const band = f => [f === 0 ? 0 : FL[f] - 0.25, f === 2 ? TOP : FL[f+1] - 0.25];
     for (let f=0;f<3;f++){
       const [y0, y1] = band(f), F = FL[f];
-      const east = f === 0 ? [[2.4, 3.6, F, F + 2.3], [0.6, 2.1, F + 0.45, F + 2.55, true], [3.9, 5.4, F + 0.45, F + 2.55, true]] : [[0.8, 2.3, F + 0.9, F + 2.5, true], [3.7, 5.2, F + 0.9, F + 2.5, true]];
+      const east = f === 0 ? [[2.4, 3.6, F - 0.004, F + 2.3],          // (the door's sill tucks just under the floors either side: no flicker)
+ [0.6, 2.1, F + 0.45, F + 2.55, true], [3.9, 5.4, F + 0.45, F + 2.55, true]] : [[0.8, 2.3, F + 0.9, F + 2.5, true], [3.7, 5.2, F + 0.9, F + 2.5, true]];
       const north = f === 0 ? [[1.5, 3.7, F + 0.45, F + 2.55, true], [6, 8.2, F + 0.45, F + 2.55, true], [10.8, 13, F + 0.45, F + 2.55, true]] : [[1, 2.7, F + 0.9, F + 2.5, true], [4.2, 5.9, F + 0.9, F + 2.5, true], [7.4, 9.1, F + 0.9, F + 2.5, true], [10.6, 12.3, F + 0.9, F + 2.5, true]];
       B.wallRun(['office'], 'z', WZ0 + T, WZ1 - T, WX1 - T, WX1, y0, y1, east, 1.6);
       B.wallRun(['skin'], 'z', WZ0, WZ1, WX1, WX1 + 0.03, y0, y1, east.map(h => h.slice(0, 4)), 2);
@@ -1530,7 +1531,7 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     for (const [x, z] of [[9.2, 5.2], [13.9, 1.2], [4.6, 5.2]]){ B.cyl('pot', 0.2, 0.25, 0.45, x, 0.15, z, 8); B.ball('plantO', new T3.IcosahedronGeometry(1, 0), x, 0.95, z, 0.38, 0.45, 0.38, 3); }
     // office floor: desks with screens and chairs, a water cooler
     const F1 = FL[1];
-    for (const [x, z] of [[3, 3.2], [3, 4.8], [6.5, 3.2], [6.5, 4.8], [10, 3.2], [10, 4.8]]){
+    for (const [x, z] of [[3, 2.7], [3, 4.45], [6.5, 2.7], [6.5, 4.45], [10, 2.7], [10, 4.45]]){          // back row's chairs clear the wall
       B.box('desk', [x - 0.8, F1 + 0.72, z - 0.4], [x + 0.8, F1 + 0.77, z + 0.4]); B.box('dark', [x - 0.75, F1, z - 0.35], [x - 0.7, F1 + 0.72, z + 0.35]); B.box('dark', [x + 0.7, F1, z - 0.35], [x + 0.75, F1 + 0.72, z + 0.35]);
       B.box('dark', [x - 0.3, F1 + 0.77, z - 0.05], [x + 0.3, F1 + 1.15, z]); B.box('screen', [x - 0.27, F1 + 0.8, z + 0.001], [x + 0.27, F1 + 1.12, z + 0.01], {solid:false});
       B.box('chairO', [x - 0.25, F1 + 0.4, z + 0.45], [x + 0.25, F1 + 0.48, z + 0.95]); B.box('chairO', [x - 0.25, F1 + 0.48, z + 0.9], [x + 0.25, F1 + 1.0, z + 0.97]); B.box('metalO', [x - 0.03, F1, z + 0.67], [x + 0.03, F1 + 0.4, z + 0.73], {solid:false});
@@ -1626,7 +1627,8 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     // local frame: u runs into the rock, v across; (x, z) = f(u, v)
     const f = t.side === 'e' ? (u, v) => [44 + u, t.c + v] : t.side === 'w' ? (u, v) => [-u, t.c + v] : t.side === 'n' ? (u, v) => [t.c + v, 44 + u] : (u, v) => [t.c + v, -u];
     const bx = (k, u0, u1, v0, v1, y0, y1, o) => { const [ax, az] = f(u0, v0), [cx, cz] = f(u1, v1); B.box(k, [Math.min(ax, cx), y0, Math.min(az, cz)], [Math.max(ax, cx), y1, Math.max(az, cz)], o); };
-    bx('rock', 0, TL + 1, -TWd/2 - 1, TWd/2 + 1, -1, 0, {us:3}); bx('rock', 0, TL + 1, -TWd/2 - 1, TWd/2 + 1, THt, THt + 1, {us:3});
+    bx('rock', 2, TL + 1, -TWd/2 - 1, TWd/2 + 1, -1, 0, {us:3}); bx('rock', 0, TL + 1,          // (the cave floor already covers the first 2 m: starting there stops the floors overlapping)
+      -TWd/2 - 1, TWd/2 + 1, THt, THt + 1, {us:3});
     bx('rock', 0, TL, -TWd/2 - 1, -TWd/2, 0, THt, {us:3}); bx('rock', 0, TL, TWd/2, TWd/2 + 1, 0, THt, {us:3}); bx('rock', TL, TL + 1, -TWd/2 - 1, TWd/2 + 1, 0, THt, {us:3});
     for (let u=0.3; u<TL; u+=1.6){ bx('beam', u, u + 0.18, -TWd/2, -TWd/2 + 0.18, 0, THt); bx('beam', u, u + 0.18, TWd/2 - 0.18, TWd/2, 0, THt); bx('beam', u, u + 0.18, -TWd/2, TWd/2, THt - 0.2, THt); }
     for (const v of [-0.35, 0.35]) bx('rail', -2, TL, v - 0.03, v + 0.03, 0, 0.06, {solid:false});
