@@ -2931,7 +2931,14 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
       for (let k=0;k<22;k++) B.box('rope', [x - 0.5, y0 + 0.5 + k*0.4, ZC - 0.3], [x - 0.32, y0 + 0.55 + k*0.4, ZC + 0.3]); }
     const fg = new T3.PlaneGeometry(1.8, 1.1, 8, 3); flags.push({geo:fg, x:x + 0.95 + O.x, y:y0 + h - 0.6, z:ZC + O.z, base:Float32Array.from(fg.attributes.position.array)});
   }
-  for (const s of [-1, 1]) for (const x of [24, 32]) for (let k=0;k<5;k++) B.geo('rope', new T3.CylinderGeometry(0.02, 0.02, 10, 4), x - 2 + k, D + 5, ZC + s*2.9, s*0.5, 0, 0);
+  // rigging: shrouds fanning from high on each mast down to the rails, with rungs across them
+  const ropeAB = (a, b, r) => { const d = b.clone().sub(a), m = a.clone().add(b).multiplyScalar(0.5), e = new T3.Euler().setFromQuaternion(new Q().setFromUnitVectors(new V(0, 1, 0), d.clone().normalize()));
+    B.geo('rope', new T3.CylinderGeometry(r || 0.025, r || 0.025, d.length(), 5), m.x, m.y, m.z, e.x, e.y, e.z); };
+  for (const [mx, top] of [[24, D + 9], [32, D + 8.5]]) for (const s of [-1, 1]){
+    const ends = [-1.2, -0.4, 0.4, 1.2].map(dx => new V(mx + dx, D + BW + 0.08, ZC + s*(5 - 0.05)));
+    for (const e of ends) ropeAB(new V(mx, top, ZC + s*0.25), e);
+    for (let k=1;k<9;k++){ const f = k/9, a = new V(mx, top, ZC + s*0.25).lerp(ends[0], f), b = new V(mx, top, ZC + s*0.25).lerp(ends[3], f); ropeAB(a, b, 0.015); } }
+  for (const [a, b] of [[[24, D + 14.5, ZC], [32, D + 11.5, ZC]], [[24, D + 14.5, ZC], [9, QY + 9.5, ZC]], [[32, D + 11.5, ZC], [X1 + 9.5, D + 4.4, ZC]]]) ropeAB(new V(...a), new V(...b), 0.022);
   // the cannons, on carriages, pointing out of the gunports
   const cannons = [];
   for (const x of CAN) for (const s of [-1, 1]){
@@ -6459,7 +6466,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261125053643';
+const BUILD = '20261125053752';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
