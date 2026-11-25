@@ -17,3 +17,9 @@ The page checks for updates every 30 s and reloads itself (in VR it waits until 
 
 ## Credits
 Locomotion is a JavaScript port of [Another Axiom's GorillaLocomotion](https://github.com/Another-Axiom/GorillaLocomotion) (`Player.cs`), MIT License — see `LICENSE-GorillaLocomotion`. Rendering uses three.js r128.
+
+## Project layout
+- `src/game.html` — the game (engine, weapons, multiplayer, lobby, game modes)
+- `src/maps.js` — every map
+- `build.py` — run `python build.py` to rebuild `index.html` (the game GitHub Pages serves) and `tools/MapViewer.html`
+- `tools/MapViewer.html` — open it on a computer to fly around any map (collision boxes, wireframe, screenshots with positions)
