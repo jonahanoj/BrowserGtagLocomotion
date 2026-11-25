@@ -658,7 +658,7 @@ const helpTex = signTex(640, 400, (g,W,Hh) => {
 // Touch it with anything (hand, weapon, body, whatever you're holding) to collect it. Saved in this browser.
 const SCRAP_KEY = 'scraps';
 function loadScraps(){ let a = 0, b = 0; try { a = +localStorage.getItem(SCRAP_KEY) || 0; } catch(e){} try { const m = document.cookie.match(/(?:^|; )scraps=(\d+)/); b = m ? +m[1] : 0; } catch(e){} return Math.max(a, b); }
-let myScraps = loadScraps();
+let myScraps = loadScraps(), lastPvP = -99;            // lastPvP: when another player last hurt me
 function saveScraps(){ try { localStorage.setItem(SCRAP_KEY, String(myScraps)); } catch(e){} try { document.cookie = 'scraps=' + myScraps + '; max-age=315360000; path=/; SameSite=Lax'; } catch(e){} }
 const scrapItems = new Map(), scrapGone = new Set();
 const scrapGeo = (() => { const s = new T3.Shape(), n = 8; for (let k=0;k<n*4;k++){ const a = k/(n*4)*Math.PI*2, r = (k % 4 === 1 || k % 4 === 2) ? 0.1 : 0.075; if (!k) s.moveTo(Math.cos(a)*r, Math.sin(a)*r); else s.lineTo(Math.cos(a)*r, Math.sin(a)*r); }
@@ -4338,6 +4338,7 @@ function blast(pos, minePart, by){
     const hd = shB ? 99 : Math.min(loco.headPos().distanceTo(pos), segDist(pos, loco.headPos(), loco.headPos().add(new V(0,-1.1,0))));
     if (hd < 3.2){ const k = 1 - hd/3.2, push = loco.headPos().sub(pos).setY(0.6).normalize().multiplyScalar(7*k); knockV.copy(push); knockT = 0.22; lastCombat = clock; }
     for (const i of [0,1]) if (!me.lost[i] && handW[i].distanceTo(pos) < 1.05){ me.lost[i] = true; release(i, true); hs[i] = {mode:'none'}; debris(handW[i], 0x3c4048); }
+    if (hd < 0.95 && minePart && minePart.by && minePart.by !== myName) lastPvP = clock;
     if (hd < 0.95){ debris(loco.headPos(), 0x26292e); die(minePart && minePart.by ? minePart.by + "'s mine" : 'a mine'); }
   }
   for (const peer of Object.values(NET.peers)){
@@ -5683,7 +5684,9 @@ function die(by){
   if (clock - (die.t != null ? die.t : -9) < 2) return;          // once: the fade back to the lobby takes a moment
   die.t = clock;
   lastDeath = by || 'another robot'; window.__ld = lastDeath;
-  if (mode === 'game' && netGame){ const sid = 'sc-p-' + NET.id + '-' + Date.now().toString(36), hp = loco.headPos(); netSend('ev', {t:'scrap', id:sid, p:r3(hp.toArray())}); }
+  // dying costs 3 scrap; only a kill by another player drops one (so friends can't farm each other)
+  if (mode === 'game'){ const lost = Math.min(3, myScraps); myScraps -= lost; saveScraps(); lastWrist = ''; drawScrapSign(); if (lost) setTimeout(() => showMsg('You lost ' + lost + ' scrap'), 1200); }
+  if (mode === 'game' && netGame && clock - lastPvP < 6){ const sid = 'sc-p-' + NET.id + '-' + Date.now().toString(36), hp = loco.headPos(); netSend('ev', {t:'scrap', id:sid, p:r3(hp.toArray())}); }
   for (const i of [0,1]) release(i, true);
   spawnSparks(loco.headPos(), 120, 4); sndSnap(); pulse(0, 1, 300); pulse(1, 1, 300);
   fadeDir = 0; fade = 0; netGame = null; goto('lobby');
@@ -6028,6 +6031,7 @@ function applyRemoteState(){
   }
 }
 function onEvent(ev, from){
+  if (ev && (['hit','blow','ignite','lz','pfrz','pism','throw','yank','snap','carry'].includes(ev.t) || (ev.t === 'prip' && ev.v === NET.id))) lastPvP = clock;
   if (ev && ev.t === 'bye'){ onLeave(from); return; }
   { const pg = NET.peers[from]; if (netGame && pg && pg.g && pg.g !== netGame && ev.t !== 'need') return;   // someone in a different game
     if (pg && pg.m && ev.t !== 'need' && ((pg.m === 'lobby') !== (mode === 'lobby'))) return; }         // lobby stuff stays in the lobby
@@ -6236,7 +6240,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261125043414';
+const BUILD = '20261125052624';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
