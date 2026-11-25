@@ -500,7 +500,16 @@ function floorCeil(parent, x0, z0, w, d){
   const c = new T3.Mesh(cg, ceilMat); c.position.set(x0+w/2, H, z0+d/2); parent.add(c);
 }
 const _sc0 = scene.children.length;
-scene.add(wallMesh(mazeWalls));
+// Drawn walls are trimmed a few mm so no two faces ever sit in the same plane (that was the flickering
+// Z fighting where walls meet): every wall's two ends tuck just inside whatever it joins, and half walls
+// sit just inside the full wall they continue from. Collision still uses the untrimmed boxes.
+const viewWall = b => { const a = b.min.slice(), c = b.max.slice(), alongX = (c[0] - a[0]) > (c[2] - a[2]), half = c[1] < H - 0.01, upper = a[1] > 0.01;
+  const L = alongX ? 0 : 2, S = alongX ? 2 : 0, e = upper ? 0.009 : 0.006; a[L] += e; c[L] -= e;   // ends: tucked into whatever they join
+  if (upper && !alongX) a[1] += 0.003;                                                     // the hall's upper walls: undersides at different heights
+  if (half || upper){ a[S] += 0.003; c[S] -= 0.003; }                                     // sides: behind the full wall they continue from
+  if (half && !alongX) c[1] -= 0.003;                                                      // two half walls meeting: their tops at different heights
+  return {min:a, max:c}; };
+scene.add(wallMesh(mazeWalls.map(viewWall)));
 { // floor: subdivided so a slow colour drift breaks up the carpet repeat
   const seg = 88, fg = new T3.PlaneGeometry(SIZE, SIZE, seg, seg); fg.rotateX(-Math.PI/2);
   const u = fg.attributes.uv, pos = fg.attributes.position, cols = [];
@@ -527,8 +536,9 @@ scene.add(wallMesh(mazeWalls));
   const slab = new T3.Mesh(new T3.BoxGeometry(len, 0.12, w), [side,side,flat,side,side,side]);
   slab.position.set((RAMP.x0+RAMP.x1)/2, BAL.y1/2 - 0.06*Math.cos(ang), (RAMP.z0+RAMP.z1)/2); slab.rotation.z = ang; scene.add(slab);
   const tri = new T3.BufferGeometry(); const zs = [RAMP.z0, RAMP.z1];
-  const tv = []; for (const z of zs) tv.push(RAMP.x0,0,z, RAMP.x1,0,z, RAMP.x1,BAL.y1,z);
-  tv.push(RAMP.x1,0,RAMP.z0, RAMP.x1,0,RAMP.z1, RAMP.x1,BAL.y1,RAMP.z1, RAMP.x1,0,RAMP.z0, RAMP.x1,BAL.y1,RAMP.z1, RAMP.x1,BAL.y1,RAMP.z0);
+  const tv = [], q = 0.006, z0_ = RAMP.z0 + q, z1_ = RAMP.z1 - q, x1_ = RAMP.x1 - q, top = BAL.y1 - 0.13;      // tucked just inside the slab and the landing
+  for (const z of [z0_, z1_]) tv.push(RAMP.x0 + 0.2, 0, z, x1_, 0, z, x1_, top, z);
+  tv.push(x1_,0,z0_, x1_,0,z1_, x1_,top,z1_, x1_,0,z0_, x1_,top,z1_, x1_,top,z0_);
   tri.setAttribute('position', new T3.Float32BufferAttribute(tv, 3)); tri.computeVertexNormals();
   scene.add(new T3.Mesh(tri, new T3.MeshLambertMaterial({color:0xa8974f, side:T3.DoubleSide})));
 }

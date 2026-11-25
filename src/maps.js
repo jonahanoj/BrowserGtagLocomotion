@@ -334,12 +334,18 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
     for (let k=0;k<3;k++) B.geo('flower', new T3.SphereGeometry(0.06, 5, 4), p[0] + (mr()-0.5)*1.4, 0.06, p[1] + (mr()-0.5)*1.4); }
   // the mushrooms: their caps are their own meshes so they can squash when they bounce you
   const capMat = lam(0xffffff, {map:capT}), shrooms = [];
+  // the underside: cream gills radiating out from the stem
+  const gillT = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#efe6cc'; g.fillRect(0, 0, w, h); g.translate(w/2, h/2);
+    for (let k=0;k<120;k++){ const a = k/120*Math.PI*2; g.strokeStyle = k % 2 ? 'rgba(150,120,90,.55)' : 'rgba(190,165,130,.45)'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(Math.cos(a)*22, Math.sin(a)*22); g.lineTo(Math.cos(a)*126, Math.sin(a)*126); g.stroke(); }
+    g.fillStyle = '#f6efdb'; g.beginPath(); g.arc(0, 0, 24, 0, 7); g.fill(); g.strokeStyle = 'rgba(140,110,80,.5)'; g.lineWidth = 3; g.beginPath(); g.arc(0, 0, 124, 0, 7); g.stroke(); });
+  const gillMat = lam(0xffffff, {map:gillT});
   for (let i=0;i<8;i++){
     const p = i === 0 ? [27, 22] : placeFree(taken, 4, 40, 4, 40, 1.8); if (!p) continue; if (i === 0) taken.push([27, 22, 1.8]);
     const r = 0.9 + mr()*0.5, top = 1.0 + mr()*0.8;
     B.cyl('stem', 0.32, 0.22, top - 0.5*r, p[0], 0, p[1], 10);
     B.solids_(ellipsoidBoxes(p[0], top - 0.55*r, p[1], r, 0.55*r, r, 14).filter(([lo]) => lo[1] >= top - 0.55*r - 0.01));
     const cap = new T3.Mesh(new T3.SphereGeometry(r, 16, 8, 0, Math.PI*2, 0, Math.PI/2), capMat); cap.scale.y = 0.55; cap.position.set(p[0]+O.x, top - 0.55*r, p[1]+O.z); B.group.add(cap);
+    const gills = new T3.Mesh(new T3.CircleGeometry(r*0.995, 32), gillMat); gills.rotation.x = Math.PI/2; gills.position.y = 0.012; cap.add(gills);       // faces down; squashes with the cap
     shrooms.push({x:p[0]+O.x, z:p[1]+O.z, r, top, cap, t:0});
   }
   // a campfire by the clearing (it'll set you, robots and anything else on fire)
