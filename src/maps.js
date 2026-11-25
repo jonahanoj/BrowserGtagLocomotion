@@ -1297,13 +1297,17 @@ function actToLevel(stairs, bot, want, then){ const l = bot.cell ? bot.cell[2] :
     cols.forEach((c, i) => { const m = new T3.Mesh(new T3.BoxGeometry(0.12 + (i % 3)*0.03, 0.14 + (i % 2)*0.06, 0.1), lam(prodCols[c])); m.userData.cartItem = true;
       m.position.set(-0.14 + (i % 3)*0.14, 0.12 + Math.floor(i/6)*0.12, -0.24 + (Math.floor(i/3) % 2)*0.22 + (i % 2)*0.1); m.rotation.y = i*0.7; cart.obj.add(m); }); cart.items = cols; };
   const setItems = (cart, cols) => { cartItems(cart, cols); if (netGame && cart.id) netSend('ev', {t:'mapev', m:'market', k:'ci', id:cart.id, cols}); };
-  const pushCart = (cart) => (b, dt, dir, spd) => { if (!cart || cart.obj.userData.dead || cart.parent) return; const r = b.root, f = new V(Math.sin(yawOf(dir)), 0, Math.cos(yawOf(dir)));
-    cart.obj.position.set(r.obj.position.x + f.x*0.85, 0.32, r.obj.position.z + f.z*0.85); cart.obj.quaternion.setFromEuler(new T3.Euler(0, yawOf(dir), 0)); cart.v.copy(f).multiplyScalar(spd); cart.w.set(0, 0, 0); cart.asleep = false; cart.calmT = clock + 1; };
+  const pushCart = (cart) => null;     // (the cart is held in the robot's hands every frame: see update)
+  // a held cart sits right in front of the robot's hands, every frame, whatever it's doing
+  const holdCarts = (dt) => { for (const c of parts){ if (c.kind !== 'cart' || !c.pinned) continue; const b = c.holdBot;
+      if (!b || b.dead || !b.act || b.root.mode !== 'bot' || c.obj.userData.dead || c.parent || c.mode === 'held'){ c.pinned = false; c.holdBot = null; c.asleep = false; continue; }
+      const r = b.root, yaw = new T3.Euler().setFromQuaternion(r.obj.quaternion, 'YXZ').y, nx = r.obj.position.x + Math.sin(yaw)*0.8, nz = r.obj.position.z + Math.cos(yaw)*0.8;
+      if (dt > 0) c.v.set((nx - c.obj.position.x)/dt, 0, (nz - c.obj.position.z)/dt); c.obj.position.set(nx, 0.32, nz); c.obj.quaternion.setFromEuler(new T3.Euler(0, yaw, 0)); c.w.set(0, 0, 0); c.calmT = clock + 1; } };
   const pushLimbs = (b, ph) => botLimbs(b, j => (j ? -1 : 1)*Math.sin(ph)*0.6, 0.15, -1.35);
   const shopIdea = (bot, imp) => { if (imp) return null;
     const carts = parts.filter(q => q.kind === 'cart' && !q.obj.userData.dead && !q.parent && q.mode !== 'held' && !q.shopper && mine(q));
     if (!carts.length) return null; const pos = bot.root.obj.position, cart = carts.sort((a, b) => a.obj.position.distanceTo(pos) - b.obj.position.distanceTo(pos))[0];
-    cart.shopper = bot; const rel = () => { if (cart.shopper === bot) cart.shopper = null; };
+    cart.shopper = bot; const rel = () => { if (cart.shopper === bot){ cart.shopper = null; cart.pinned = false; cart.holdBot = null; cart.asleep = false; } };
     let stops = 2 + Math.floor(R()*3); const lane = cx => R() < 0.5 ? -1 : 1;
     const shelfStop = (b) => { const A = pick(AISLES), z = 27.5 + R()*9, sd = R() < 0.5 ? -1 : 1, sx = sd < 0 ? A[1] + 0.56 : A[2] - 0.56;
       return actWalk(new V(A[0] + O.x, 0, z + O.z), [new V(A[0] + sd*0.55 + O.x, 0, z + O.z)], {each:pushCart(cart), limbs:pushLimbs, cancel:rel, then:(b2, failed) => { if (failed){ rel(); return null; } let got = false;
@@ -1315,12 +1319,13 @@ function actToLevel(stairs, bot, want, then){ const l = bot.cell ? bot.cell[2] :
         return actDo(0.6 + (cart.items || []).length*0.45, (b3, t) => { botYaw(b3, Math.PI/2, 1/60); botLimbs(b3, 0, 0.3, j => j === 1 && t % 0.45 < 0.25 ? -1.5 : 0);
           if (t > 0.5 + k*0.45 && cart.items && cart.items.length){ k++; setItems(cart, cart.items.slice(1)); if (b3.root.obj.position.distanceTo(lastPlayer) < 10) sellBeep(); } },
           {cancel:rel, then:(b4) => { say(b4, pick(['bye bye cart!','wheee go cart','free cart!'])); return actWalk(new V(22 + O.x, 0, 13.5 + O.z), [], {each:pushCart(cart), limbs:pushLimbs, cancel:rel,
-            then:(b5) => { rel(); if (!cart.obj.userData.dead){ const f = new V(Math.sin(R()*6.28), 0, Math.cos(R()*6.28)).multiplyScalar(3); f.z = -Math.abs(f.z); cart.v.copy(f); cart.asleep = false; } return null; }}); }}); }}); };
+            then:(b5) => { const yaw = new T3.Euler().setFromQuaternion(b5.root.obj.quaternion, 'YXZ').y; rel(); if (!cart.obj.userData.dead){ cart.v.set(Math.sin(yaw)*3.2, 0, Math.cos(yaw)*3.2); cart.asleep = false; } return null; }}); }}); }}); };
     return actWalk(cart.obj.position.clone().setY(0), [], {cancel:rel, ptsFn:(b) => { const c = cart.obj.position, d = new V(b.root.obj.position.x - c.x, 0, b.root.obj.position.z - c.z); if (d.lengthSq() < 1e-4) d.set(0, 0, -1); d.setLength(0.85); return [new V(c.x + d.x, 0, c.z + d.z)]; },
-      then:(b, failed) => { if (failed || cart.obj.userData.dead){ rel(); return null; } say(b, pick(['shopping time!','I need bolts','grocery run','where is the oil aisle'])); return shelfStop(b); }}); };
+      then:(b, failed) => { if (failed || cart.obj.userData.dead){ rel(); return null; } cart.pinned = true; cart.holdBot = b; say(b, pick(['shopping time!','I need bolts','grocery run','where is the oil aisle'])); return shelfStop(b); }}); };
   MAPS.market = {name:'SUPERMARKET', O, botIdea:shopIdea, onEv(ev){ if (ev.k === 'ci'){ const c = partsById.get(ev.id); if (c) cartItems(c, ev.cols || []); } }, group:grp, spawn:new V(22, 0, 7).add(O), yaw:Math.PI, nav, yMin:-5, yMax:16, props:B.props,
     sky:{bg:0xa9d2ee, fog:0xc4dbe8, near:16, far:60, hs:0xffffff, hg:0x8a8070, hi:1.0, ac:0xffffff, ai:0.4},
     update(dt, inGame){
+      holdCarts(dt);
       // doors open when anyone (or any robot) walks up
       const who = [lastPlayer]; for (const p of Object.values(NET.peers)) if (p.P) who.push(p.P.head); for (const b of bots) if (!b.dead) who.push(b.root.obj.position);
       const dc = new V(22 + O.x, 1, Z0 + O.z), near = who.some(p => Math.hypot(p.x - dc.x, p.z - dc.z) < 3.3);
@@ -1740,9 +1745,10 @@ function actToLevel(stairs, bot, want, then){ const l = bot.cell ? bot.cell[2] :
   B.box('stone', [4 - T - 0.02, 0, 29], [4 - T, HT + 0.3, 44.4]); B.box('stone', [40 + T, 0, 29], [40 + T + 0.02, HT + 0.3, 44.4]);
   B.wallRun(['paper'], 'z', 14, 25.85, 15.85, 16.15, 0, HT, [[19, 21, 0, 2.6]], 2); B.wallRun(['paper'], 'z', 14, 25.85, 27.85, 28.15, 0, HT, [[19, 21, 0, 2.6]], 2);
   B.wallRun(['paper'], 'x', 4, 40, 25.85, 26.15, 0, HT, [[9, 11, 0, 2.6], [21, 23, 0, 2.6], [33, 35, 0, 2.6]], 2);
-  for (const [x0, x1, z] of [[4, 40, 14.02], [4, 40, 26.15], [4, 40, 28.85]]) B.box('wood', [x0, 0, z - (z === 28.85 ? 0.05 : 0)], [x1, 0.25, z + (z === 28.85 ? 0 : 0.05)], {solid:false});
+  const doorGaps = {14.02:[[21, 23]], 26.15:[[9, 11], [21, 23], [33, 35]], 28.85:[[9, 11], [27, 29]]};
+  for (const z of [14.02, 26.15, 28.85]){ let x = 4; for (const [a, b] of doorGaps[z].concat([[40, 40]])){ if (a > x) B.box('wood', [x, 0, z - (z === 28.85 ? 0.05 : 0)], [a, 0.25, z + (z === 28.85 ? 0 : 0.05)], {solid:false}); x = b; } }
   // library: shelves, armchairs, fireplace
-  for (const z of [14.1, 25.6]) B.box('books', [4.2, 0, z === 14.1 ? 14.1 : 25.25], [15.8, 2.6, z === 14.1 ? 14.55 : 25.85], {us:1.2});
+  B.box('books', [4.2, 0, 14.1], [15.8, 2.6, 14.55], {us:1.2}); for (const [a, b] of [[4.2, 8.85], [11.15, 15.8]]) B.box('books', [a, 0, 25.25], [b, 2.6, 25.85], {us:1.2});   // (the doorway at x 9-11 stays open)
   B.box('books', [15.3, 0, 14.6], [15.8, 2.6, 18.6], {us:1.2}); B.box('books', [15.3, 0, 21.4], [15.8, 2.6, 25.2], {us:1.2});
   // fireplace: an open firebox (sooty inside) with logs on an iron grate, a hearth slab, a mantel, and a painting over it
   B.box('stone', [4, 0, 18], [4.3, 1.6, 21]); B.box('stone', [4.3, 0, 18], [4.9, 1.6, 18.6]); B.box('stone', [4.3, 0, 20.4], [4.9, 1.6, 21]); B.box('stone', [4.3, 1.1, 18.6], [4.9, 1.6, 20.4]);
@@ -1797,6 +1803,16 @@ function actToLevel(stairs, bot, want, then){ const l = bot.cell ? bot.cell[2] :
     const body = new T3.Mesh(new T3.ConeGeometry(0.26, 0.9, 10, 1, true), ghostMat); body.rotation.x = Math.PI; body.position.y = -0.25; g.add(body); mh.add(g); return g; };
   const rooms = [[4.6, 15.4, 29.6, 43.1], [16.6, 39.4, 29.6, 43.1]];
   const ghosts = [[0], [1], [1]].map(([r]) => { const R0 = rooms[r]; const p = new V(R0[0] + R() *(R0[1] - R0[0]), 1.2, R0[2] + R()*(R0[3] - R0[2])).add(O); return {g:mkGhost(), r, p, tgt:p.clone(), t:0, near:0, flee:0, pushT:0}; });
+  const wispMat = new T3.ShaderMaterial({transparent:true, depthWrite:false, depthTest:false, blending:T3.AdditiveBlending, uniforms:{uT:{value:0}},
+    vertexShader:`uniform float uT; varying vec3 vN; varying vec3 vV; varying float vY; void main(){ vec3 p = position; p.x += sin(p.y*9.0 + uT*3.0)*0.04; p.z += cos(p.y*7.0 + uT*2.3)*0.04;
+      vec4 w = modelMatrix*vec4(p, 1.0); vY = position.y; vN = normalize(mat3(modelMatrix)*normal); vV = normalize(cameraPosition - w.xyz); gl_Position = projectionMatrix*viewMatrix*w; }`,
+    fragmentShader:`uniform float uT; varying vec3 vN; varying vec3 vV; varying float vY; void main(){ float fr = 1.0 - abs(dot(normalize(vN), normalize(vV)));
+      float flick = 0.6 + 0.4*sin(uT*5.0 + vY*20.0); float fade = smoothstep(-0.75, 0.2, vY);
+      gl_FragColor = vec4(mix(vec3(0.25, 0.6, 1.0), vec3(0.9, 0.98, 1.0), fr)*(0.25 + 0.75*fr)*flick*fade, 1.0); }`});
+  const wisps = ghosts.map(() => { const g = new T3.Group(); g.userData.thKeep = true; g.visible = false; const hd = new T3.Mesh(new T3.SphereGeometry(0.2, 12, 10), wispMat); hd.position.y = 0.35; g.add(hd);
+    const body = new T3.Mesh(new T3.ConeGeometry(0.26, 1.1, 12, 4, true), wispMat); body.rotation.x = Math.PI; body.position.y = -0.3; g.add(body);
+    for (const sx of [-1, 1]){ const e = new T3.Mesh(new T3.SphereGeometry(0.035, 6, 4), new T3.MeshBasicMaterial({color:0x0a1030})); e.position.set(sx*0.07, 0.38, -0.18); g.add(e); }
+    grp.add(g); return g; });
   const inRoom = (p, r) => { const R0 = rooms[r]; return p.x > R0[0] + O.x && p.x < R0[1] + O.x && p.z > R0[2] + O.z && p.z < R0[3] + O.z; };
   const randIn = r => { const R0 = rooms[r]; return new V(R0[0] + R()*(R0[1] - R0[0]), 0.9 + R()*0.8, R0[2] + R()*(R0[3] - R0[2])).add(O); };
   // your reflection (and your friends')
@@ -1834,6 +1850,7 @@ function actToLevel(stairs, bot, want, then){ const l = bot.cell ? bot.cell[2] :
       if (boltT <= 0){ boltT = 14 + R()*22; flashSeq = [0.07, 0.12, 0.05, 0.1, 0.09]; thunderT = 0.8 + R()*1.2; }
       if (flashSeq.length){ flashSeq[0] -= dt; if (flashSeq[0] <= 0){ flashSeq.shift(); applySky(flashSeq.length % 2 ? FLASH : DARK); } else if (flashSeq.length === 5 && flashSeq[0] > 0.06) applySky(FLASH); }
       if (thunderT > 0){ thunderT -= dt; if (thunderT <= 0 && inGame) thunder(); }
+      wispMat.uniforms.uT.value = clock; ghosts.forEach((gh, i) => { const w = wisps[i]; w.visible = inGame && TH.wasOn; if (w.visible){ w.position.copy(gh.p); w.position.y += Math.sin(clock*2 + gh.r)*0.06; w.rotation.y = gh.g.rotation.y; } });
       if (!inGame){ for (const gh of ghosts) gh.g.visible = false; return; }
       fireHazard(dt, fireAt, 0.45);
       const head = loco.headPos(), fwd = new V(0, 0, -1).applyAxisAngle(UP, io.yaw + io.headYaw);
@@ -1919,7 +1936,7 @@ function actToLevel(stairs, bot, want, then){ const l = bot.cell ? bot.cell[2] :
   const lavaC = document.createElement('canvas'); lavaC.width = lavaC.height = 128; const lg = lavaC.getContext('2d');
   lg.fillStyle = '#d0380a'; lg.fillRect(0,0,128,128); for (let k=0;k<40;k++){ const x = R()*128, y = R()*128, r = 10 + R()*22, gr = lg.createRadialGradient(x, y, 0, x, y, r); gr.addColorStop(0, 'rgba(255,220,90,0.8)'); gr.addColorStop(1, 'rgba(255,120,20,0)'); lg.fillStyle = gr; for (const dx of [-128, 0, 128]) for (const dy of [-128, 0, 128]) lg.fillRect(x - r + dx, y - r + dy, r*2, r*2); }
   const lavaT = new T3.CanvasTexture(lavaC); lavaT.wrapS = lavaT.wrapT = T3.RepeatWrapping; lavaT.repeat.set(3, 3); lavaT.anisotropy = 4; lavaT.encoding = T3.sRGBEncoding;
-  const lava = new T3.Mesh(new T3.CircleGeometry(RC + 3, 48), new T3.MeshBasicMaterial({map:lavaT, fog:false})); lava.rotation.x = -Math.PI/2; lava.position.set(CX + O.x, -0.5, CZ + O.z); grp.add(lava);
+  const lava = new T3.Mesh(new T3.CircleGeometry(RC + 3, 48), new T3.MeshBasicMaterial({map:lavaT, fog:false})); lava.rotation.x = -Math.PI/2; lava.position.set(CX + O.x, -0.5, CZ + O.z); grp.add(lava); lava.userData.thHot = true;
   // rock rafts: they sit on the floor, and float up on the lava when it rises
   const rafts = [[19, 17, 2.6, 2.2], [26, 25, 2.4, 2.6], [17, 26, 2.2, 2.2], [28, 18, 2.4, 2.0], [22, 13, 2.0, 2.4], [24, 30, 2.6, 2.0], [11, 17, 2.0, 2.0], [33, 25, 2.2, 2.2]].map(([x, z, w, d], i) => {
     const mesh = new T3.Mesh(rockGeo(w, 0.6, d, i*13 + 7), new T3.MeshLambertMaterial({map:rockT, color:0x6a4a40, emissive:0x1a0804})); mesh.position.set(x + O.x, 0.3, z + O.z); grp.add(mesh);

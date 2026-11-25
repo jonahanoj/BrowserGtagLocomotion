@@ -1743,6 +1743,7 @@ const isStretched = p => hs.some(s => s.mode === 'stretch' && s.k === p);
 const near_ = (bot, player) => new V(player.x, STAND, player.z).distanceTo(bot.root.obj.position) < 4 || bot.burning;
 
 function physics(root, dt){
+  if (root.pinned) return;          // held by a robot (a shopping cart): the robot moves it
   const sub = subtree(root);
   root.v.y -= 9.81*(root.grav != null ? root.grav : mode === 'game' ? gravK : 1)*dt;
   const c0 = centerW(root);
@@ -2082,7 +2083,7 @@ function sliceAssembly(root, nW, info, owner){
 // ---- flamethrower, fire and ash ----
 const FN = 420, AN = 900;
 const fireMesh = new T3.InstancedMesh(new T3.IcosahedronGeometry(1, 0), new T3.MeshBasicMaterial({blending:T3.AdditiveBlending, transparent:true, depthWrite:false, fog:false}), FN);
-fireMesh.frustumCulled = false; fireMesh.setColorAt(0, new T3.Color(0)); scene.add(fireMesh);
+fireMesh.frustumCulled = false; fireMesh.setColorAt(0, new T3.Color(0)); scene.add(fireMesh); fireMesh.userData.thKeep = true;   // fire stays fire (bright) in thermal
 const ashMesh = new T3.InstancedMesh(new T3.BoxGeometry(1,1,1), new T3.MeshLambertMaterial({color:0xffffff}), AN);
 ashMesh.frustumCulled = false; ashMesh.setColorAt(0, new T3.Color(0x555555)); scene.add(ashMesh);
 const flames = Array.from({length:FN}, () => ({p:new V(), v:new V(), life:0, max:1, s:0.04})), ashes = Array.from({length:AN}, () => ({p:new V(), v:new V(), life:0, s:0.01, g:0.4, rot:0}));
@@ -2971,7 +2972,7 @@ const thHot = heat => { const m = new T3.ShaderMaterial({vertexShader:thVert, fr
     gl_FragColor = vec4(ramp(h), 1.0); }`, uniforms:{uT:{value:0}, uHeat:{value:heat}}, depthTest:false, depthWrite:false});
   m.userData.thermal = true; m.color = new T3.Color(); m.emissive = new T3.Color(); return m; };
 thCold.userData.thermal = true; thCold.color = new T3.Color(); thCold.emissive = new T3.Color();
-const thMats = {bot:thHot(0.95), piece:thHot(0.6), dead:thHot(0.35), player:thHot(1.0)};
+const thMats = {bot:thHot(0.95), piece:thHot(0.6), dead:thHot(0.35), player:thHot(1.0), fire:thHot(1.25)};
 // the view through the goggles: a rounded window, soft dark edges, scanlines and a bit of grain
 const thOverlay = (() => { const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
   g.fillStyle = '#000'; g.fillRect(0, 0, 512, 512); g.globalCompositeOperation = 'destination-out';
@@ -2983,15 +2984,16 @@ const thOverlay = (() => { const c = document.createElement('canvas'); c.width =
   const t = new T3.CanvasTexture(c); const m = new T3.Mesh(new T3.PlaneGeometry(0.62, 0.5), new T3.MeshBasicMaterial({map:t, transparent:true, depthTest:false, depthWrite:false, fog:false, opacity:0}));
   m.position.set(0, 0, -0.105); m.renderOrder = 1001; m.visible = false; camera.add(m); return m; })();
 function thermalSwap(on){
-  const peerRoots = new Set(); for (const p of Object.values(NET.peers)) if (p.av) peerRoots.add(p.av);
+  const peerRoots = new Set(); for (const p of Object.values(NET.peers)) for (const av of [p.av, p.avM]) if (av) for (const o of [av.head, av.torso, ...(av.arms || []), ...(av.claws || [])]) if (o && o.isObject3D) peerRoots.add(o);
   if (!on){ scene.traverse(o => { if (o.isMesh){ const m = TH.orig.get(o); if (m){ o.material = m; TH.orig.delete(o); o.renderOrder = o.userData.thRO || 0; } else if (o.material && o.material.userData && o.material.userData.thermal) o.material = new T3.MeshLambertMaterial({color:0x8d939a}); } });
     for (const o of TH.hidden) o.visible = true; TH.hidden = []; if (TH.realBg){ scene.background = TH.realBg; TH.realBg = null; } return; }
   if (scene.background !== TH.bg){ TH.realBg = scene.background; scene.background = TH.bg; } TH.bg.setHex(0x0a0618);
-  const walk = (o, kind) => { if (!o.visible || o === rig || o === thOverlay) return;
+  const warm = m => m && m.isMeshBasicMaterial && m.color && m.color.r > 0.75 && m.color.g > 0.25 && m.color.b < 0.6 && !m.map;
+  const walk = (o, kind) => { if (!o.visible || o === rig || o === thOverlay || o.userData.thKeep) return;
     if (peerRoots.has(o)) kind = 'player';
-    const pp = o.userData && o.userData.part; if (pp && !kind){ const r = rootOf(pp), b = r.bot || pp.bot; kind = b ? (b.dead ? 'dead' : 'bot') : (pp.name === 'prop' || pp.name === 'chunk' ? null : 'piece'); }
+    const pp = o.userData && o.userData.part; if (pp && !kind){ const r = rootOf(pp), b = r.bot || pp.bot; kind = pp.fire ? 'fire' : b ? (b.dead ? 'dead' : 'bot') : (pp.name === 'prop' || pp.name === 'chunk' ? null : 'piece'); }
     if (o.isSprite || o.isPoints || o.isLine){ o.visible = false; TH.hidden.push(o); return; }
-    if (o.isMesh){ const want = kind ? thMats[kind] : thCold; if (o.material !== want){ if (!(o.material && o.material.userData && o.material.userData.thermal)) TH.orig.set(o, o.material); o.material = want; if (kind){ if (o.userData.thRO == null) o.userData.thRO = o.renderOrder; o.renderOrder = 990; } } }
+    if (o.isMesh){ const k2 = kind || (o.userData.thHot || warm(o.material) ? 'fire' : null), want = k2 ? thMats[k2] : thCold; kind = kind || null; if (o.material !== want){ if (!(o.material && o.material.userData && o.material.userData.thermal)) TH.orig.set(o, o.material); o.material = want; if (k2){ if (o.userData.thRO == null) o.userData.thRO = o.renderOrder; o.renderOrder = 990; } } }
     for (const c of o.children) walk(c, kind); };
   for (const c of scene.children) walk(c, null);
 }
