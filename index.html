@@ -71,7 +71,7 @@ function makeLoco(THREE, boxes, io){
   const UP = new V(0,1,0);
 
   // ---- broad phase: a 2 m grid so each query only tests nearby boxes ----
-  const GS = 2, GX0 = -30, GZ0 = -10, GW = 45, GD = 580, qOut = [], dyn = (window.DYN_BOXES = window.DYN_BOXES || []); let grid = null, gridN = -1, stamp = 0;
+  const GS = 2, GX0 = -30, GZ0 = -10, GW = 45, GD = 640, qOut = [], dyn = (window.DYN_BOXES = window.DYN_BOXES || []); let grid = null, gridN = -1, stamp = 0;
   function buildGrid(){
     grid = Array.from({length:GW*GD}, () => []); gridN = boxes.length;
     for (const b of boxes){
@@ -408,7 +408,7 @@ addBox([PED.x-0.25,0,PED.z-0.25],[PED.x+0.25,PED.top,PED.z+0.25]);
 addBox([PED.x-PED.cap,PED.top,PED.z-PED.cap],[PED.x+PED.cap,PED.top+0.08,PED.z+PED.cap]);
 addBox([PED2.x-0.25,0,PED2.z-0.25],[PED2.x+0.25,PED2.top,PED2.z+0.25]);
 // map buttons along the south wall: pick where PLAY / PLAY TOGETHER takes you
-const MAPBTN = [{k:'backrooms', x:-19.6, col:0xe2cf72}, {k:'forest', x:-19.0, col:0x4caf50}, {k:'city', x:-18.4, col:0x9aa7b8}, {k:'cave', x:-17.8, col:0xb0703c}, {k:'house', x:-17.2, col:0xe08a5a}, {k:'sewer', x:-16.6, col:0x6a8a4a}, {k:'market', x:-16.0, col:0x3a9ad8}, {k:'station', col:0x6ad0ff}, {k:'factory', col:0xf2c230}, {k:'mansion', col:0x8a6ab8}, {k:'volcano', col:0xff5a1a}, {k:'clock', col:0xc8a048}].map((w, i) => Object.assign(w, {x:-19.6 + i*0.44, z:6.35, top:0.55, cap:0.15}));
+const MAPBTN = [{k:'backrooms', x:-19.6, col:0xe2cf72}, {k:'forest', x:-19.0, col:0x4caf50}, {k:'city', x:-18.4, col:0x9aa7b8}, {k:'cave', x:-17.8, col:0xb0703c}, {k:'house', x:-17.2, col:0xe08a5a}, {k:'sewer', x:-16.6, col:0x6a8a4a}, {k:'market', x:-16.0, col:0x3a9ad8}, {k:'station', col:0x6ad0ff}, {k:'factory', col:0xf2c230}, {k:'mansion', col:0x8a6ab8}, {k:'volcano', col:0xff5a1a}, {k:'clock', col:0xc8a048}, {k:'ship', col:0x3a8ad8}].map((w, i) => Object.assign(w, {x:-19.6 + i*0.41, z:6.35, top:0.55, cap:0.15}));
 for (const w of WPN.concat(MAPBTN)){ addBox([w.x-0.2,0,w.z-0.2],[w.x+0.2,w.top,w.z+0.2]); addBox([w.x-w.cap,w.top,w.z-w.cap],[w.x+w.cap,w.top+0.06,w.z+w.cap]); }
 addBox([PED2.x-PED2.cap,PED2.top,PED2.z-PED2.cap],[PED2.x+PED2.cap,PED2.top+0.08,PED2.z+PED2.cap]);
 for (const B_ of [SKB, ROLEB]){ addBox([B_.x-0.2,0,B_.z-0.2],[B_.x+0.2,B_.top,B_.z+0.2]); addBox([B_.x-B_.cap,B_.top,B_.z-B_.cap],[B_.x+B_.cap,B_.top+0.06,B_.z+B_.cap]); }
@@ -724,7 +724,7 @@ try { document.fonts.ready.then(() => { modeTex.redraw(); roleTex.redraw(); }); 
 const mapTex = signTex(1900, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK A MAP', W/2, 62);
   g.font = '30px Rubik, sans-serif'; g.fillStyle = '#fff8d8'; g.fillText('then RED = play solo,  BLUE = play online', W/2, 108);
-  g.font = 'bold 27px VT323, monospace'; [['CLOCK','#f0c860'],['VOLCANO','#ff8a4a'],['MANSION','#c0a0ff'],['FACTORY','#f2d040'],['STATION','#8fe0ff'],['MARKET','#8fd0ff'],['SEWERS','#a8d08a'],['HOUSE','#ffb08a'],['CAVE','#e0a070'],['CITY','#c9d3e0'],['FOREST','#7fe07a'],['BACKROOMS','#e2cf72']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/12, 168); });
+  g.font = 'bold 25px VT323, monospace'; [['SHIP','#6ab4ff'],['CLOCK','#f0c860'],['VOLCANO','#ff8a4a'],['MANSION','#c0a0ff'],['FACTORY','#f2d040'],['STATION','#8fe0ff'],['MARKET','#8fd0ff'],['SEWERS','#a8d08a'],['HOUSE','#ffb08a'],['CAVE','#e0a070'],['CITY','#c9d3e0'],['FOREST','#7fe07a'],['BACKROOMS','#e2cf72']].forEach(([t,c],i) => { g.fillStyle = c; g.fillText(t, W*(0.5 + i)/13, 168); });
 });
 const weaponTex = signTex(1900, 200, (g,W,Hh) => {
   g.textAlign = 'center'; g.fillStyle = '#e2cf72'; g.font = 'bold 54px VT323, monospace'; g.fillText('PICK YOUR WEAPON', W/2, 62);
@@ -741,7 +741,7 @@ function mapIcon(k){
   if (k === 'market'){ add(new T3.BoxGeometry(0.2, 0.12, 0.14), 0xefe9da, 0, -0.02, 0); add(new T3.BoxGeometry(0.21, 0.04, 0.15), 0xd8302a, 0, 0.06, 0); add(new T3.SphereGeometry(0.03, 8, 6), 0x3f9a4a, 0.07, -0.06, 0.1); }
   if (k === 'station'){ add(new T3.CylinderGeometry(0.1, 0.1, 0.04, 16), 0xc8d0d8, 0, 0, 0); add(new T3.BoxGeometry(0.3, 0.015, 0.06), 0x2f62c8, 0, 0, 0); add(new T3.SphereGeometry(0.035, 8, 6), 0x6ad0ff, 0, 0.04, 0); }
   if (k === 'factory'){ add(new T3.BoxGeometry(0.2, 0.12, 0.14), 0x8a929b, 0, -0.02, 0); add(new T3.BoxGeometry(0.04, 0.12, 0.04), 0x6a6e72, 0.06, 0.1, 0); add(new T3.BoxGeometry(0.22, 0.02, 0.06), 0xf2c230, 0, -0.08, 0.1); }
-  if (k === 'ship_'){ add(new T3.BoxGeometry(0.22, 0.06, 0.09), 0x7a4a2a, 0, -0.04, 0); add(new T3.CylinderGeometry(0.008, 0.008, 0.2, 5), 0x5a3a1e, 0, 0.07, 0); add(new T3.BoxGeometry(0.1, 0.09, 0.005), 0xf4f0e0, 0, 0.08, 0.01); add(new T3.BoxGeometry(0.04, 0.025, 0.02), 0x111111, 0, 0.17, 0); }
+  if (k === 'ship'){ add(new T3.BoxGeometry(0.22, 0.06, 0.09), 0x7a4a2a, 0, -0.04, 0); add(new T3.CylinderGeometry(0.008, 0.008, 0.2, 5), 0x5a3a1e, 0, 0.07, 0); add(new T3.BoxGeometry(0.1, 0.09, 0.005), 0xf4f0e0, 0, 0.08, 0.01); add(new T3.BoxGeometry(0.04, 0.025, 0.02), 0x111111, 0, 0.17, 0); }
   if (k === 'clock'){ add(new T3.BoxGeometry(0.1, 0.26, 0.1), 0x8a7a66, 0, 0.01, 0); add(new T3.CylinderGeometry(0.045, 0.045, 0.01, 16), 0xf4e8c8, 0, 0.08, 0.051).rotation.x = Math.PI/2; add(new T3.ConeGeometry(0.08, 0.08, 4), 0x5a3a2a, 0, 0.18, 0); }
   if (k === 'volcano'){ add(new T3.ConeGeometry(0.16, 0.2, 10), 0x5a4038, 0, -0.02, 0); add(new T3.CylinderGeometry(0.05, 0.06, 0.02, 10), 0xff6a1a, 0, 0.08, 0).material = new T3.MeshBasicMaterial({color:0xff6a1a}); }
   if (k === 'mansion'){ add(new T3.BoxGeometry(0.18, 0.13, 0.12), 0x4a3a5a, 0, -0.02, 0); const r = add(new T3.ConeGeometry(0.14, 0.1, 4), 0x2a2030, 0, 0.09, 0); r.rotation.y = Math.PI/4; add(new T3.SphereGeometry(0.03, 8, 6), 0xe8ecff, 0.07, 0.12, 0.05).material = new T3.MeshBasicMaterial({color:0xe8ecff}); }
@@ -783,7 +783,7 @@ function buildLobby(parent, real){
   parent.add(wallMesh(WPN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
   plane(parent, weaponTex, 4.48, 0.58, -16.28, 1.45, LB.z0+TW/2+0.006, 0);
   plane(parent, scrapTex, 0.9, 0.5625, -13.05, 1.55, LB.z0+TW/2+0.006, 0); drawScrapSign(); try { document.fonts.ready.then(drawScrapSign); } catch(e){}
-  plane(parent, mapTex, 5.28, 0.55, -17.18, 1.45, LB.z1-TW/2-0.006, Math.PI);
+  plane(parent, mapTex, 5.33, 0.55, -17.14, 1.45, LB.z1-TW/2-0.006, Math.PI);
   parent.add(wallMesh(MAPBTN.map(w => ({min:[w.x-0.2,0,w.z-0.2], max:[w.x+0.2,w.top,w.z+0.2]}))));
   for (const w of MAPBTN){
     const cap = new T3.Mesh(new T3.CylinderGeometry(w.cap, w.cap, 0.06, 28), new T3.MeshLambertMaterial({color:w.col, emissive:0x000000}));
@@ -2860,6 +2860,225 @@ const boing = () => { if (!AC) return; tone('sine', 180, 520, 0.25, 0.25); tone(
         if (Math.abs(c.x - bc.x) < 1.05 + p.r && Math.abs(c.y - bc.y) < 1.05 + p.r && Math.abs(c.z - bc.z) < 0.3 + p.r && bobV.length() > 1){
           if (p.bot && p === p.bot.root && p.mode === 'bot'){ p.mode = 'free'; p.bot.stunT = 2; say(p.bot, pick(['BONK','not the pendulum','ow ow ow'])); }
           if (p.mode === 'free'){ p.asleep = false; p.v.copy(bobV).setLength(8).add(new V(0, 2.5, 0)); p.w.add(new V(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(10)); sndClank(5); } }
+      }
+    }};
+}
+
+// ======================= PIRATE SHIP =======================
+// A pirate ship riding the waves. The ship floats high, so the hold below deck is dry.
+// Gimmicks: CANNONS (put anything in the back of the barrel and stand clear), the PLANK (sharks below),
+// ROPE SWINGS off the main yard, the ship's WHEEL and BELL, a TREASURE CHEST in the hold, and every so
+// often the KRAKEN slaps a tentacle down on the deck.
+{
+  const O = new V(0, 0, 1200), B = mapBuilder(O, 'ship'); mapSeed = 9191;
+  const plankT = tex(256, 256, (g,w,h) => { for (let y=0;y<h;y+=20){ g.fillStyle = `hsl(${28+R()*6},${42+R()*10}%,${42+R()*8}%)`; g.fillRect(0, y, w, 19); g.fillStyle = 'rgba(40,20,5,.5)'; g.fillRect(0, y+19, w, 1); const j = (R()*w)|0; g.fillRect(j, y, 2, 19); g.fillStyle = 'rgba(20,10,0,.5)'; g.fillRect(j - 8, y + 9, 2, 2); g.fillRect(j + 8, y + 9, 2, 2); } noiseFill(g, w, h, 2500, 'rgba(60,30,10,A)', 0.18, 2); });
+  const hullT = tex(256, 256, (g,w,h) => { for (let y=0;y<h;y+=16){ g.fillStyle = `hsl(${20+R()*5},${45+R()*8}%,${22+R()*6}%)`; g.fillRect(0, y, w, 15); g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(0, y+15, w, 1); } noiseFill(g, w, h, 2000, 'rgba(0,0,0,A)', 0.15, 2); });
+  const sailT = tex(256, 256, (g,w,h) => { g.fillStyle = '#f2e9d2'; g.fillRect(0,0,w,h); for (let x=0;x<w;x+=42){ g.fillStyle = 'rgba(140,110,70,.3)'; g.fillRect(x, 0, 2, h); } for (let y=0;y<h;y+=64){ g.fillStyle = 'rgba(140,110,70,.2)'; g.fillRect(0, y, w, 2); } noiseFill(g, w, h, 1200, 'rgba(140,110,70,A)', 0.12, 3); });
+  const flagT = canvasTex(256, 160, (g,w,h) => { g.fillStyle = '#111'; g.fillRect(0,0,w,h); g.fillStyle = '#eee'; g.beginPath(); g.arc(128, 64, 34, 0, 7); g.fill(); g.fillRect(104, 76, 48, 26); g.fillStyle = '#111'; g.beginPath(); g.arc(114, 62, 10, 0, 7); g.arc(142, 62, 10, 0, 7); g.fill(); g.fillRect(118, 92, 4, 10); g.fillRect(128, 92, 4, 10); g.fillRect(138, 92, 4, 10);
+    g.strokeStyle = '#eee'; g.lineWidth = 12; g.lineCap = 'round'; g.beginPath(); g.moveTo(66, 106); g.lineTo(190, 148); g.moveTo(190, 106); g.lineTo(66, 148); g.stroke(); });
+  B.mat('deck', lam(0xffffff, {map:plankT, vertexColors:true})).mat('hull', lam(0xffffff, {map:hullT, vertexColors:true})).mat('sail', lam(0xffffff, {map:sailT, vertexColors:true, side:T3.DoubleSide}))
+   .mat('wood', lam(0x7a5230, {vertexColors:true})).mat('dark', lam(0x2e2016, {vertexColors:true})).mat('iron', lam(0x2a2c30, {vertexColors:true})).mat('gold', lam(0xe0b040, {vertexColors:true}))
+   .mat('rope', lam(0xc0a878, {vertexColors:true})).mat('red', lam(0xa8241e, {vertexColors:true})).mat('lamp', new T3.MeshBasicMaterial({color:0xffd890})).mat('glass', new T3.MeshBasicMaterial({color:0xffc870}));
+  // the ship floats high: the hold is above the waterline (no more flooded basement)
+  const D = 3.6, HOLD = 0.6, X0 = 6, X1 = 36, Z0 = 17, Z1 = 27, ZC = 22, BW = 1.0, T = 0.3, KEEL = -1.8;
+  // hull: sides, stern, a stepped bow, the hold floor
+  B.box('hull', [X0, KEEL, Z0 - T], [X1, D + BW, Z0], {us:2}); B.box('hull', [X0, KEEL, Z1], [X1, D + BW, Z1 + T], {us:2});
+  B.box('hull', [X0 - T, KEEL, Z0 - T], [X0, D + 3.6, Z1 + T], {us:2});
+  const bow = [[0, 1.2], [1.4, 2.4], [2.6, 3.4], [3.6, 4.2]];
+  bow.forEach(([dx, inset], k) => { const x0 = X1 + (k ? bow[k-1][0] : 0), x1 = X1 + dx + 1.2; B.box('hull', [x0, KEEL + k*0.5, Z0 + inset - 1.2 - T], [x1, D + BW + k*0.15, Z0 + inset - 1.2], {us:1}); B.box('hull', [x0, KEEL + k*0.5, Z1 - inset + 1.2], [x1, D + BW + k*0.15, Z1 - inset + 1.2 + T], {us:1});
+    B.box('deck', [x0, D - 0.3, Z0 + inset - 1.2], [x1, D, Z1 - inset + 1.2], {us:1});
+    if (k){ const pin = bow[k-1][1]; B.box('hull', [x0, KEEL + (k - 1)*0.5, Z0 + pin - 1.2 - T], [x0 + 0.3, D + BW + k*0.15, Z0 + inset - 1.2], {us:1}); B.box('hull', [x0, KEEL + (k - 1)*0.5, Z1 - inset + 1.2], [x0 + 0.3, D + BW + k*0.15, Z1 - pin + 1.2 + T], {us:1}); } });
+  B.box('hull', [X1 + 4.5, KEEL + 1.5, Z0 + 4.2 - 1.2 - T], [X1 + 4.8, D + BW + 0.5, Z1 - 4.2 + 1.2 + T]);
+  B.box('hull', [X1 + 1.2, HOLD - 0.3, Z0], [X1 + 1.5, D - 0.3, Z1], {us:2});
+  B.box('hull', [X1 + 4.8, KEEL + 2, ZC - 1.2], [X1 + 5.1, D + BW + 0.6, ZC + 1.2]);
+  B.box('dark', [X0, HOLD - 0.3, Z0], [X1 + 1.2, HOLD, Z1], {us:2});
+  B.box('hull', [X0, KEEL, Z0], [X1, HOLD - 0.3, Z1], {solid:false});
+  // gold trim along the hull, and the figurehead
+  for (const y of [D + BW - 0.1, D - 0.6, HOLD + 0.3]) for (const [z0, z1] of [[Z0 - T - 0.04, Z0 - T], [Z1 + T, Z1 + T + 0.04]]) B.box('gold', [X0, y, z0], [X1, y + 0.12, z1], {solid:false});
+  B.geo('gold', new T3.SphereGeometry(0.4, 12, 10), X1 + 5.6, D + 0.9, ZC); B.geo('gold', new T3.ConeGeometry(0.35, 1.4, 10), X1 + 6.2, D + 0.9, ZC, 0, 0, -Math.PI/2);
+  B.geo('wood', new T3.CylinderGeometry(0.12, 0.18, 7, 8), X1 + 7, D + 2.6, ZC, 0, 0, -1.15);
+  // stern windows (the captain's cabin glows)
+  for (const z of [19, 21, 23, 25]) B.box('glass', [X0 - T - 0.02, D + 0.8, z - 0.4], [X0 - T, D + 1.6, z + 0.4], {solid:false});
+  // the deck, with a hatch and stairs down into the hold
+  const HX0 = 17, HX1 = 23, HZ0 = 21, HZ1 = 23;
+  B.box('deck', [X0, D - 0.3, Z0], [X1, D, HZ0], {us:2}); B.box('deck', [X0, D - 0.3, HZ1], [X1, D, Z1], {us:2}); B.box('deck', [X0, D - 0.3, HZ0], [HX0, D, HZ1], {us:2}); B.box('deck', [HX1, D - 0.3, HZ0], [X1, D, HZ1], {us:2});
+  for (const [a, b] of [[[HX0 - 0.1, D, HZ0 - 0.1], [HX1 + 0.1, D + 0.25, HZ0]], [[HX0 - 0.1, D, HZ1], [HX1 + 0.1, D + 0.25, HZ1 + 0.1]], [[HX0 - 0.1, D, HZ0], [HX0, D + 0.25, HZ1]]]) B.box('dark', a, b);
+  for (let i=0;i<10;i++) B.box('wood', [HX1 - 0.6*(i + 1), HOLD, HZ0], [HX1 - 0.6*i, D - 0.3*(i + 1), HZ1]);
+  // bulwarks with gunports, and the gap for the plank
+  const CAN = [15, 21, 27], PX = 31;
+  for (const [z0, z1, side] of [[Z0, Z0 + 0.2, -1], [Z1 - 0.2, Z1, 1]]){
+    const holes = CAN.map(x => [x - 0.45, x + 0.45, D + 0.25, D + 0.85]); if (side > 0) holes.push([PX - 0.5, PX + 0.5, D, D + BW + 0.01]);
+    B.wallRun(['hull'], 'x', X0, X1, z0, z1, D, D + BW, holes, 2); B.box('wood', [X0, D + BW, z0 - 0.06], [X1, D + BW + 0.1, z1 + 0.06]); }
+  B.box('deck', [PX - 0.3, D - 0.06, Z1], [PX + 0.3, D + 0.04, Z1 + 3.4]); B.box('wood', [PX - 0.35, D - 0.5, Z1 + 0.25], [PX + 0.35, D - 0.06, Z1 + 0.6]);
+  // quarterdeck over the captain's cabin at the stern, with stairs either side
+  const QY = D + 2.4, QX = 12.5;
+  B.box('deck', [X0, QY - 0.2, Z0], [QX, QY, Z1], {us:2}); B.box('hull', [X0, QY, Z0 - T], [QX, QY + 0.9, Z0], {us:2}); B.box('hull', [X0, QY, Z1], [QX, QY + 0.9, Z1 + T], {us:2});
+  B.wallRun(['hull'], 'z', Z0, Z1, QX - 0.2, QX, D, QY - 0.2, [[21, 23, D, D + 2.0]], 2);
+  for (const zc of [18.1, 25.9]) for (let i=0;i<8;i++) B.box('wood', [QX + 2.4 - 0.3*(i + 1), D, zc - 0.55], [QX + 2.4 - 0.3*i, D + (i + 1)*2.4/8, zc + 0.55]);
+  for (const [z0, z1] of [[Z0, 17.5], [18.7, 25.3], [26.5, Z1]]) B.box('wood', [QX, QY - 0.2, z0], [QX + 0.1, QY + 0.9, z1]);
+  // the captain's cabin: desk with a map, a red chest
+  B.box('dark', [7, D, 20.5], [10, D + 0.8, 23.5]); B.box('sail', [7.5, D + 0.8, 21], [8.8, D + 0.82, 22.6], {solid:false});
+  B.box('red', [6.3, D, 18], [7.3, D + 0.7, 19]); B.box('gold', [6.3, D + 0.7, 18], [7.3, D + 0.8, 19]);
+  for (const z of [17.5, 26.5]) B.box('lamp', [11.8, D + 1.7, z - 0.1], [12.0, D + 1.9, z + 0.1], {solid:false});
+  // masts, yards, sails (they billow), crow's nest with a rope ladder up the main mast
+  const sails = [], flags = [];
+  for (const [x, y0, h, nest] of [[24, D, 15, true], [32, D, 12, false], [9, QY, 10, false]]){
+    B.cyl('wood', 0.3, 0.22, h, x, y0, ZC, 12);
+    for (const [yy, w] of [[y0 + h*0.45, 4.2], [y0 + h*0.75, 3.2]]){ B.geo('wood', new T3.CylinderGeometry(0.1, 0.1, w*2, 8), x, yy, ZC, Math.PI/2);
+      const sg = new T3.PlaneGeometry(w*1.8, h*0.27, 10, 4); sails.push({geo:sg, x:x + 0.35 + O.x, y:yy - h*0.14, z:ZC + O.z, base:Float32Array.from(sg.attributes.position.array), w, h:h*0.27}); }
+    if (nest){ B.cyl('wood', 1.1, 1.1, 0.15, x, y0 + 9, ZC, 16); for (let k=0;k<12;k++){ const a = k/12*Math.PI*2; B.box('wood', [x + Math.cos(a)*1.05 - 0.05, y0 + 9.15, ZC + Math.sin(a)*1.05 - 0.05], [x + Math.cos(a)*1.05 + 0.05, y0 + 10.1, ZC + Math.sin(a)*1.05 + 0.05]); }
+      B.geo('wood', new T3.TorusGeometry(1.05, 0.05, 6, 20), x, y0 + 10.1, ZC, Math.PI/2);
+      for (let k=0;k<22;k++) B.box('rope', [x - 0.5, y0 + 0.5 + k*0.4, ZC - 0.3], [x - 0.32, y0 + 0.55 + k*0.4, ZC + 0.3]); }
+    const fg = new T3.PlaneGeometry(1.8, 1.1, 8, 3); flags.push({geo:fg, x:x + 0.95 + O.x, y:y0 + h - 0.6, z:ZC + O.z, base:Float32Array.from(fg.attributes.position.array)});
+  }
+  for (const s of [-1, 1]) for (const x of [24, 32]) for (let k=0;k<5;k++) B.geo('rope', new T3.CylinderGeometry(0.02, 0.02, 10, 4), x - 2 + k, D + 5, ZC + s*2.9, s*0.5, 0, 0);
+  // the cannons, on carriages, pointing out of the gunports
+  const cannons = [];
+  for (const x of CAN) for (const s of [-1, 1]){
+    const zb = ZC + s*3.6; B.box('wood', [x - 0.38, D, zb - 0.55], [x + 0.38, D + 0.35, zb + 0.55]);
+    B.geo('iron', new T3.CylinderGeometry(0.17, 0.22, 1.8, 14), x, D + 0.55, zb + s*0.65, Math.PI/2); B.geo('iron', new T3.SphereGeometry(0.22, 10, 8), x, D + 0.55, zb - s*0.25);
+    B.geo('gold', new T3.TorusGeometry(0.2, 0.03, 6, 14), x, D + 0.55, zb + s*1.4, 0, 0, 0);
+    for (const sx of [-0.32, 0.32]) for (const dz of [-0.35, 0.35]) B.geo('dark', new T3.CylinderGeometry(0.16, 0.16, 0.08, 10), x + sx, D + 0.16, zb + dz, 0, 0, Math.PI/2);
+    cannons.push({x, s, load:new V(x + O.x, D + 0.78, zb - s*0.35 + O.z), muzzle:new V(x + O.x, D + 0.55, zb + s*1.6 + O.z), dir:new V(0, 0.18, s).normalize(), p:null, fuse:0});
+  }
+  // the hold: dry now. Crates, barrels, hammocks, a cannonball stack, and the treasure
+  for (const [x, z, n] of [[8, 18, 2], [10, 18, 1], [27, 24.8, 2], [30, 18, 1], [33.5, 18, 2]]) for (let k=0;k<n;k++) B.box('wood', [x, HOLD + k*1.0, z], [x + 1.6, HOLD + k*1.0 + 0.95, z + 1.6]);
+  const hammocks = []; for (const [x, z] of [[26, 19], [28.6, 19], [12, 25.5]]){ const hm = new T3.Mesh(new T3.CylinderGeometry(0.45, 0.45, 2.1, 12, 1, true, Math.PI, Math.PI), lam(0xd8c8a0, {side:T3.DoubleSide})); hm.rotation.z = Math.PI/2; hm.position.set(x + 1 + O.x, HOLD + 1.8, z + O.z); hammocks.push(hm); }
+  for (let k=0;k<10;k++){ const row = k < 4 ? 0 : k < 7 ? 1 : k < 9 ? 2 : 3, i = [0,1,2,3,0,1,2,0,1,0][k]; B.geo('iron', new T3.SphereGeometry(0.16, 8, 6), 13 + i*0.33 + row*0.165, HOLD + 0.16 + row*0.27, 25.6); }
+  // the treasure chest (touch it and it opens: gold everywhere)
+  const TCX = 33 + O.x, TCZ = 23.4 + O.z;
+  B.box('red', [32.3, HOLD, 22.9], [33.7, HOLD + 0.7, 23.9]); B.box('gold', [32.3, HOLD + 0.32, 22.88], [33.7, HOLD + 0.4, 23.92], {solid:false});
+  for (let k=0;k<26;k++){ const a = mr()*6.28, r = 0.4 + mr()*1.4; B.geo('gold', new T3.CylinderGeometry(0.07, 0.07, 0.015, 10), 33 + Math.cos(a)*r, HOLD + 0.01 + mr()*0.03, 23.4 + Math.sin(a)*r, (mr() - 0.5)*0.4, 0, (mr() - 0.5)*0.4); }
+  for (const [k, x, y, z] of [['barrel', 20, D, 18.2], ['barrel', 26, D, 25.8], ['barrel', 14, HOLD, 22], ['barrel', 16, HOLD, 19.5], ['box', 29, D, 18.3], ['box', 18, D, 25.7], ['bottle', 8, D + 0.8, 21.5], ['bottle', 25, HOLD, 22.5],
+    ['ball', 12.6, HOLD, 23], ['stick', 22, D, 25.6], ['mug', 9, D + 0.8, 22.5], ['book', 8.5, D + 0.8, 22.9], ['duck', 30, D, 20], ['barrel', 34, D, 19], ['mug', 20, HOLD, 24.5]]) B.prop(k, x, y, z);
+  const lampPos = [[11.9, D + 1.8, 17.5], [11.9, D + 1.8, 26.5], [14, HOLD + 2.3, 19.5], [20, HOLD + 2.3, 19.5], [26, HOLD + 2.3, 21.5], [32, HOLD + 2.3, 21.5], [8.5, D + 1.8, 22]];
+  const light = (x, y, z) => { x -= O.x; z -= O.z; let r = 1.05, g = 0.98, b = 0.9;
+    if (y < D - 0.1 || (x < QX && y < QY - 0.1)){ r = 0.28; g = 0.22; b = 0.16; for (const [lx, ly, lz] of lampPos){ const d = Math.hypot(x - lx, y - ly, z - lz), k = 1.3*Math.exp(-d/2.8); r += k; g += k*0.72; b += k*0.36; } }
+    return [r, g, b]; };
+  const grp = B.finish(light), nav = buildNav(B.solids, O, 44, 2, [D, HOLD]);
+  for (const s of sails){ const m = new T3.Mesh(s.geo, lam(0xffffff, {map:sailT, side:T3.DoubleSide})); m.position.set(s.x, s.y, s.z); m.rotation.y = Math.PI/2; grp.add(m); }
+  for (const f of flags){ const m = new T3.Mesh(f.geo, new T3.MeshBasicMaterial({map:flagT, side:T3.DoubleSide})); m.position.set(f.x, f.y, f.z); m.rotation.y = Math.PI/2; grp.add(m); }
+  for (const h of hammocks) grp.add(h);
+  // swinging hold lanterns
+  const lanterns = lampPos.slice(2, 6).map(([x, y, z], k) => { const g = new T3.Group(); g.position.set(x + O.x, y + 0.5, z + O.z); const l = new T3.Mesh(new T3.CylinderGeometry(0.1, 0.13, 0.26, 8), new T3.MeshBasicMaterial({color:0xffcf70})); l.position.y = -0.5; g.add(l);
+    const c = new T3.Mesh(new T3.CylinderGeometry(0.01, 0.01, 0.4, 4), lam(0x333333)); c.position.y = -0.2; g.add(c); grp.add(g); return {g, k}; });
+  // the wheel (spin it) and the bell (ring it)
+  B.cyl('wood', 0.09, 0.09, 1.0, 10.2, QY, ZC, 8);
+  const wheel = new T3.Group(); wheel.position.set(10.3 + O.x, QY + 1.05, ZC + O.z); wheel.rotation.y = Math.PI/2; grp.add(wheel);
+  wheel.add(new T3.Mesh(new T3.TorusGeometry(0.5, 0.045, 6, 18), lam(0x7a5230))); for (let k=0;k<8;k++){ const sp = new T3.Mesh(new T3.CylinderGeometry(0.025, 0.025, 1.3, 5), lam(0x7a5230)); sp.rotation.z = k*Math.PI/8; wheel.add(sp); }
+  wheel.add(new T3.Mesh(new T3.CylinderGeometry(0.1, 0.1, 0.12, 10).rotateX(Math.PI/2), lam(0xe0b040)));
+  let wheelV = 0, wheelA = 0, wheelHand = [null, null];
+  const bellG = new T3.Group(); bellG.position.set(33.5 + O.x, D + 2.3, 20.5 + O.z); grp.add(bellG); B.box('dark', [33.45, D, 20.45], [33.55, D + 2.4, 20.55]); B.box('dark', [33.4, D + 2.35, 20.3], [33.6, D + 2.45, 20.8]);
+  const bellPts = []; for (let k=0;k<=10;k++){ const t = k/10; bellPts.push(new T3.Vector2(0.08 + 0.17*Math.pow(t, 1.8) + (t > 0.85 ? (t - 0.85)*0.6 : 0), 0.4 - t*0.4)); }
+  const bellM = new T3.Mesh(new T3.LatheGeometry(bellPts, 16), lam(0xe0b040, {side:T3.DoubleSide})); bellM.position.set(0, -0.45, 0.2); bellG.add(bellM); let bellSw = 0, bellVv = 0, bellCD = 0;
+  const ding = v => { bellVv += v*3; if (!AC) return; const d = lastPlayer.distanceTo(bellG.position), vol = Math.min(1, 6/(2 + d))*v; for (const [f, a] of [[880, 0.4], [1320, 0.2], [1760, 0.12]]) tone('sine', f, f, 1.6, a*vol*0.5); };
+  // ropes to swing on, hanging from the main yard
+  const ropes = [[22.2, 19.6, 0], [22.2, 24.4, 2.2]].map(([x, z, ph]) => { const pv = new V(x + O.x, D + 6.6, z + O.z), L = 5.4; const g = new T3.Group(); g.position.copy(pv); grp.add(g);
+    const rm = new T3.Mesh(new T3.CylinderGeometry(0.03, 0.03, L, 6), lam(0xc0a878)); rm.position.y = -L/2; g.add(rm); const kn = new T3.Mesh(new T3.SphereGeometry(0.1, 8, 6), lam(0xa08858)); kn.position.y = -L; g.add(kn);
+    return {g, pv, L, ph, box:dynBox(), c:new V(), prev:new V()}; });
+  // the sea (real waves), sky, sun, islands with palm trees, gulls, sharks
+  const sea = new T3.Group(); sea.position.set(22 + O.x, 0, ZC + O.z); grp.add(sea);
+  const waterG = new T3.PlaneGeometry(124, 124, 70, 70); waterG.rotateX(-Math.PI/2); const wBase = Float32Array.from(waterG.attributes.position.array);
+  const wCol = new Float32Array(wBase.length); waterG.setAttribute('color', new T3.BufferAttribute(wCol, 3));
+  const water = new T3.Mesh(waterG, new T3.MeshLambertMaterial({vertexColors:true, emissive:0x04121e})); water.position.y = -0.2; sea.add(water);
+  const skyDome = new T3.Mesh(new T3.SphereGeometry(62, 24, 12), new T3.ShaderMaterial({side:T3.BackSide, depthWrite:false, fog:false, uniforms:{}, vertexShader:'varying float vy; void main(){ vy = normalize(position).y; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+    fragmentShader:'varying float vy; void main(){ vec3 top = vec3(0.25,0.55,0.92), hor = vec3(0.86,0.93,1.0), low = vec3(0.55,0.75,0.9); vec3 c = vy > 0.0 ? mix(hor, top, pow(vy, 0.6)) : mix(hor, low, min(1.0, -vy*4.0)); gl_FragColor = vec4(c, 1.0); }'}));
+  skyDome.position.set(22 + O.x, 0, ZC + O.z); skyDome.renderOrder = -10; grp.add(skyDome);
+  const sun = new T3.Mesh(new T3.SphereGeometry(3.2, 16, 10), new T3.MeshBasicMaterial({color:0xfff4c8, fog:false})); sun.position.set(-30, 26, 42); sea.add(sun);
+  const glow = new T3.Mesh(new T3.SphereGeometry(7, 16, 10), new T3.MeshBasicMaterial({color:0xfff0b0, fog:false, transparent:true, opacity:0.25, depthWrite:false})); glow.position.copy(sun.position); sea.add(glow);
+  for (let k=0;k<10;k++){ const c = new T3.Group(); for (let j=0;j<4;j++){ const b = new T3.Mesh(new T3.SphereGeometry(3 + mr()*2.5, 10, 6), new T3.MeshBasicMaterial({color:0xffffff, fog:false, transparent:true, opacity:0.9})); b.position.set(j*4 - 6, mr()*1.5, mr()*2); b.scale.y = 0.55; c.add(b); }
+    const a = mr()*6.3, r = 38 + mr()*14; c.position.set(Math.cos(a)*r, 24 + mr()*8, Math.sin(a)*r); c.scale.setScalar(0.7); sea.add(c); }
+  for (const [x, z, r] of [[-38, -30, 7], [34, 38, 9], [46, -20, 5]]){
+    const sand = new T3.Mesh(new T3.CylinderGeometry(r*1.05, r*1.3, 1.2, 20), lam(0xead9a6)); sand.position.set(x, -0.6, z); sea.add(sand);
+    const hill = new T3.Mesh(new T3.SphereGeometry(r*0.8, 16, 8, 0, 6.3, 0, 1.3), lam(0x4a9a3a)); hill.position.set(x, -0.2, z); sea.add(hill);
+    for (let k=0;k<4;k++){ const a = mr()*6.3, rr = r*(0.3 + mr()*0.5), px = x + Math.cos(a)*rr, pz = z + Math.sin(a)*rr, th = 5 + mr()*3;
+      const trunk = new T3.Mesh(new T3.CylinderGeometry(0.25, 0.4, th, 6), lam(0x8a6a40)); trunk.position.set(px, r*0.5 + th/2 - 1, pz); trunk.rotation.z = (mr() - 0.5)*0.4; sea.add(trunk);
+      for (let j=0;j<6;j++){ const leaf = new T3.Mesh(new T3.ConeGeometry(0.6, 3.6, 4), lam(0x2f8a2a)); const b = j/6*Math.PI*2; leaf.position.set(px + Math.cos(b)*1.4, r*0.5 + th - 1.2, pz + Math.sin(b)*1.4); leaf.rotation.set(Math.sin(b)*1.2, 0, -Math.cos(b)*1.2); sea.add(leaf); } } }
+  const gulls = Array.from({length:6}, (_, k) => { const g = new T3.Group(); for (const s of [-1, 1]){ const w = new T3.Mesh(new T3.BoxGeometry(0.7, 0.03, 0.18), lam(0xf4f4f4)); w.position.x = s*0.33; w.rotation.z = s*0.3; g.add(w); } const b = new T3.Mesh(new T3.SphereGeometry(0.1, 6, 4), lam(0xffffff)); b.scale.z = 2; g.add(b); grp.add(g); return {g, a:k, r:14 + k*3, h:D + 9 + k*1.5, sp:0.15 + k*0.03}; });
+  const fins = [0, 1].map(k => { const f = new T3.Mesh(new T3.ConeGeometry(0.4, 0.9, 4), lam(0x5a6670)); f.scale.z = 0.25; sea.add(f); return {f, a:k*3, r:12 + k*3}; });
+  // the kraken: every so often a tentacle rises beside the ship and slams the deck
+  const tent = new T3.Group(); grp.add(tent); const TN = 28, tSegs = Array.from({length:TN}, (_, k) => { const m = new T3.Mesh(new T3.SphereGeometry(0.6 - k*0.018, 12, 8), lam(0x7e325f)); tent.add(m); return m; });
+  for (let k=2;k<TN;k+=3){ const s = new T3.Mesh(new T3.SphereGeometry(0.11 - k*0.002, 8, 6), lam(0xf0c0d8)); tSegs[k].add(s); s.position.set(0, 0, 0.5 - k*0.016); }
+  tent.visible = false; const K_EVERY = 75, K_LEN = 7; let kSlamDone = -1, kSeen = -1;
+  const kPlan = n => { const r = Math.abs(Math.sin(n*12.9898)*43758.5453) % 1, r2 = Math.abs(Math.sin(n*78.233)*12543.13) % 1; return {x:12 + r*20 + O.x, side:r2 < 0.5 ? -1 : 1}; };
+  const splash = pos => { for (let k=0;k<20;k++) frostPuff(pos.clone().add(new V((R()-0.5)*0.8, 0, (R()-0.5)*0.8))); if (AC && pos.distanceTo(lastPlayer) < 25) noiseHit(0.6, 900, 0.6, 0.4); };
+  const sndBoom = v => { if (!AC) return; noiseHit(1.0, 220, 0.6, 1.0*v); tone('sine', 70, 30, 0.6, 0.7*v); noiseHit(0.2, 1500, 1, 0.5*v); };
+  const fuseS = () => { if (AC) noiseHit(1.0, 5000, 2, 0.08); };
+  const fire = (c, local) => { const pos = c.muzzle.clone(); flash(pos, 1.4); spawnSparks(pos, 50, 6); emitAsh(pos, 20, 0.3); for (let k=0;k<12;k++) emitFire(pos.clone(), c.dir.clone().multiplyScalar(4 + R()*4).add(new V(R()-0.5, R()-0.5, R()-0.5)), 0.12, 0.3);
+    sndBoom(Math.min(1, 6/(1 + pos.distanceTo(lastPlayer)))); if (local && netGame) netSend('ev', {t:'mapev', m:'ship', k:'boom', c:cannons.indexOf(c)}); };
+  const onShip = p => p.x > X0 - 0.4 + O.x && p.x < X1 + 5.2 + O.x && p.z > Z0 - 0.4 + O.z && p.z < Z1 + 0.4 + O.z;
+  const ride = (box, dlt) => { const h = loco.headPos(); let on = false;
+    for (const i of [0,1]) if (!on && !me.lost[i] && loco.S.wasTouching && loco.S.wasTouching[i]){ const p = loco.S.lastHand[i]; if (p.x > box.min[0] - 0.12 && p.x < box.max[0] + 0.12 && p.y > box.min[1] - 0.12 && p.y < box.max[1] + 0.12 && p.z > box.min[2] - 0.12 && p.z < box.max[2] + 0.12) on = true; }
+    if (on){ rig.position.add(dlt); for (const i of [0,1]) loco.S.lastHand[i].add(dlt); } return on; };
+  let roll = 0, chestOpen = 0, chestT = 0;
+  const lid = new T3.Group(); lid.position.set(TCX, HOLD + 0.7, TCZ - 0.5); grp.add(lid); const lidM = new T3.Mesh(new T3.CylinderGeometry(0.5, 0.5, 1.4, 12, 1, false, 0, Math.PI), lam(0xa8241e)); lidM.rotation.z = Math.PI/2; lidM.position.set(0, 0, 0.5); lid.add(lidM);
+  const lidBand = new T3.Mesh(new T3.CylinderGeometry(0.52, 0.52, 0.1, 12, 1, false, 0, Math.PI), lam(0xe0b040)); lidBand.rotation.z = Math.PI/2; lidBand.position.set(0, 0, 0.5); lid.add(lidBand);
+  const goldPile = new T3.Mesh(new T3.SphereGeometry(0.5, 12, 6, 0, 6.3, 0, 1.2), new T3.MeshBasicMaterial({color:0xffc830})); goldPile.scale.set(1.3, 0.35, 0.9); goldPile.position.set(TCX, HOLD + 0.62, TCZ); grp.add(goldPile);
+  MAPS.ship = {name:'PIRATE SHIP', group:grp, spawn:new V(28, D, 21).add(O), yaw:Math.PI/2, nav, yMin:-8, yMax:30, props:B.props,
+    sky:{bg:0x8fc6ea, fog:0xb8d8ee, near:40, far:130, hs:0xfff6e0, hg:0x2a5a7a, hi:1.05, ac:0xffffff, ai:0.32},
+    onEv(ev){ if (ev.k === 'boom' && cannons[ev.c]) fire(cannons[ev.c], false); else if (ev.k === 'bell') ding(ev.v || 1); else if (ev.k === 'chest'){ chestOpen = 1; chestT = 0; } },
+    dbg:() => ({ropes, tent, get kSeen(){ return kSeen; }, cannons, D, HOLD}),
+    update(dt, inGame){
+      const t = Date.now()/1000; roll = Math.sin(t*0.85)*0.045; const pitch = Math.sin(t*0.53 + 1)*0.018;
+      sea.rotation.set(roll, 0, pitch); sea.position.y = Math.sin(t*0.7)*0.15;
+      // waves
+      const pa = waterG.attributes.position.array;
+      for (let i=0;i<pa.length;i+=3){ const x = wBase[i], z = wBase[i+2], y = Math.sin(x*0.18 + t*1.1)*0.28 + Math.sin(z*0.23 - t*0.9)*0.22 + Math.sin((x + z)*0.5 + t*2.0)*0.06; pa[i+1] = y;
+        const f = Math.max(0, y - 0.32)*3, d = Math.min(1, Math.hypot(x, z)/60); wCol[i] = 0.03 + f*0.8 + d*0.12; wCol[i+1] = 0.2 + f*0.65 + d*0.2 + y*0.08; wCol[i+2] = 0.38 + f*0.5 + d*0.2 + y*0.08; }
+      waterG.attributes.position.needsUpdate = true; waterG.attributes.color.needsUpdate = true; if ((t*4|0) % 4 === 0) waterG.computeVertexNormals();
+      for (const s of sails){ const p = s.geo.attributes.position.array; for (let i=0;i<p.length;i+=3){ const u = s.base[i]/(s.w*0.9), v = s.base[i+1]/(s.h*0.5); p[i+2] = (1 - u*u)*(1 - v*v*0.5)*(0.45 + Math.sin(t*1.3 + s.x)*0.12); } s.geo.attributes.position.needsUpdate = true; }
+      for (const f of flags){ const p = f.geo.attributes.position.array; for (let i=0;i<p.length;i+=3){ const u = f.base[i] + 0.9; p[i+2] = Math.sin(u*3 - t*6)*0.15*u; } f.geo.attributes.position.needsUpdate = true; }
+      for (const l of lanterns){ l.g.rotation.z = Math.sin(t*0.85 + l.k)*0.18; l.g.rotation.x = Math.sin(t*0.53 + l.k*2)*0.08; }
+      hammocks.forEach((h, k) => h.rotation.x = Math.sin(t*0.85 + k)*0.12);
+      for (const g of gulls){ g.a += dt*g.sp; g.g.position.set(22 + O.x + Math.cos(g.a)*g.r, g.h + Math.sin(g.a*3)*0.6, ZC + O.z + Math.sin(g.a)*g.r*0.7); g.g.rotation.y = -g.a; g.g.children[0].rotation.z = 0.3 + Math.sin(t*6 + g.r)*0.4; g.g.children[1].rotation.z = -0.3 - Math.sin(t*6 + g.r)*0.4; }
+      for (const f of fins){ f.a += dt*0.25; f.f.position.set(Math.cos(f.a)*f.r, 0.1, Math.sin(f.a)*f.r*1.6); f.f.rotation.y = -f.a; }
+      wheelV *= Math.exp(-dt*0.8); wheelA += wheelV*dt; wheel.rotation.z = wheelA;
+      bellVv += (-bellSw*14 - bellVv*1.5)*dt; bellSw += bellVv*dt; bellG.rotation.z = bellSw*0.4; bellCD -= dt;
+      if (chestOpen > 0){ chestT += dt; if (chestT > 20){ chestOpen = 0; } } lid.rotation.x += ((chestOpen ? -1.9 : 0) - lid.rotation.x)*Math.min(1, dt*5); goldPile.visible = lid.rotation.x < -0.3;
+      if (chestOpen && chestT < 2 && R() < 0.5) spawnSparks(new V(TCX, HOLD + 0.9, TCZ), 1, 1.2);
+      // rope swings
+      for (const r of ropes){ const a = Math.sin(t*1.25 + r.ph)*0.55; r.g.rotation.x = a; r.prev.copy(r.c); r.c.set(r.pv.x, r.pv.y - Math.cos(a)*r.L, r.pv.z + Math.sin(a)*r.L);
+        setDyn(r.box, r.c.x - 0.12, r.c.y - 0.15, r.c.z - 0.12, r.c.x + 0.12, r.c.y + 2.2, r.c.z + 0.12); }
+      // the kraken: rises (0-3 s), sways, slams down at 5 s, sinks away by 7 s
+      const n = Math.floor(t/K_EVERY), kt = t - n*K_EVERY, kp = kPlan(n);
+      if (kt < K_LEN && n > 0){ tent.visible = true; kSeen = n;
+        const up = kt < 3 ? kt/3 : kt < 5 ? 1 : kt < 5.4 ? 1 : Math.max(0, 1 - (kt - 5.4)/1.6), slam = kt < 4.4 ? 0 : Math.min(1, (kt - 4.4)/0.5);
+        const base = new V(kp.x, -0.5, ZC + O.z + kp.side*(5.2 + (1 - up)*1.5));
+        tSegs.forEach((m, k) => { const u = k/(TN - 1), h = up*(u*8.5), bend = slam*u*u*(Math.PI*0.62), sway = Math.sin(t*2 + u*3)*0.3*(1 - slam)*u;
+          m.position.set(base.x + sway, base.y + Math.cos(bend)*h, base.z - kp.side*Math.sin(bend)*h*0.95); });
+        if (kt > 0.1 && kt - dt <= 0.1 && AC && inGame) tone('sawtooth', 60, 40, 1.5, 0.12);
+        if (slam >= 1 && kSlamDone !== n){ kSlamDone = n; const hit = tSegs[TN - 1].position.clone().setY(D + 0.2); splash(hit); sndClank(9); sndBoom(0.6); spawnSparks(hit, 40, 4);
+          if (inGame){ const h = loco.headPos(); if (Math.hypot(h.x - hit.x, h.z - hit.z) < 2.4 && h.y < D + 3){ loco.S.velocity.add(h.clone().sub(hit).setY(0).setLength(6)).add(new V(0, 5, 0)); pulse(0, 1, 250); pulse(1, 1, 250); lastCombat = clock; showMsg('THE KRAKEN!'); }
+            for (const p of parts){ if (p.parent || p.obj.userData.dead || !mine(p)) continue; const c = centerW(p); if (Math.hypot(c.x - hit.x, c.z - hit.z) < 2.6 && c.y < D + 2.5){ if (p.bot && p === p.bot.root && p.mode === 'bot'){ p.mode = 'free'; p.bot.stunT = 2; say(p.bot, pick(['KRAKEN!!','tentacles!','ahhh'])); } if (p.mode === 'free'){ p.asleep = false; p.v.add(c.clone().sub(hit).setY(0).setLength(5)).add(new V(0, 6, 0)); } } } } }
+      } else tent.visible = false;
+      if (!inGame) return;
+      // overboard = sharks
+      const h = loco.headPos(), feet = h.clone().setY(floorBelow(h));
+      if (!onShip(h) && h.y < 0.4){ splash(feet.clone().setY(0)); die(feet.z > Z1 + O.z && Math.abs(feet.x - PX - O.x) < 2 ? 'walking the plank' : 'the sharks'); return; }
+      // ride the ropes
+      for (const r of ropes) if (r.prev.lengthSq()) ride(r.box, r.c.clone().sub(r.prev));
+      // spin the wheel (push a spoke), ring the bell, open the chest
+      for (const i of [0,1]){ if (me.lost[i]) continue; const p = handW[i], wc = wheel.position;
+        if (Math.abs(p.x - wc.x) < 0.15 && Math.hypot(p.y - wc.y, p.z - wc.z) < 0.62 && Math.hypot(p.y - wc.y, p.z - wc.z) > 0.3 && hv[i].length() > 0.6){ const rr = new V(0, p.y - wc.y, p.z - wc.z), tq = rr.y*hv[i].z - rr.z*hv[i].y; wheelV += tq*dt*12; if (AC && R() < 0.05) noiseHit(0.08, 600, 2, 0.06); }
+        const bp = bellG.localToWorld(new V(0, -0.25, 0.2)); if (bellCD <= 0 && p.distanceTo(bp) < 0.3 && hv[i].length() > 1){ ding(Math.min(1.5, hv[i].length()/3)); bellCD = 0.4; pulse(i, 0.8, 80); if (netGame) netSend('ev', {t:'mapev', m:'ship', k:'bell', v:1}); }
+        if (!chestOpen && Math.abs(p.x - TCX) < 0.8 && Math.abs(p.z - TCZ) < 0.6 && p.y < HOLD + 1.1 && p.y > HOLD + 0.3){ chestOpen = 1; chestT = 0; if (AC){ tone('triangle', 520, 520, 0.12, 0.1); setTimeout(() => tone('triangle', 780, 780, 0.25, 0.1), 120); } showMsg('TREASURE!'); if (netGame) netSend('ev', {t:'mapev', m:'ship', k:'chest'}); }
+      }
+      for (const c of cannons){
+        if (c.p){ c.fuse -= dt; const p = c.p;
+          if (p.obj.userData.dead){ c.p = null; continue; }
+          p.obj.position.add(c.load.clone().addScaledVector(c.dir, 0.4).sub(centerW(p))); p.v.set(0, 0, 0); p.mode = 'free'; p.asleep = false;
+          if (R() < 0.4) spawnSparks(c.load.clone().add(new V(0, 0.25, 0)), 2, 1);
+          if (c.fuse <= 0){ p.obj.position.add(c.muzzle.clone().addScaledVector(c.dir, 0.3 + p.r).sub(centerW(p))); p.v.copy(c.dir).multiplyScalar(24); p.w.set(R()-0.5, R()-0.5, R()-0.5).multiplyScalar(15); fire(c, true); c.p = null; p.calmT = clock + 0.4; p.noLoad = clock + 2; p.cball = clock + 2.5; p.obj.updateMatrixWorld(true); p.cprev = centerW(p); }
+        }
+      }
+      for (const p of parts.slice()){
+        if (p.parent || p.obj.userData.dead || !mine(p) || p.mode === 'held' || p.stuck || p.inCannon) continue;
+        const c = centerW(p);
+        if (!onShip(c) && c.y < 0.1){ splash(c.clone().setY(0)); removePart(p); continue; }
+        if (p.bot && !p.bot.dead && p === p.bot.root && p.mode === 'bot') continue;
+        if (onShip(c) && c.y > D - 0.2 && c.y < D + 1.5){ p.v.z += Math.sin(roll)*9.81*dt*0.6; if (Math.abs(roll) > 0.03) p.asleep = false; }
+        if (p.name === 'mine' || p.noLoad > clock || cannons.some(k => k.p === p)) continue;
+        for (const k of cannons) if (!k.p && c.distanceTo(k.load) < 0.3 + p.r*0.5){ claim(p); k.p = p; k.fuse = 1.2; fuseS(); const b = p.bot; if (b && !b.dead && R() < 0.7) say(b, pick(['wait what','not the cannon','FIRE IN THE HOLE'])); break; }
       }
     }};
 }
@@ -6240,7 +6459,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261125052624';
+const BUILD = '20261125053643';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;
