@@ -1,4 +1,6 @@
-# BrowserGtagLocomotion — Backrooms Bot Scrap
+# Scrapper
+
+(The repo is still called BrowserGtagLocomotion for now.)
 
 A WebXR VR game for Meta Quest. The Backrooms here has half walls to vault, a tall hall with a ramp up to a balcony, and office chairs glitched into the walls. You're a scary robot in the Backrooms, moving with real Gorilla Tag locomotion, hunting cute chatbot robots and tearing them apart.
 

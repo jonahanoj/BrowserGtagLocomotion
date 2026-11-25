@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Map Viewer - Backrooms Bot Scrap</title>
+<title>Map Viewer - Scrapper</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&family=Rubik:wght@400;600&display=swap">
 <style>
@@ -44,7 +44,7 @@ li{margin:3px 0}
 <div class="score" id="score"></div>
 <div id="pcmsg"></div>
 <div class="panel">
-  <h1>Backrooms Bot Scrap</h1>
+  <h1>Scrapper</h1>
   <p class="sub">Gorilla Tag movement. Endless yellow rooms. You are the scary robot. The cute chatbots are made of parts, and parts come off.</p>
   <button id="vr" disabled>Checking for VR…</button>
   <ul>
@@ -664,7 +664,7 @@ function setMap(k){
 // ----- lobby visuals (built twice: once for real, once mirrored behind the glass) -----
 function signTex(w, h, draw){ return canvasTex(w, h, (g,W,Hh) => { g.fillStyle = '#1b1709'; g.fillRect(0,0,W,Hh); g.strokeStyle = '#e2cf72'; g.lineWidth = 10; g.strokeRect(5,5,W-10,Hh-10); draw(g,W,Hh); }); }
 const playTex = signTex(512, 200, (g,W,Hh) => { g.fillStyle = '#ff3b2f'; g.font = 'bold 130px VT323, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('PLAY', W/2, Hh/2+6); });
-const titleTex = signTex(768, 220, (g,W,Hh) => { g.fillStyle = '#e2cf72'; g.font = 'bold 88px VT323, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('BACKROOMS BOT SCRAP', W/2, Hh/2+4); });
+const titleTex = signTex(768, 220, (g,W,Hh) => { g.fillStyle = '#e2cf72'; g.font = 'bold 150px VT323, monospace'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('SCRAPPER', W/2, Hh/2+6); });
 const helpTex = signTex(640, 400, (g,W,Hh) => {
   g.fillStyle = '#fff8d8'; g.font = '34px Rubik, sans-serif'; g.textBaseline = 'top';
   ['RED button  play alone','BLUE button  play together','PINK button  game mode','GRIP  grab · both hands: rip','SWING  punch parts off','Y  back to this lobby']
@@ -6751,7 +6751,7 @@ setTimeout(() => {
   document.head.appendChild(css);
   const ui = document.createElement('div'); ui.id = 'vui';
   const keys = Object.keys(MAPS).filter(k => MAPS[k].group);
-  ui.innerHTML = `<h3>Backrooms Bot Scrap: map viewer</h3>
+  ui.innerHTML = `<h3>Scrapper: map viewer</h3>
     <div class="row"><select id="msel">${keys.map(k => `<option value="${k}">${MAPS[k].name}</option>`).join('')}<option value="lobby">LOBBY</option></select><button id="load">Load Map</button></div>
     <label><input type="checkbox" id="cfog" checked> Fog</label>
     <label><input type="checkbox" id="canim" checked> Animate (waves, gears, lava...)</label>

@@ -18,7 +18,7 @@
   document.head.appendChild(css);
   const ui = document.createElement('div'); ui.id = 'vui';
   const keys = Object.keys(MAPS).filter(k => MAPS[k].group);
-  ui.innerHTML = `<h3>Backrooms Bot Scrap: map viewer</h3>
+  ui.innerHTML = `<h3>Scrapper: map viewer</h3>
     <div class="row"><select id="msel">${keys.map(k => `<option value="${k}">${MAPS[k].name}</option>`).join('')}<option value="lobby">LOBBY</option></select><button id="load">Load Map</button></div>
     <label><input type="checkbox" id="cfog" checked> Fog</label>
     <label><input type="checkbox" id="canim" checked> Animate (waves, gears, lava...)</label>
