@@ -390,7 +390,7 @@ const WIN = {z0:1.1, z1:5.9, y1:2.5};              // mirror opening
 const PED = {x:-18.9, z:2.3, top:0.55, cap:0.2};    // PLAY button pedestal (front-right of spawn)
 const LOBBY_SPAWN = new V(-17.9, 0, 3.6), LOBBY_YAW = Math.PI/2;
 // the computer (like Gorilla Tag's): type a join code to play in a private room, or type your name
-const COMP = {x0:-12.95, x1:-12 - 0.12, z0:0.45, z1:1.97, top:0.85};
+const COMP = {x0:-12.95, x1:-12 - 0.12, z0:0.45, z1:1.97, top:0.65, stool:{x0:-13.62, x1:-12.97, h:0.3}};   // (with a step stool in front)
 const COMP_KEYS = (() => { const ks = [], row = (r, list, z0) => { let z = z0; for (const [k, w] of list){ ks.push({k, x:-12.35 - r*0.14, z:z + w/2, w}); z += w + 0.015; } };
   const one = str => [...str].map(c => [c, 0.13]);
   row(0, one('1234567890'), 0.55); row(1, one('QWERTYUIOP'), 0.55); row(2, one('ASDFGHJKL').concat([['DEL', 0.13]]), 0.55);
@@ -405,7 +405,7 @@ const SKB = {x:-18.9, z:3.15, top:0.55, cap:0.16};   // GAME MODE button: free p
 const ROLEB = {x:-18.9, z:4.05, top:0.55, cap:0.16}; // IMPOSTER role wish: random / seeker / hider
 // weapon buttons along the north wall: the claw that presses one gets that weapon
 const WPN = ['none','hammer','saw','flame','mine','laser','hook','freeze','glue','boomer','blower','cannon','size','shield','thermal'].map((k, i) => ({k, x:-14.2 - i*0.32, col:[0x9aa0a6,0xff9a2a,0xff3b2f,0x3aa0ff,0x5fd35a,0xff3050,0xb0905a,0x8fe0ff,0xe8e070,0xd0d6de,0x7fd0a0,0x8a5a30,0xc070ff,0xc8a048,0xff6a2a][i]})).map(w => Object.assign(w, {z:0.65, top:0.55, cap:0.15}));
-addBox([LB.x0-1,-1,LB.z0-1],[LB.x1+1,0,LB.z1+1]); addBox([COMP.x0, 0, COMP.z0], [COMP.x1, COMP.top, COMP.z1]);   // the computer desk addBox([LB.x0-1,H,LB.z0-1],[LB.x1+1,H+1,LB.z1+1]);
+addBox([LB.x0-1,-1,LB.z0-1],[LB.x1+1,0,LB.z1+1]); addBox([COMP.x0, 0, COMP.z0], [COMP.x1, COMP.top, COMP.z1]); addBox([COMP.stool.x0, 0, COMP.z0 + 0.08], [COMP.stool.x1, COMP.stool.h, COMP.z1 - 0.08]); addBox([LB.x0-1,H,LB.z0-1],[LB.x1+1,H+1,LB.z1+1]);   // (computer desk + step stool, then the ceiling)
 addBox([LB.x0-TW/2,0,LB.z0-TW/2],[LB.x0+TW/2,H,LB.z1+TW/2]);
 const RG = {x0:LB.x1, x1:-1, z0:LB.z0, z1:LB.z1, dz0:5.0, dz1:6.5, dh:2.35};   // target range, through a door in the lobby's east wall
 addBox([LB.x1-TW/2,0,LB.z0-TW/2],[LB.x1+TW/2,H,RG.dz0]); addBox([LB.x1-TW/2,0,RG.dz1],[LB.x1+TW/2,H,LB.z1+TW/2]); addBox([LB.x1-TW/2,RG.dh,RG.dz0],[LB.x1+TW/2,H,RG.dz1]);
@@ -834,8 +834,13 @@ function updateComputer(dt, keyMeshes){
 function buildComputer(parent){
   const desk = new T3.Mesh(new T3.BoxGeometry(COMP.x1 - COMP.x0, COMP.top, COMP.z1 - COMP.z0), new T3.MeshLambertMaterial({color:0x3a4048})); desk.position.set((COMP.x0 + COMP.x1)/2, COMP.top/2, (COMP.z0 + COMP.z1)/2); parent.add(desk);
   const top = new T3.Mesh(new T3.BoxGeometry(COMP.x1 - COMP.x0 + 0.04, 0.03, COMP.z1 - COMP.z0 + 0.04), new T3.MeshLambertMaterial({color:0x22262c})); top.position.set((COMP.x0 + COMP.x1)/2, COMP.top - 0.012, (COMP.z0 + COMP.z1)/2); parent.add(top);
-  const frame = new T3.Mesh(new T3.BoxGeometry(0.06, 0.78, 1.5), new T3.MeshLambertMaterial({color:0x1a1d22})); frame.position.set(COMP.x1 - 0.03, 1.46, (COMP.z0 + COMP.z1)/2); parent.add(frame);
-  plane(parent, termTex, 1.4, 0.7, COMP.x1 - 0.065, 1.46, (COMP.z0 + COMP.z1)/2, -Math.PI/2);
+  const frame = new T3.Mesh(new T3.BoxGeometry(0.06, 0.78, 1.5), new T3.MeshLambertMaterial({color:0x1a1d22})); frame.position.set(COMP.x1 - 0.03, 1.2, (COMP.z0 + COMP.z1)/2); parent.add(frame);
+  plane(parent, termTex, 1.4, 0.7, COMP.x1 - 0.065, 1.2, (COMP.z0 + COMP.z1)/2, -Math.PI/2);
+  { const st = COMP.stool, wood = new T3.MeshLambertMaterial({color:0x9a6a3a}), dark = new T3.MeshLambertMaterial({color:0x6a4424}), zc = (COMP.z0 + COMP.z1)/2, zw = COMP.z1 - COMP.z0 - 0.16;
+    const topB = new T3.Mesh(new T3.BoxGeometry(st.x1 - st.x0, 0.06, zw), wood); topB.position.set((st.x0 + st.x1)/2, st.h - 0.03, zc); parent.add(topB);
+    for (const dz of [-1, 1]){ const side = new T3.Mesh(new T3.BoxGeometry(st.x1 - st.x0 - 0.04, st.h - 0.06, 0.05), dark); side.position.set((st.x0 + st.x1)/2, (st.h - 0.06)/2, zc + dz*(zw/2 - 0.03)); parent.add(side); }
+    const mid = new T3.Mesh(new T3.BoxGeometry(0.05, st.h - 0.06, zw - 0.06), dark); mid.position.set((st.x0 + st.x1)/2, (st.h - 0.06)/2, zc); parent.add(mid);
+    const stripe = new T3.Mesh(new T3.BoxGeometry(0.04, 0.005, zw - 0.02), new T3.MeshBasicMaterial({color:0xf2c230})); stripe.position.set(st.x0 + 0.03, st.h + 0.003, zc); parent.add(stripe); }
   const meshes = [], kMat = new T3.MeshLambertMaterial({color:0xd8dde2}), sMat = new T3.MeshLambertMaterial({color:0x5dd88a});
   for (const k of COMP_KEYS){ const m = new T3.Group(); m.userData.key = k;
     const cap = new T3.Mesh(new T3.BoxGeometry(0.12, 0.035, k.w), k.k.length > 1 ? sMat : kMat); m.add(cap);
