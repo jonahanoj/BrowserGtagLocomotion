@@ -6977,7 +6977,7 @@ function wireTransport(t){
 // Transport 1: our relay server (Railway). Transport 2: Trystero (peer to peer), used if no server is set or it can't
 // be reached. Transport 3: BroadcastChannel (two tabs, for testing).
 // The server address can also be given in the link for testing: #server=wss://...
-const NET_SERVER = (location.hash.match(/server=([^&]+)/) || [])[1] ? decodeURIComponent(location.hash.match(/server=([^&]+)/)[1]) : '__NET_SERVER__';
+const NET_SERVER = (location.hash.match(/server=([^&]+)/) || [])[1] ? decodeURIComponent(location.hash.match(/server=([^&]+)/)[1]) : 'wss://scrapper-production-73703115.up.railway.app';
 function useTrystero(){
   Promise.reject('viewer: no multiplayer').then(({joinRoom, selfId}) => {
     const room = joinRoom({appId:'jonahanoj.github.io/BrowserGtagLocomotion'}, 'backrooms-bot-scrap');
@@ -7018,7 +7018,7 @@ if (location.hash.includes('bc')){
   let joinH = null;
   wireTransport({id, send:(type, data, to) => ch.postMessage({type, data, to, from:id}), on:(type, f) => hs_[type] = f, onJoin:f => joinH = f, onLeave:() => {}});
   ch.postMessage({type:'_join', from:id});
-} else if (NET_SERVER && !NET_SERVER.startsWith('__')) useServer(NET_SERVER);
+} else if (NET_SERVER && !NET_SERVER.startsWith('__')) useTrystero();
 else useTrystero();
 for (let k=0;k<4;k++) makeBot(BOT_COLORS[k], farCell(SPAWN));   // bots for the desktop preview
 // Cutting and burning use clipped copies of the robots' materials. Compiling those shaders the first time

@@ -6971,7 +6971,7 @@ function wireTransport(t){
 // Transport 1: our relay server (Railway). Transport 2: Trystero (peer to peer), used if no server is set or it can't
 // be reached. Transport 3: BroadcastChannel (two tabs, for testing).
 // The server address can also be given in the link for testing: #server=wss://...
-const NET_SERVER = (location.hash.match(/server=([^&]+)/) || [])[1] ? decodeURIComponent(location.hash.match(/server=([^&]+)/)[1]) : '__NET_SERVER__';
+const NET_SERVER = (location.hash.match(/server=([^&]+)/) || [])[1] ? decodeURIComponent(location.hash.match(/server=([^&]+)/)[1]) : 'wss://scrapper-production-73703115.up.railway.app';
 function useTrystero(){
   import('https://cdn.jsdelivr.net/npm/trystero@0.26.0/+esm').then(({joinRoom, selfId}) => {
     const room = joinRoom({appId:'jonahanoj.github.io/BrowserGtagLocomotion'}, 'backrooms-bot-scrap');
@@ -7031,7 +7031,7 @@ if (location.hash.includes('dev')) window.__g = {get NET(){return NET}, get netG
 
 // ================= auto-update =================
 // Checks the hosted page every 30 s; when a newer build is up it reloads (in VR it waits for the lobby).
-const BUILD = '20261126045039';
+const BUILD = '20261126050051';
 let updateReady = false;
 async function checkUpdate(){
   if (BUILD.startsWith('__') || !/github\.io$/.test(location.hostname)) return;

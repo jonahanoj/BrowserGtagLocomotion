@@ -18,6 +18,7 @@ wr('index.html', game.replace("const BUILD = '__BUILD__'", "const BUILD = '%s'" 
 tag = '<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>'
 v = game.replace(tag, '<script>' + rd('tools/three.min.js') + '</script>')
 v = v.replace("import('https://cdn.jsdelivr.net/npm/trystero@0.26.0/+esm')", "Promise.reject('viewer: no multiplayer')")
+v = v.replace("useServer(NET_SERVER);", "useTrystero();")   # the viewer never joins the multiplayer server
 v = v.replace('/*DBG*/', 'setTimeout(() => {\n' + rd('tools/viewer_inject.js') + '\n}, 0);')
 wr('tools/MapViewer.html', v.replace('<title>', '<title>Map Viewer - ', 1))
 print('built index.html (BUILD %s) and tools/MapViewer.html' % stamp)

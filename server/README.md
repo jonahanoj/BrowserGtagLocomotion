@@ -4,6 +4,6 @@ A tiny WebSocket relay for Scrapper's multiplayer. Players connect to a room, an
 messages on to the others. It keeps no game state.
 
 - Run locally: `npm install && npm start` (listens on `PORT`, default 8080)
-- Railway: deploy this repo with the service's Root Directory set to `server`, then generate a public domain.
+- Railway: deployed as the "Scrapper" service (root directory `server`, US East): wss://scrapper-production-73703115.up.railway.app
   The game connects to `wss://<that domain>` (set `NET_SERVER` in `src/game.html`).
 - Test any server without rebuilding: open the game with `#server=wss://your-server` in the link.

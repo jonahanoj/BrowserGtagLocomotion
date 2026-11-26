@@ -4432,7 +4432,7 @@ function wireTransport(t){
 // Transport 1: our relay server (Railway). Transport 2: Trystero (peer to peer), used if no server is set or it can't
 // be reached. Transport 3: BroadcastChannel (two tabs, for testing).
 // The server address can also be given in the link for testing: #server=wss://...
-const NET_SERVER = (location.hash.match(/server=([^&]+)/) || [])[1] ? decodeURIComponent(location.hash.match(/server=([^&]+)/)[1]) : '__NET_SERVER__';
+const NET_SERVER = (location.hash.match(/server=([^&]+)/) || [])[1] ? decodeURIComponent(location.hash.match(/server=([^&]+)/)[1]) : 'wss://scrapper-production-73703115.up.railway.app';
 function useTrystero(){
   import('https://cdn.jsdelivr.net/npm/trystero@0.26.0/+esm').then(({joinRoom, selfId}) => {
     const room = joinRoom({appId:'jonahanoj.github.io/BrowserGtagLocomotion'}, 'backrooms-bot-scrap');
