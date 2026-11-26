@@ -1,4 +1,11 @@
-; Scrapper - Godot port (VR, Meta Quest)
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
+
 config_version=5
 
 [application]
@@ -13,9 +20,9 @@ window/vsync/vsync_mode=0
 
 [physics]
 
-3d/physics_engine="Jolt Physics"
 common/physics_ticks_per_second=72
 common/max_physics_steps_per_frame=4
+3d/physics_engine="Jolt Physics"
 
 [rendering]
 
@@ -26,6 +33,7 @@ anti_aliasing/quality/msaa_3d=1
 [xr]
 
 openxr/enabled=true
+openxr/startup_alert=false
 openxr/foveation_level=3
 openxr/foveation_dynamic=true
 shaders/enabled=true
