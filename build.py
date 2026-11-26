@@ -2,7 +2,7 @@
 
     python build.py            -> index.html (the game) + tools/MapViewer.html
 
-index.html is what GitHub Pages serves (https://jonahanoj.github.io/BrowserGtagLocomotion/).
+index.html is what GitHub Pages serves (https://jonahanoj.github.io/Scrapper/).
 """
 import os, datetime
 ROOT = os.path.dirname(os.path.abspath(__file__))

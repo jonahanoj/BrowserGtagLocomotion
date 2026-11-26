@@ -1,10 +1,8 @@
 # Scrapper
 
-(The repo is still called BrowserGtagLocomotion for now.)
-
 A WebXR VR game for Meta Quest. The Backrooms here has half walls to vault, a tall hall with a ramp up to a balcony, and office chairs glitched into the walls. You're a scary robot in the Backrooms, moving with real Gorilla Tag locomotion, hunting cute chatbot robots and tearing them apart.
 
-**Play:** open https://jonahanoj.github.io/BrowserGtagLocomotion/ in the Quest Browser and press **Enter VR**.
+**Play:** open https://jonahanoj.github.io/Scrapper/ in the Quest Browser and press **Enter VR**.
 
 - Start in the lobby: see yourself in the mirror, then hit the red **PLAY** button.
 - Push off floors and walls with your hands to move; fling your arms to jump.
