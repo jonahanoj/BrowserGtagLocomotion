@@ -5544,6 +5544,8 @@ function thermalSwap(on){
 }
 function thermalTick(dt){
   let want = 0;
+  // no seeing robots through walls in Imposter: the goggles are taken away for the round
+  if (impGame()){ for (const i of [0, 1]) if (wpn[i] === 'thermal'){ wpn[i] = 'none'; showMsg('No thermal goggles in Imposter - they see through walls!'); } }
   for (const i of [0, 1]) if (wpn[i] === 'thermal' && !me.lost[i]){ const lp = myW[i].thermal.localToWorld(myW[i].thermal.lensPos.clone()), hp = loco.headPos(); if (lp.distanceTo(hp) < 0.17) want = 1; }
   if (window.__thermForce) want = 1;
   TH.on += ((want ? 1 : 0) - TH.on)*Math.min(1, dt*(want ? 9 : 12));
@@ -6972,14 +6974,11 @@ function wireTransport(t){
   t.on('hi', onHello); t.on('pose', onPose); t.on('st', onState); t.on('ev', onEvent);
   t.onJoin(id => netHello([id])); t.onLeave(onLeave);
 }
-// Transport 1: Trystero (real multiplayer). Transport 2: BroadcastChannel (two tabs, for testing).
-if (location.hash.includes('bc')){
-  const id = 'bc-' + Math.random().toString(36).slice(2,10), ch = new BroadcastChannel('bbs'), hs_ = {};
-  ch.onmessage = e => { const m = e.data; if (m.from === id || (m.to && !m.to.includes(id))) return; if (m.type === '_join'){ ch.postMessage({type:'_ack', from:id}); joinH && joinH(m.from); return; } if (m.type === '_ack'){ joinH && joinH(m.from); return; } hs_[m.type] && hs_[m.type](m.data, m.from); };
-  let joinH = null;
-  wireTransport({id, send:(type, data, to) => ch.postMessage({type, data, to, from:id}), on:(type, f) => hs_[type] = f, onJoin:f => joinH = f, onLeave:() => {}});
-  ch.postMessage({type:'_join', from:id});
-} else {
+// Transport 1: our relay server (Railway). Transport 2: Trystero (peer to peer), used if no server is set or it can't
+// be reached. Transport 3: BroadcastChannel (two tabs, for testing).
+// The server address can also be given in the link for testing: #server=wss://...
+const NET_SERVER = (location.hash.match(/server=([^&]+)/) || [])[1] ? decodeURIComponent(location.hash.match(/server=([^&]+)/)[1]) : '__NET_SERVER__';
+function useTrystero(){
   Promise.reject('viewer: no multiplayer').then(({joinRoom, selfId}) => {
     const room = joinRoom({appId:'jonahanoj.github.io/BrowserGtagLocomotion'}, 'backrooms-bot-scrap');
     const acts = {};
@@ -6989,6 +6988,38 @@ if (location.hash.includes('bc')){
       onJoin:f => room.onPeerJoin = f, onLeave:f => room.onPeerLeave = f});
   }).catch(e => { const el = $('net'); if (el) el.textContent = 'Multiplayer unavailable here (' + e.message + ').'; });
 }
+function useServer(url){
+  // one id for this tab, kept across reconnects, so the others see the same player come back
+  const id = 'w-' + Math.random().toString(36).slice(2, 10), hs_ = {}, peers = new Set(); let joinH = null, leaveH = null, ws = null, wired = false, gaveUp = false, tries = 0;
+  const connect = () => {
+    try { ws = new WebSocket(url.replace(/\/$/, '') + '/?room=scrapper&id=' + id); } catch(e){ fail(); return; }
+    const t0 = setTimeout(() => { if (ws.readyState !== 1) ws.close(); }, 6000);
+    ws.onopen = () => { clearTimeout(t0); tries = 0; };
+    ws.onmessage = e => { let m; try { m = JSON.parse(e.data); } catch(err){ return; }
+      if (m.sys === 'welcome'){
+        if (!wired){ wired = true; wireTransport({id, send:(type, data, to) => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({type, data, to:to ? [].concat(to) : undefined})); },
+          on:(type, f) => hs_[type] = f, onJoin:f => joinH = f, onLeave:f => leaveH = f}); }
+        for (const p of m.peers){ peers.add(p); joinH && joinH(p); } return; }
+      if (m.sys === 'join'){ peers.add(m.id); joinH && joinH(m.id); return; }
+      if (m.sys === 'leave'){ peers.delete(m.id); leaveH && leaveH(m.id); return; }
+      if (m.sys === 'full'){ const el = $('net'); if (el) el.textContent = 'The server room is full.'; return; }
+      const h = hs_[m.type]; if (h) h(m.data, m.from); };
+    ws.onclose = () => { clearTimeout(t0); for (const p of peers) leaveH && leaveH(p); peers.clear();
+      if (!wired && ++tries >= 2){ fail(); return; }               // never got in: fall back to peer to peer
+      setTimeout(connect, Math.min(10000, 1000*Math.pow(2, Math.min(tries++, 3)))); };
+    ws.onerror = () => {};
+  };
+  const fail = () => { if (gaveUp) return; gaveUp = true; console.warn('Relay server unreachable, using peer to peer'); useTrystero(); };
+  connect();
+}
+if (location.hash.includes('bc')){
+  const id = 'bc-' + Math.random().toString(36).slice(2,10), ch = new BroadcastChannel('bbs'), hs_ = {};
+  ch.onmessage = e => { const m = e.data; if (m.from === id || (m.to && !m.to.includes(id))) return; if (m.type === '_join'){ ch.postMessage({type:'_ack', from:id}); joinH && joinH(m.from); return; } if (m.type === '_ack'){ joinH && joinH(m.from); return; } hs_[m.type] && hs_[m.type](m.data, m.from); };
+  let joinH = null;
+  wireTransport({id, send:(type, data, to) => ch.postMessage({type, data, to, from:id}), on:(type, f) => hs_[type] = f, onJoin:f => joinH = f, onLeave:() => {}});
+  ch.postMessage({type:'_join', from:id});
+} else if (NET_SERVER && !NET_SERVER.startsWith('__')) useServer(NET_SERVER);
+else useTrystero();
 for (let k=0;k<4;k++) makeBot(BOT_COLORS[k], farCell(SPAWN));   // bots for the desktop preview
 // Cutting and burning use clipped copies of the robots' materials. Compiling those shaders the first time
 // they're needed causes a hitch, so they're compiled ahead of time, one per frame, while you're in the lobby.
